@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test PDF ADIR</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 60px auto; padding: 20px; }
+        button { padding: 14px 28px; font-size: 1rem; margin: 10px 5px; cursor: pointer; border: none; border-radius: 8px; }
+        .btn-primary { background: #1e40af; color: white; }
+        .btn-secondary { background: #6b7280; color: white; }
+        #log { margin-top: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; min-height: 80px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Diagnóstico PDF ADIR</h1>
+    <p>Pulsa cada botón y observa qué se descarga:</p>
+    
+    <button class="btn-primary" onclick="testMetodo1()">📄 Test jsPDF via dataURIstring</button>
+    <button class="btn-primary" onclick="testMetodo2()">📄 Test jsPDF via Blob</button>
+    <button class="btn-secondary" onclick="testSinJsPDF()">📄 Test Blob puro (sin jsPDF)</button>
+
+    <div id="log">Esperando acción...</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+    function log(msg) {
+        document.getElementById('log').textContent += '\n' + new Date().toLocaleTimeString() + ': ' + msg;
+    }
+
+    function testMetodo1() {
+        try {
+            log('Iniciando Test Método 1 (dataURIstring)...');
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(20);
+            doc.text('ADIR REFORMAS - Test PDF', 14, 30);
+            doc.setFontSize(12);
+            doc.text('Método: dataURIstring + <a download>', 14, 50);
+            doc.text('Si ves este PDF, el método 1 funciona.', 14, 65);
+            
+            const dataUri = doc.output('datauristring');
+            const link = document.createElement('a');
+            link.href = dataUri;
+            link.download = 'test_metodo1_adir.pdf';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => document.body.removeChild(link), 200);
+            log('✅ Método 1 ejecutado. Revisa tu carpeta Descargas.');
+        } catch(e) { log('❌ Método 1 ERROR: ' + e.message); }
+    }
+
+    function testMetodo2() {
+        try {
+            log('Iniciando Test Método 2 (Blob)...');
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(20);
+            doc.text('ADIR REFORMAS - Test PDF', 14, 30);
+            doc.setFontSize(12);
+            doc.text('Método: Blob + URL.createObjectURL', 14, 50);
+            doc.text('Si ves este PDF, el método 2 funciona.', 14, 65);
+            
+            const blob = doc.output('blob');
+            log('Blob generado: type=' + blob.type + ', size=' + blob.size + ' bytes');
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'test_metodo2_adir.pdf';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 3000);
+            log('✅ Método 2 ejecutado. Revisa tu carpeta Descargas.');
+        } catch(e) { log('❌ Método 2 ERROR: ' + e.message); }
+    }
+
+    function testSinJsPDF() {
+        try {
+            log('Iniciando Test Blob puro (sin jsPDF)...');
+            // PDF mínimo válido hardcodeado
+            const pdfContent = '%PDF-1.4\n1 0 obj<</Type /Catalog /Pages 2 0 R>>endobj\n2 0 obj<</Type /Pages /Kids [3 0 R] /Count 1>>endobj\n3 0 obj<</Type /Page /Parent 2 0 R /Resources<<>> /MediaBox[0 0 612 792] /Contents 4 0 R>>endobj\n4 0 obj<</Length 44>>stream\nBT /F1 12 Tf 100 700 Td (Test ADIR PDF) Tj ET\nendstream endobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\n0000000115 00000 n\n0000000266 00000 n\ntrailer<</Size 5 /Root 1 0 R>>\nstartxref\n360\n%%EOF';
+            const blob = new Blob([pdfContent], { type: 'application/pdf' });
+            log('Blob puro: type=' + blob.type + ', size=' + blob.size + ' bytes');
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'test_puro_adir.pdf';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 3000);
+            log('✅ Test puro ejecutado. Revisa tu carpeta Descargas.');
+        } catch(e) { log('❌ Test puro ERROR: ' + e.message); }
+    }
+    </script>
+</body>
+</html>

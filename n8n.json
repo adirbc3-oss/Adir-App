@@ -1,0 +1,965 @@
+{
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "fase4-licitacion",
+                "options": {}
+            },
+            "id": "cfb191e2-ad31-4152-8f6f-6ea30da56db7",
+            "name": "Webhook Local (Fase 4)",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                -752,
+                -64
+            ],
+            "webhookId": "fase4-licitacion-webhook"
+        },
+        {
+            "parameters": {
+                "tableId": "solicitudes",
+                "fieldsUi": {
+                    "fieldValues": [
+                        {
+                            "fieldId": "propuesta_id",
+                            "fieldValue": "={{ $json.body.propuesta_id }}"
+                        },
+                        {
+                            "fieldId": "proveedor_id",
+                            "fieldValue": "={{ $json.body.proveedor_id }}"
+                        },
+                        {
+                            "fieldId": "proveedor_nombre",
+                            "fieldValue": "={{ $json.body.proveedor_nombre }}"
+                        },
+                        {
+                            "fieldId": "proveedor_email",
+                            "fieldValue": "={{ $json.body.proveedor_email }}"
+                        },
+                        {
+                            "fieldId": "token",
+                            "fieldValue": "={{ $json.body.token }}"
+                        },
+                        {
+                            "fieldId": "oficio_solicitado",
+                            "fieldValue": "={{ $json.body.oficio_solicitado }}"
+                        },
+                        {
+                            "fieldId": "tareas",
+                            "fieldValue": "={{ JSON.stringify($json.body.tareas) }}"
+                        }
+                    ]
+                }
+            },
+            "id": "d9702224-7033-4f82-9b63-c6de2ac5436c",
+            "name": "Supabase - Guardar Solicitud",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                -528,
+                -64
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "zRJgR9rqUYs2MbiM",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "fromEmail": "={{ $credentials.user }}",
+                "toEmail": "={{ $('Webhook Local (Fase 4)').item.json.body.proveedor_email }}",
+                "subject": "=Solicitud de presupuesto — {{ $('Webhook Local (Fase 4)').item.json.body.oficio_solicitado }} | Proyecto ADIR",
+                "html": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px;\">\n  <h2 style=\"color: #1d4ed8;\">Solicitud de Presupuesto</h2>\n  <p>Hola <strong>{{ $('Webhook Local (Fase 4)').item.json.body.proveedor_nombre }}</strong>,</p>\n  <p>Desde <strong>ADIR Reformas</strong> solicitamos presupuesto para el siguiente gremio:</p>\n\n  <table style=\"width:100%; border-collapse: collapse; margin: 16px 0;\">\n    <tr style=\"background:#f3f4f6;\">\n      <td style=\"padding:8px; font-weight:bold;\">Gremio</td>\n      <td style=\"padding:8px;\">{{ $('Webhook Local (Fase 4)').item.json.body.oficio_solicitado }}</td>\n    </tr>\n  </table>\n\n  <h3 style=\"margin-top: 24px;\">Partidas a presupuestar:</h3>\n  <table style=\"width:100%; border-collapse: collapse; font-size: 0.9rem;\">\n    <thead>\n      <tr style=\"background:#1d4ed8; color:white;\">\n        <th style=\"padding:8px; text-align:left;\">Código</th>\n        <th style=\"padding:8px; text-align:left;\">Descripción</th>\n        <th style=\"padding:8px; text-align:right;\">Unidad</th>\n      </tr>\n    </thead>\n    <tbody>\n      {{ $('Webhook Local (Fase 4)').item.json.body.tareas.map((t, i) => `\n        <tr style=\"background: ${i%2===0 ? '#f9fafb' : 'white'};\">\n          <td style=\"padding:8px; border-bottom: 1px solid #e5e7eb;\">${t.cap}</td>\n          <td style=\"padding:8px; border-bottom: 1px solid #e5e7eb;\">${t.descripcion}</td>\n          <td style=\"padding:8px; text-align:right; border-bottom: 1px solid #e5e7eb;\">${t.unidad}</td>\n        </tr>`).join('') }}\n    </tbody>\n  </table>\n\n  <div style=\"margin-top: 24px; text-align: center; padding: 16px; background: #eff6ff; border-radius: 6px;\">\n    <p style=\"margin-bottom:12px; font-size: 16px;\">Para enviar su presupuesto, haga clic en el siguiente botón:</p>\n    <a href=\"http://localhost:5678/webhook/portal-proveedor?token={{ $('Webhook Local (Fase 4)').item.json.body.token }}\" \n       style=\"display:inline-block; padding: 12px 24px; background-color:#1d4ed8; color:#ffffff; text-decoration:none; border-radius:6px; font-weight: bold;\">\n      Responder Presupuesto\n    </a>\n  </div>\n\n  <p style=\"margin-top: 30px; font-size: 11px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 15px;\">\n    Este es un mensaje automático de la plataforma de presupuestos de ADIR Reformas. Por favor, no responda directamente a este email.\n  </p>\n</div>\n",
+                "options": {}
+            },
+            "id": "81f0ad84-dedc-4266-8c52-730057a9d4c3",
+            "name": "Enviar Email (SMTP)",
+            "type": "n8n-nodes-base.emailSend",
+            "typeVersion": 2.1,
+            "position": [
+                -304,
+                -64
+            ],
+            "webhookId": "ed449389-1e7e-4743-a7e8-d81ee72ce1f8",
+            "credentials": {
+                "smtp": {
+                    "id": "wzfVPYXjNIWONEqU",
+                    "name": "SMTP account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "path": "portal-proveedor",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "2820e43c-0158-4ea2-8a04-013e5f1f3dac",
+            "name": "Webhook (Servir HTML)",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                -944,
+                160
+            ],
+            "webhookId": "portal-proveedor-webhook"
+        },
+        {
+            "parameters": {
+                "operation": "getAll",
+                "tableId": "solicitudes",
+                "limit": 1,
+                "filters": {
+                    "conditions": [
+                        {
+                            "keyName": "token",
+                            "condition": "eq",
+                            "keyValue": "={{ $json.query.token }}"
+                        }
+                    ]
+                }
+            },
+            "id": "13ab5cd7-2169-4897-b253-1bf4ff6c9245",
+            "name": "Supabase - Leer Solicitud",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                -720,
+                160
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "zRJgR9rqUYs2MbiM",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "getAll",
+                "tableId": "partidas",
+                "returnAll": true,
+                "filters": {
+                    "conditions": [
+                        {
+                            "keyName": "propuesta_id",
+                            "condition": "eq",
+                            "keyValue": "={{ $json.propuesta_id }}"
+                        }
+                    ]
+                }
+            },
+            "id": "e18e93d3-dec3-4acd-9fa6-9c2613d6f3ee",
+            "name": "Supabase - Leer Partidas",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                -496,
+                160
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "zRJgR9rqUYs2MbiM",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "const solicitud = $(\"Supabase - Leer Solicitud\").first()?.json;\n\n// 0. VALIDAR EXISTENCIA\nif (!solicitud) {\n  return [{ json: { html: `\n    <!DOCTYPE html><html><body style=\"text-align:center; padding:50px; font-family:sans-serif;\">\n    <h1 style=\"color:#dc2626;\">Enlace no válido</h1>\n    <p>Lo sentimos, no hemos podido encontrar los detalles de esta solicitud.</p>\n    <p style=\"color:#666;\">Por favor, contacte con ADIR si cree que es un error.</p></body></html>` } }];\n}\n\n// 1. ANULAR ENLACE SI YA HA SIDO RESPONDIDO\nif (solicitud.estado === 'Respondido') {\n  return [{ json: { html: `\n    <!DOCTYPE html><html><body style=\"text-align:center; padding:50px; font-family:sans-serif;\">\n    <h1 style=\"color:#1d4ed8;\">Solicitud Cerrada</h1>\n    <p>Este presupuesto ya ha sido enviado anteriormente. No es posible editarlo.</p>\n    <p style=\"color:#666;\">Gracias por su colaboración.</p></body></html>` } }];\n}\n\n// 2. FILTRAR PARTIDAS\nconst inputItems = $input.all();\nconst partidas = inputItems.length > 0 ? inputItems.map(i => i.json) : [];\nconst normalize = (str) => str ? str.trim().toLowerCase().normalize(\"NFD\").replace(/[\\u0300-\\u036f]/g, \"\") : \"\";\nconst buscado = normalize(solicitud.oficio_solicitado);\n\nconst partidasFiltradas = partidas.filter(p => \n  normalize(p.oficio_necesario) === buscado || \n  normalize(p.oficio_asignado) === buscado\n);\n\nlet contentHtml = \"\";\nif (partidasFiltradas.length === 0) {\n  contentHtml = `<div style=\"padding:40px; text-align:center; background:#fff3cd; color:#856404; border-radius:8px;\">\n    <h3>No hay partidas asignadas</h3>\n    <p>No se han encontrado partidas específicas para el oficio: <strong>${solicitud.oficio_solicitado}</strong> en este proyecto.</p>\n  </div>`;\n} else {\n  const filasHtml = partidasFiltradas.map(p => `\n    <tr>\n      <td style=\"padding:10px; border-bottom:1px solid #ddd;\">${p.texto_descripcion || p.texto_partida || 'Sin descripción'}</td>\n      <td style=\"padding:10px; border-bottom:1px solid #ddd; text-align:center;\">${p.unidad || 'ud'}</td>\n      <td style=\"padding:10px; border-bottom:1px solid #ddd; text-align:right;\">${p.cantidad || 1}</td>\n      <td style=\"padding:10px; border-bottom:1px solid #ddd; text-align:right;\">\n        <input type=\"text\" name=\"precio_${p.id}\" required style=\"padding:8px; width:80px; text-align:right; border:1px solid #ccc; border-radius:4px;\">\n      </td>\n      <td style=\"padding:10px; border-bottom:1px solid #ddd;\">\n        <input type=\"text\" name=\"comentario_${p.id}\" placeholder=\"Nota...\" style=\"padding:8px; width:120px; border:1px solid #ccc; border-radius:4px;\">\n      </td>\n    </tr>\n  `).join('');\n\n  contentHtml = `\n    <form action=\"http://localhost:5678/webhook/fase5-procesar\" method=\"POST\">\n      <input type=\"hidden\" name=\"solicitud_id\" value=\"${solicitud.id}\">\n      <input type=\"hidden\" name=\"proveedor_id\" value=\"${solicitud.proveedor_id || ''}\">\n      <table style=\"width:100%; border-collapse: collapse;\">\n        <thead><tr style=\"background:#e9ecef;\"><th style=\"padding:10px; text-align:left;\">Descripción</th><th style=\"padding:10px; text-align:center;\">Unidad</th><th style=\"padding:10px; text-align:right;\">Cant.</th><th style=\"padding:10px; text-align:right;\">Precio (€)</th><th style=\"padding:10px; text-align:left;\">Obs.</th></tr></thead>\n        <tbody>${filasHtml}</tbody>\n      </table>\n      <div style=\"text-align: right; margin-top: 20px;\">\n        <button type=\"submit\" style=\"padding:12px 24px; background:#0d6efd; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;\">Enviar Presupuesto Oficial</button>\n      </div></form>`;\n}\n\nconst html = `\n<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Portal Proveedor</title></head>\n<body style=\"font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px;\">\n  <h1 style=\"color: #1d4ed8;\">Portal de Presupuestos - ADIR</h1>\n  <div style=\"background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;\">\n    <h3>Hola, ${solicitud.proveedor_nombre || 'Proveedor'}</h3>\n    <p>Por favor, indica tu precio y cualquier observación para <strong>${solicitud.oficio_solicitado}</strong>.</p>\n  </div>\n  ${contentHtml}\n</body></html>`;\n\nreturn [{ json: { html } }];\n"
+            },
+            "id": "8c2f3470-ef53-4941-a280-7671fad4d147",
+            "name": "Generar HTML",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                -272,
+                160
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "text",
+                "responseBody": "={{ $json.html }}",
+                "options": {
+                    "responseHeaders": {
+                        "entries": [
+                            {
+                                "name": "Content-Type",
+                                "value": "text/html; charset=utf-8"
+                            }
+                        ]
+                    }
+                }
+            },
+            "id": "c5a280e8-b452-42f7-b16a-b89a63d08831",
+            "name": "Devolver Pagina Web",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                -64,
+                160
+            ]
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "fase5-procesar",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "79b3c55e-3889-4680-b2a7-194870f18388",
+            "name": "Webhook (Recibir Formulario)",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                -944,
+                480
+            ],
+            "webhookId": "fase5-procesar-webhook"
+        },
+        {
+            "parameters": {
+                "jsCode": "const body = $input.item.json.body;\nconst items = [];\n\nfor (const key of Object.keys(body)) {\n  if (key.startsWith('precio_')) {\n     const id = key.replace('precio_', '');\n     const rawValue = body[key] || \"0\";\n     \n     // NORMALIZAR: Cambia comas por puntos antes de convertir a número\n     const normalizedValue = parseFloat(rawValue.toString().replace(',', '.')); \n\n     items.push({\n       json: {\n         solicitud_id: body.solicitud_id,\n         proveedor_id: body.proveedor_id || null,\n         partida_id: id,\n         precio_ofertado: isNaN(normalizedValue) ? 0 : normalizedValue,\n         comentarios: body['comentario_' + id] || \"\"\n       }\n     });\n  }\n}\nreturn items;\n"
+            },
+            "id": "6af5ce04-8d1c-423d-aab9-08165a7a009b",
+            "name": "Preparar Insert en Supabase",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                -720,
+                480
+            ]
+        },
+        {
+            "parameters": {
+                "tableId": "respuestas",
+                "fieldsUi": {
+                    "fieldValues": [
+                        {
+                            "fieldId": "solicitud_id",
+                            "fieldValue": "={{ $json.solicitud_id }}"
+                        },
+                        {
+                            "fieldId": "proveedor_id",
+                            "fieldValue": "={{ $json.proveedor_id }}"
+                        },
+                        {
+                            "fieldId": "partida_id",
+                            "fieldValue": "={{ $json.partida_id }}"
+                        },
+                        {
+                            "fieldId": "precio_ofertado",
+                            "fieldValue": "={{ $json.precio_ofertado }}"
+                        },
+                        {
+                            "fieldId": "comentarios",
+                            "fieldValue": "={{ $json.comentarios }}"
+                        }
+                    ]
+                }
+            },
+            "id": "8122a5dd-1b0b-4247-8db7-be22eb94c425",
+            "name": "Supabase - Guardar Precios",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                -496,
+                480
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "zRJgR9rqUYs2MbiM",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "update",
+                "tableId": "solicitudes",
+                "filters": {
+                    "conditions": [
+                        {
+                            "keyName": "id",
+                            "condition": "eq",
+                            "keyValue": "={{ $json.id }}"
+                        }
+                    ]
+                },
+                "fieldsUi": {
+                    "fieldValues": [
+                        {
+                            "fieldId": "estado_solicitud",
+                            "fieldValue": "Respondido"
+                        }
+                    ]
+                }
+            },
+            "id": "52586884-952b-41cb-b076-860faba1ef6e",
+            "name": "Supabase - Marcar Respondida",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                -336,
+                704
+            ],
+            "credentials": {
+                "supabaseApi": {
+                    "id": "zRJgR9rqUYs2MbiM",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "respondWith": "text",
+                "responseBody": "=<!DOCTYPE html><html><body style=\"text-align:center; padding:50px; font-family:sans-serif;\"><h1 style=\"color:green;\">¡Muchas Gracias!</h1><p>Sus precios han sido registrados correctamente. ADIR le contactará próximamente.</p></body></html>",
+                "options": {
+                    "responseHeaders": {
+                        "entries": [
+                            {
+                                "name": "Content-Type",
+                                "value": "text/html; charset=utf-8"
+                            }
+                        ]
+                    }
+                }
+            },
+            "id": "aa648aed-01ee-4bf6-9201-92da55272044",
+            "name": "Responder Mensaje de Éxito",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                -112,
+                704
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "return [{ json: { id: $(\"Webhook (Recibir Formulario)\").item.json.body.solicitud_id } }];"
+            },
+            "id": "02a3613c-c06a-40c7-934f-c5135f9e167b",
+            "name": "Recuperar ID de Solicitud",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                -624,
+                720
+            ]
+        },
+        {
+            "parameters": {
+                "downloadAttachments": true,
+                "dataPropertyAttachmentsPrefixName": "attachment_0",
+                "options": {}
+            },
+            "name": "EmailRead Imap",
+            "type": "n8n-nodes-base.emailReadImap",
+            "typeVersion": 2,
+            "position": [
+                288,
+                32
+            ],
+            "id": "4b23f3fa-58fb-4d6f-8e08-2d97c76d4c89",
+            "credentials": {
+                "imap": {
+                    "id": "A6FuzmPu52oOHbkK",
+                    "name": "IMAP account 2"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "text",
+                "binaryPropertyName": "attachment_00",
+                "options": {
+                    "encoding": "windows1252"
+                }
+            },
+            "name": "Extraer Fichero BC3",
+            "type": "n8n-nodes-base.extractFromFile",
+            "typeVersion": 1,
+            "position": [
+                688,
+                32
+            ],
+            "id": "27f16d3f-264a-4fca-986d-1c2ce9dbaad4"
+        },
+        {
+            "parameters": {
+                "jsCode": "const binaryData = $input.item.binary || {};\nconst attachmentKey = Object.keys(binaryData).find(k => k.startsWith('attachment')) || null;\nconst infoArchivo = attachmentKey ? binaryData[attachmentKey] : null;\nconst nombreArchivo = infoArchivo ? (infoArchivo.fileName || infoArchivo.filename || infoArchivo.name || \"Presupuesto Sin Titulo\") : \"Presupuesto Sin Titulo\";\nconst tituloLimpio = nombreArchivo.replace(/\\.[^/.]+$/, \"\").trim();\nconst idUnico = tituloLimpio + \"_\" + Math.floor(Date.now() / 1000);\n\n// Buscamos el email del remitente de forma segura\nlet emailRemitente = \"Desconocido\";\ntry {\n    const from = $node[\"EmailRead Imap\"].json.from;\n    emailRemitente = from.value?.[0]?.address || from.text || (typeof from === 'string' ? from : \"Desconocido\");\n} catch (e) {\n    emailRemitente = \"Error en remitente\";\n}\n\n// 2. PARSEO DE CONTENIDO BC3\nconst archivoTexto = $input.item.json.data || \"\";\nconst lines = archivoTexto.split(/\\r?\\n/);\nconst conceptos = {};\nconst relaciones = [];\n\nfor (const line of lines) {\n    if (!line.trim()) continue;\n    const parts = line.split('|');\n    const tag = parts[0];\n\n    if (tag === '~C') {\n        const codigo = parts[1]?.trim() || \"S/C\";\n        let precio = parseFloat(parts[4]?.replace(',', '.') || '0');\n        conceptos[codigo] = { \n            Capítulo: codigo, \n            Descripción: parts[3]?.trim() || 'Sin descripción', \n            Precio: isNaN(precio) ? 0 : precio, \n            conceptos: [] \n        };\n    } else if (tag === '~D') {\n        const padre = parts[1]?.trim();\n        let raw_hijos = parts[2] ? parts[2].trim() : '';\n        if (raw_hijos.endsWith('\\\\')) raw_hijos = raw_hijos.slice(0, -1);\n        const items = raw_hijos.split('\\\\');\n        for (let i = 0; i < items.length; i += 3) {\n            if (items[i]) {\n                relaciones.push([\n                    padre, \n                    items[i].trim(), \n                    parseFloat(items[i+1]?.replace(',', '.') || 1) * parseFloat(items[i+2]?.replace(',', '.') || 0)\n                ]);\n            }\n        }\n    }\n}\n\n// 3. ESTRUCTURAR JERARQUÍA\nconst hijos = new Set();\nfor (const [p, h, q] of relaciones) {\n    if (conceptos[p] && conceptos[h]) {\n        conceptos[p].conceptos.push({ ...conceptos[h], Cantidad: q });\n        hijos.add(h);\n    }\n}\n\n// 4. APLANAR PARA BASE DE DATOS\nconst filas = [];\nconst flatten = (arr) => {\n    for (const c of arr) {\n        if (!c.Capítulo) continue; // Seguridad extra\n        filas.push({ \n            propuesta_id: idUnico, \n            texto_partida: (c.Capítulo || \"S/C\") + '::' + (c.Descripción || \"Sin descripción\"), \n            cantidad: c.Cantidad || 0, \n            precio_base_estimado: c.Precio || 0\n        });\n        if (c.conceptos && c.conceptos.length > 0) {\n            flatten(c.conceptos);\n        }\n    }\n};\n\nconst raices = Object.values(conceptos).filter(c => !hijos.has(c.Capítulo));\nflatten(raices);\n\n// 5. SALIDA FINAL\nreturn [{\n    json: {\n        propuesta_maestra: {\n            Proyecto: idUnico,          \n            cliente: emailRemitente,   \n            estado: 'Pendiente',\n            fecha_recepcion: new Date().toISOString()\n        },\n        partidas_hijas: filas\n    }\n}];\n"
+            },
+            "name": "Parsear FIEBDC a JSON",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                896,
+                32
+            ],
+            "id": "17c1eca3-f1a2-4b4b-b37a-04f3c91b820e"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict",
+                        "version": 3
+                    },
+                    "conditions": [
+                        {
+                            "id": "4dde3dd8-154a-413b-9a87-1350777d1863",
+                            "leftValue": "={{ $binary.attachment_00.fileExtension }}",
+                            "rightValue": "bc3",
+                            "operator": {
+                                "type": "string",
+                                "operation": "equals",
+                                "name": "filter.operator.equals"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.filter",
+            "typeVersion": 2.3,
+            "position": [
+                496,
+                32
+            ],
+            "id": "1e8e90b8-4b90-4f56-b57f-9d4fd27f4905",
+            "name": "Filter"
+        },
+        {
+            "parameters": {
+                "operation": "delete",
+                "tableId": "propuestas",
+                "filters": {
+                    "conditions": [
+                        {
+                            "keyName": "Proyecto",
+                            "condition": "eq",
+                            "keyValue": "={{ $('Parsear FIEBDC a JSON').item.json.propuesta_maestra.Proyecto }}"
+                        }
+                    ]
+                }
+            },
+            "alwaysOutputData": true,
+            "name": "Borrar Propuesta Previa",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1296,
+                32
+            ],
+            "id": "5d6b259b-e39e-4a2f-aac0-a9356f3602d1",
+            "credentials": {
+                "supabaseApi": {
+                    "id": "zRJgR9rqUYs2MbiM",
+                    "name": "Supabase account"
+                }
+            },
+            "continueOnFail": true
+        },
+        {
+            "parameters": {
+                "operation": "delete",
+                "tableId": "partidas",
+                "filters": {
+                    "conditions": [
+                        {
+                            "keyName": "propuesta_id",
+                            "condition": "eq",
+                            "keyValue": "={{ $('Parsear FIEBDC a JSON').item.json.propuesta_maestra.Proyecto }}"
+                        }
+                    ]
+                }
+            },
+            "alwaysOutputData": true,
+            "name": "Borrar Partidas Previas",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1088,
+                32
+            ],
+            "id": "6e472bac-1d6f-4d8d-984a-b4ef1a8de80f",
+            "credentials": {
+                "supabaseApi": {
+                    "id": "zRJgR9rqUYs2MbiM",
+                    "name": "Supabase account"
+                }
+            },
+            "continueOnFail": true
+        },
+        {
+            "parameters": {
+                "tableId": "propuestas",
+                "fieldsUi": {
+                    "fieldValues": [
+                        {
+                            "fieldId": "Proyecto",
+                            "fieldValue": "={{ $('Parsear FIEBDC a JSON').item.json.propuesta_maestra.Proyecto }}"
+                        },
+                        {
+                            "fieldId": "cliente",
+                            "fieldValue": "={{ $('Parsear FIEBDC a JSON').item.json.propuesta_maestra.cliente }}"
+                        },
+                        {
+                            "fieldId": "estado",
+                            "fieldValue": "={{ $('Parsear FIEBDC a JSON').item.json.propuesta_maestra.estado }}"
+                        },
+                        {
+                            "fieldId": "fecha_recepcion",
+                            "fieldValue": "={{ $('Parsear FIEBDC a JSON').item.json.propuesta_maestra.fecha_recepcion }}"
+                        }
+                    ]
+                }
+            },
+            "name": "Guardar Propuesta",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1488,
+                -80
+            ],
+            "id": "e57a8388-9891-474c-8e64-c2d3569cfb62",
+            "credentials": {
+                "supabaseApi": {
+                    "id": "zRJgR9rqUYs2MbiM",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "tableId": "partidas",
+                "fieldsUi": {
+                    "fieldValues": [
+                        {
+                            "fieldId": "id",
+                            "fieldValue": "={{ $json.propuesta_id }}-{{ $json.texto_partida.split('::')[0] }}"
+                        },
+                        {
+                            "fieldId": "propuesta_id",
+                            "fieldValue": "={{ $json.propuesta_id }}"
+                        },
+                        {
+                            "fieldId": "texto_partida",
+                            "fieldValue": "={{ $json.texto_partida }}"
+                        },
+                        {
+                            "fieldId": "cantidad",
+                            "fieldValue": "={{ $json.cantidad }}"
+                        },
+                        {
+                            "fieldId": "precio_base_estimado",
+                            "fieldValue": "={{ $json.precio_base_estimado }}"
+                        }
+                    ]
+                }
+            },
+            "name": "Guardar Partidas",
+            "type": "n8n-nodes-base.supabase",
+            "typeVersion": 1,
+            "position": [
+                1696,
+                128
+            ],
+            "id": "6b9e76fb-43a0-4c6d-a4ad-c6cd80cddb08",
+            "credentials": {
+                "supabaseApi": {
+                    "id": "zRJgR9rqUYs2MbiM",
+                    "name": "Supabase account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "// Recuperamos las partidas directamente del nodo de parseo para no perder los datos\nconst partidas = $('Parsear FIEBDC a JSON').item.json.partidas_hijas || [];\n\n// Devolvemos cada partida como un item independiente para el siguiente nodo\nreturn partidas.map(p => ({ json: p }));"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1488,
+                128
+            ],
+            "id": "c5ee4f93-f03e-4ca8-81b6-69c453dd6340",
+            "name": "Preparar Partidas"
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "presupuesto-cliente",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "47a1b0fb-fee3-4b83-8b6e-5518ac9bb287",
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                288,
+                320
+            ],
+            "webhookId": "445c573b-48bf-43c0-a0bd-9874467ef99c"
+        },
+        {
+            "parameters": {
+                "fromEmail": "digitalctcon@gmail.com",
+                "toEmail": "={{ $json.body.cliente_email }}",
+                "subject": "Presupuesto de Obra - ADIR Reformas | Proyecto {{ $json.body.proyecto }}",
+                "html": "=Hola {{ $json.body.cliente_nombre }},<br><br>\nAdjuntamos el enlace a su presupuesto detallado por un importe total de <b>{{ Number($json.body.precio_total).toLocaleString('es-ES', {minimumFractionDigits: 2}) }} €</b>.<br><br>\nPuede revisarlo, descargarlo en PDF y firmarlo digitalmente accediendo al siguiente enlace seguro:<br>\n<a href=\"{{ $json.body.portal_url }}\">Abrir mi presupuesto</a><br><br>\nUn saludo,<br>El equipo de ADIR.\n",
+                "options": {}
+            },
+            "id": "260d9e11-9128-46fa-8e34-f1fc8d85ae55",
+            "name": "Enviar Email al Cliente",
+            "type": "n8n-nodes-base.emailSend",
+            "typeVersion": 2.1,
+            "position": [
+                528,
+                320
+            ],
+            "webhookId": "0a3eed8d-5455-45d8-9bd5-a1a77f3c6b0d",
+            "credentials": {
+                "smtp": {
+                    "id": "wzfVPYXjNIWONEqU",
+                    "name": "SMTP account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "{\n  \"success\": true,\n  \"message\": \"Email enviado al cliente\"\n}",
+                "options": {}
+            },
+            "id": "6d207cb8-a457-49c1-9401-d4f461fa97ce",
+            "name": "Responder OK",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                768,
+                320
+            ]
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "presupuesto-firmado",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "01a5b352-c962-409e-9cab-71f0063ed54f",
+            "name": "Webhook1",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                288,
+                544
+            ],
+            "webhookId": "616d1fd0-e6f0-4ff8-a526-08216189ee72"
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "{\n  \"success\": true\n}",
+                "options": {}
+            },
+            "id": "28ba7168-22dc-4f5c-aa8c-6e19861a1e66",
+            "name": "Responder OK1",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                528,
+                544
+            ]
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "presupuesto-rechazado",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "c6e64d5b-86ba-44e3-851e-66dfaca4839c",
+            "name": "Webhook2",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                288,
+                752
+            ],
+            "webhookId": "29539365-3b96-4bb6-a8e8-36f5d5179f4e"
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "{\n  \"success\": true\n}",
+                "options": {}
+            },
+            "id": "c55736f1-159e-41d9-8875-fc0e25f1f01c",
+            "name": "Responder OK2",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                528,
+                752
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook Local (Fase 4)": {
+            "main": [
+                [
+                    {
+                        "node": "Supabase - Guardar Solicitud",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Supabase - Guardar Solicitud": {
+            "main": [
+                [
+                    {
+                        "node": "Enviar Email (SMTP)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook (Servir HTML)": {
+            "main": [
+                [
+                    {
+                        "node": "Supabase - Leer Solicitud",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Supabase - Leer Solicitud": {
+            "main": [
+                [
+                    {
+                        "node": "Supabase - Leer Partidas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Supabase - Leer Partidas": {
+            "main": [
+                [
+                    {
+                        "node": "Generar HTML",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generar HTML": {
+            "main": [
+                [
+                    {
+                        "node": "Devolver Pagina Web",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook (Recibir Formulario)": {
+            "main": [
+                [
+                    {
+                        "node": "Preparar Insert en Supabase",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Recuperar ID de Solicitud",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Preparar Insert en Supabase": {
+            "main": [
+                [
+                    {
+                        "node": "Supabase - Guardar Precios",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Supabase - Marcar Respondida": {
+            "main": [
+                [
+                    {
+                        "node": "Responder Mensaje de Éxito",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Recuperar ID de Solicitud": {
+            "main": [
+                [
+                    {
+                        "node": "Supabase - Marcar Respondida",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "EmailRead Imap": {
+            "main": [
+                [
+                    {
+                        "node": "Filter",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Extraer Fichero BC3": {
+            "main": [
+                [
+                    {
+                        "node": "Parsear FIEBDC a JSON",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parsear FIEBDC a JSON": {
+            "main": [
+                [
+                    {
+                        "node": "Borrar Partidas Previas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Filter": {
+            "main": [
+                [
+                    {
+                        "node": "Extraer Fichero BC3",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Borrar Propuesta Previa": {
+            "main": [
+                [
+                    {
+                        "node": "Guardar Propuesta",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Preparar Partidas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Borrar Partidas Previas": {
+            "main": [
+                [
+                    {
+                        "node": "Borrar Propuesta Previa",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Preparar Partidas": {
+            "main": [
+                [
+                    {
+                        "node": "Guardar Partidas",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Enviar Email al Cliente",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Enviar Email al Cliente": {
+            "main": [
+                [
+                    {
+                        "node": "Responder OK",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook1": {
+            "main": [
+                [
+                    {
+                        "node": "Responder OK1",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook2": {
+            "main": [
+                [
+                    {
+                        "node": "Responder OK2",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "meta": {
+        "templateCredsSetupCompleted": true,
+        "instanceId": "355f30bb23c201b3230e5b29d247add114952e71f6c11ef960860a6d11a51d7e"
+    }
+}

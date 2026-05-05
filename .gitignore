@@ -1,0 +1,32 @@
+# Dependencias
+node_modules/
+npm-debug.log*
+
+# Variables de entorno (¡NUNCA subir al repo!)
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+dist-ssr/
+
+# Vite cache
+.vite/
+
+# Editor
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup/temp
+*.bak
+*.tmp
