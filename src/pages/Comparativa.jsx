@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../utils/supabaseClient';
+import { N8N_BASE_URL } from '../config';
 import { useModal, useToast } from '../utils/useModal';
 import {
   BarChart2, ChevronDown, ChevronRight, CheckCircle, Clock,
@@ -659,7 +660,7 @@ export default function Comparativa() {
         const { data: provExt } = await supabase
           .from('proveedores').select('email, nombre_empresa').eq('id', prov.proveedor_id).single();
         if (provExt?.email) {
-          fetch('http://localhost:5678/webhook/fase6-adjudicacion', {
+          fetch(`${N8N_BASE_URL}/webhook/fase6-adjudicacion`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

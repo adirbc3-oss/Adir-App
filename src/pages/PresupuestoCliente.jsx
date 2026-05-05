@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { N8N_BASE_URL } from '../config';
 import { useModal } from '../utils/useModal';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
 import { Download, PenLine, CheckCircle, X, Loader2 } from 'lucide-react';
@@ -138,7 +139,7 @@ const PresupuestoCliente = () => {
 
             // Notificar a n8n
             try {
-                await fetch('http://localhost:5678/webhook/presupuesto-firmado', {
+                await fetch(`${N8N_BASE_URL}/webhook/presupuesto-firmado`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -179,7 +180,7 @@ const PresupuestoCliente = () => {
             if (error) throw error;
 
             try {
-                await fetch('http://localhost:5678/webhook/presupuesto-rechazado', {
+                await fetch(`${N8N_BASE_URL}/webhook/presupuesto-rechazado`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { N8N_BASE_URL } from '../config';
 import { useModal, useToast } from '../utils/useModal';
 import { 
   Loader2, RefreshCw, HardHat, FileText, ArrowLeft, CheckCircle, 
@@ -365,7 +366,7 @@ const JefesObra = () => {
             const portalUrl = `${window.location.origin}/presupuesto-cliente?token=${token}`;
 
             try {
-                await fetch('http://localhost:5678/webhook/presupuesto-cliente', {
+                await fetch(`${N8N_BASE_URL}/webhook/presupuesto-cliente`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

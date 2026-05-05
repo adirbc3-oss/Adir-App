@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { N8N_BASE_URL } from '../config';
 import { useToast } from '../utils/useModal';
 
 const Portal = () => {
@@ -83,7 +84,7 @@ const Portal = () => {
         }))
       };
 
-      const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || 'http://localhost:5678/webhook-test/fase5-respuesta';
+      const webhookUrl = `${N8N_BASE_URL}/webhook-test/fase5-respuesta`;
       
       const res = await fetch(webhookUrl, {
         method: 'POST',

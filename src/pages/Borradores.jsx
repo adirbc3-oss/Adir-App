@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { BASE_URL_LOCAL } from '../config';
+import { BASE_URL_LOCAL, N8N_BASE_URL } from '../config';
 import { supabase } from '../utils/supabaseClient';
 import { useModal, useToast } from '../utils/useModal';
 import { Loader2, Bot, ArrowLeft, Save, Trash2, Send, RefreshCw, Mail, Search, FileDown, ClipboardCheck, LayoutDashboard } from 'lucide-react';
@@ -440,7 +440,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         setSendingEmails(true);
         try {
             for (const prov of provs) {
-                await fetch('http://localhost:5678/webhook/fase4-licitacion', {
+                await fetch(`${N8N_BASE_URL}/webhook/fase4-licitacion`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
