@@ -38,7 +38,7 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
   if (feedItems.length === 0) {
     return (
       <div style={s.emptyFeed}>
-        <Inbox size={48} color="#d1d5db" style={{ marginBottom: 16 }} />
+        <Inbox size={48} color="#c7d5e6" style={{ marginBottom: 16 }} />
         <p style={{ fontSize: 16, fontWeight: 600, color: '#6b7280', margin: 0 }}>
           No hay presupuestos recibidos aún
         </p>
@@ -64,7 +64,7 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
             <div style={s.feedCardHeader}>
               <div style={s.feedCardLeft}>
                 <div style={s.feedIcon}>
-                  <User size={16} color="#1d4ed8" />
+                  <User size={16} color="#002D54" />
                 </div>
                 <div>
                   <div style={s.feedProvNombre}>
@@ -142,9 +142,9 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
                 </tbody>
                 {total > 0 && (
                   <tfoot>
-                    <tr style={{ borderTop: '2px solid #e5e7eb', background: '#f8fafc' }}>
+                    <tr style={{ borderTop: '2px solid #c7d5e6', background: '#e5edf7' }}>
                       <td style={{ ...s.feedTd, fontWeight: 700, textAlign: 'left' }}>TOTAL</td>
-                      <td style={{ ...s.feedTd, textAlign: 'right', fontWeight: 800, fontSize: 15, color: '#1d4ed8' }}>
+                      <td style={{ ...s.feedTd, textAlign: 'right', fontWeight: 800, fontSize: 15, color: '#002D54' }}>
                         {total.toFixed(2)} €
                       </td>
                       <td style={s.feedTd}></td>
@@ -241,7 +241,7 @@ function ComparativaAgrupada({
                                     style={{
                                     ...s.btnAdjudicar,
                                     opacity: adjudicando === key ? 0.6 : 1,
-                                    background: p.solicitud_id === minTotalId ? '#059669' : '#1d4ed8'
+                                    background: p.solicitud_id === minTotalId ? '#059669' : '#002D54'
                                     }}
                                 >
                                     <Trophy size={13} /> {p.nombre}
@@ -255,13 +255,13 @@ function ComparativaAgrupada({
                             </>
                         ) : (
                             <>
-                                <Trophy size={15} color="#1d4ed8" />
-                                <span style={{ color: '#1d4ed8', fontWeight: 700, fontSize: 14 }}>
+                                <Trophy size={15} color="#002D54" />
+                                <span style={{ color: '#002D54', fontWeight: 700, fontSize: 14 }}>
                                 Adjudicado a: {adjProv?.nombre ?? 'Proveedor'}
                                 </span>
                                 <button
                                 onClick={() => adjudicar(key, null, true)}
-                                style={{ marginLeft: 'auto', padding: '5px 12px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}
+                                style={{ marginLeft: 'auto', padding: '5px 12px', background: '#e5edf7', border: '1px solid #c7d5e6', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}
                                 >
                                 Cambiar Ganador
                                 </button>
@@ -282,9 +282,9 @@ function ComparativaAgrupada({
                           {proveedores.map(p => (
                             <th key={p.solicitud_id} style={{
                               ...s.th,
-                              background: adjProvId && p.proveedor_id === adjProvId ? '#dbeafe'
+                              background: adjProvId && p.proveedor_id === adjProvId ? '#c7d5e6'
                                 : p.solicitud_id === minTotalId ? '#d1fae5' : p.esLocal ? '#fef3c7' : undefined,
-                              color: adjProvId && p.proveedor_id === adjProvId ? '#1d4ed8'
+                              color: adjProvId && p.proveedor_id === adjProvId ? '#002D54'
                                 : p.solicitud_id === minTotalId ? '#059669' : p.esLocal ? '#92400e' : undefined
                             }}>
                               {p.nombre}
@@ -318,12 +318,12 @@ function ComparativaAgrupada({
                               return (
                                 <td key={p.solicitud_id} style={{
                                   ...s.td, textAlign: 'right',
-                                  background: esAdj ? '#eff6ff' : esMejor ? '#ecfdf5' : p.esLocal ? '#fffbeb' : undefined,
+                                  background: esAdj ? '#e5edf7' : esMejor ? '#ecfdf5' : p.esLocal ? '#fffbeb' : undefined,
                                   fontWeight: esMejor || esAdj ? 700 : 400,
-                                  color: esAdj ? '#1d4ed8' : esMejor ? '#059669' : undefined
+                                  color: esAdj ? '#002D54' : esMejor ? '#059669' : undefined
                                 }}>
                                   {resp === null
-                                    ? <span style={{ color: '#d1d5db' }}>—</span>
+                                    ? <span style={{ color: '#c7d5e6' }}>—</span>
                                     : <div>
                                         <div>{resp.precio !== undefined ? `${Number(resp.precio).toFixed(2)} €` : '—'}</div>
                                       </div>
@@ -335,7 +335,7 @@ function ComparativaAgrupada({
                         ))}
                       </tbody>
                       <tfoot>
-                        <tr style={{ background: '#f1f5f9', borderTop: '2px solid #e5e7eb' }}>
+                        <tr style={{ background: '#e5edf7', borderTop: '2px solid #c7d5e6' }}>
                           <td colSpan={3} style={{ ...s.td, fontWeight: 700, textAlign: 'left' }}>TOTAL OFICIO</td>
                           <td style={{ ...s.td, textAlign: 'right', color: '#9ca3af', fontWeight: 600 }}>
                             {presupuestoBase > 0 ? `${presupuestoBase.toFixed(2)} €` : '—'}
@@ -347,8 +347,8 @@ function ComparativaAgrupada({
                             return (
                               <td key={p.solicitud_id} style={{
                                 ...s.td, textAlign: 'right', fontWeight: 700,
-                                color:      esAdj ? '#1d4ed8' : esMenor ? '#059669' : p.esLocal ? '#92400e' : '#374151',
-                                background: esAdj ? '#dbeafe' : esMenor ? '#ecfdf5' : p.esLocal ? '#fef3c7' : '#f1f5f9'
+                                color:      esAdj ? '#002D54' : esMenor ? '#059669' : p.esLocal ? '#92400e' : '#374151',
+                                background: esAdj ? '#c7d5e6' : esMenor ? '#ecfdf5' : p.esLocal ? '#fef3c7' : '#e5edf7'
                               }}>
                                 {t > 0 ? `${t.toFixed(2)} €` : '—'}
                               </td>
@@ -946,7 +946,7 @@ export default function Comparativa() {
         {(proyectoSel || oficioSel) && (
           <button
             onClick={() => { setProyectoSel(''); setOficioSel(''); }}
-            style={{ alignSelf: 'flex-end', padding: '8px 14px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 8, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 5 }}
+            style={{ alignSelf: 'flex-end', padding: '8px 14px', background: '#e5edf7', border: '1px solid #c7d5e6', borderRadius: 8, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 5 }}
           >
             <X size={13} /> Quitar filtros
           </button>
@@ -1059,7 +1059,7 @@ export default function Comparativa() {
               <button 
                 onClick={() => setConfirmingDelete(null)}
                 style={{ 
-                  flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #d1d5db',
+                  flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #c7d5e6',
                   background: 'white', color: '#374151', fontWeight: 600, cursor: 'pointer'
                 }}
               >
@@ -1110,22 +1110,22 @@ export default function Comparativa() {
                           value={competenciaNombre}
                           onChange={e => setCompetenciaNombre(e.target.value)}
                           placeholder="Ej. Reformas Paco S.L."
-                          style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem' }}
+                          style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #c7d5e6', fontSize: '1rem' }}
                       />
                   </div>
 
-                  <div style={{ overflowY: 'auto', flex: 1, border: '1px solid #e5e7eb', borderRadius: '8px', marginBottom: '20px' }}>
+                  <div style={{ overflowY: 'auto', flex: 1, border: '1px solid #c7d5e6', borderRadius: '8px', marginBottom: '20px' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                          <thead style={{ position: 'sticky', top: 0, background: '#f9fafb' }}>
+                          <thead style={{ position: 'sticky', top: 0, background: '#e5edf7' }}>
                               <tr>
-                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Partida</th>
-                                  <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', width: '60px' }}>Cant.</th>
-                                  <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #e5e7eb', width: '150px' }}>Precio Competidor (€)</th>
+                                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #c7d5e6' }}>Partida</th>
+                                  <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #c7d5e6', width: '60px' }}>Cant.</th>
+                                  <th style={{ padding: '8px', textAlign: 'right', borderBottom: '1px solid #c7d5e6', width: '150px' }}>Precio Competidor (€)</th>
                               </tr>
                           </thead>
                           <tbody>
                               {comparativa[modalCompetencia].filas.map(({ partida }) => (
-                                  <tr key={partida.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                  <tr key={partida.id} style={{ borderBottom: '1px solid #e5edf7' }}>
                                       <td style={{ padding: '8px', color: '#374151' }}>{partida.texto_descripcion || partida.texto_partida}</td>
                                       <td style={{ padding: '8px', textAlign: 'center', color: '#6b7280' }}>{partida.cantidad || 1}</td>
                                       <td style={{ padding: '8px', textAlign: 'right' }}>
@@ -1134,7 +1134,7 @@ export default function Comparativa() {
                                               placeholder="0.00"
                                               value={competenciaPrecios[partida.id] || ''}
                                               onChange={(e) => setCompetenciaPrecios({ ...competenciaPrecios, [partida.id]: e.target.value })}
-                                              style={{ width: '100px', padding: '6px', textAlign: 'right', borderRadius: '4px', border: '1px solid #d1d5db' }}
+                                              style={{ width: '100px', padding: '6px', textAlign: 'right', borderRadius: '4px', border: '1px solid #c7d5e6' }}
                                           />
                                       </td>
                                   </tr>
@@ -1146,14 +1146,14 @@ export default function Comparativa() {
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                       <button 
                           onClick={() => setModalCompetencia(null)}
-                          style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', cursor: 'pointer', fontWeight: 600 }}
+                          style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #c7d5e6', background: 'white', cursor: 'pointer', fontWeight: 600 }}
                       >
                           Cancelar
                       </button>
                       <button 
                           onClick={handleGuardarCompetencia}
                           disabled={guardandoCompetencia}
-                          style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#1d4ed8', color: 'white', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}
+                          style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#002D54', color: 'white', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}
                       >
                           {guardandoCompetencia ? 'Guardando...' : 'Guardar y Comparar'}
                       </button>
@@ -1189,7 +1189,7 @@ export default function Comparativa() {
                       <select 
                           value={bc3Project} 
                           onChange={e => setBc3Project(e.target.value)}
-                          style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem' }}
+                          style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #c7d5e6', fontSize: '1rem' }}
                       >
                           <option value="">-- Selecciona el proyecto --</option>
                           {proyectosUnicos.map(p => <option key={p} value={p}>{p}</option>)}
@@ -1203,7 +1203,7 @@ export default function Comparativa() {
                           value={bc3Name}
                           onChange={e => setBc3Name(e.target.value)}
                           placeholder="Ej. Obras Paco S.L."
-                          style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem' }}
+                          style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #c7d5e6', fontSize: '1rem' }}
                       />
                   </div>
 
@@ -1211,8 +1211,8 @@ export default function Comparativa() {
                       <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, fontSize: '0.9rem' }}>Archivo BC3:</label>
                       <label style={{
                           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                          padding: '20px', border: '2px dashed #d1d5db', borderRadius: '8px', cursor: 'pointer',
-                          background: '#f9fafb', transition: 'border .2s'
+                          padding: '20px', border: '2px dashed #c7d5e6', borderRadius: '8px', cursor: 'pointer',
+                          background: '#e5edf7', transition: 'border .2s'
                       }}>
                           <Upload size={32} color="#9ca3af" style={{ marginBottom: '10px' }} />
                           <span style={{ fontSize: '0.9rem', color: '#6b7280', fontWeight: 500 }}>
@@ -1230,7 +1230,7 @@ export default function Comparativa() {
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                       <button 
                           onClick={() => setModalBC3(false)}
-                          style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', cursor: 'pointer', fontWeight: 600 }}
+                          style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #c7d5e6', background: 'white', cursor: 'pointer', fontWeight: 600 }}
                       >
                           Cancelar
                       </button>
@@ -1268,61 +1268,61 @@ export default function Comparativa() {
 const s = {
   page:           { padding: '24px', fontFamily: 'system-ui, sans-serif' },
   header:         { display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24, flexWrap: 'wrap' },
-  headerIcon:     { background: 'var(--bg-secondary,#f1f5f9)', borderRadius: 12, padding: 10, display: 'flex', alignItems: 'center' },
-  title:          { margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text-primary,#111827)' },
-  subtitle:       { margin: '4px 0 0', color: 'var(--text-secondary,#6b7280)', fontSize: 14 },
+  headerIcon:     { background: 'var(--bg-secondary,#e5edf7)', borderRadius: 12, padding: 10, display: 'flex', alignItems: 'center' },
+  title:          { margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text-main,#1D1D1B)' },
+  subtitle:       { margin: '4px 0 0', color: 'var(--text-muted,#50504d)', fontSize: 14 },
   btnExport:      { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: '#16a34a', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14 },
-  btnRefresh:     { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', background: 'var(--bg-secondary,#f3f4f6)', color: 'var(--text-primary,#374151)', border: '1px solid #d1d5db', borderRadius: 8, cursor: 'pointer', fontSize: 13 },
+  btnRefresh:     { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', background: 'var(--bg-secondary,#e5edf7)', color: 'var(--text-main,#1D1D1B)', border: '1px solid #c7d5e6', borderRadius: 8, cursor: 'pointer', fontSize: 13 },
   filtros:        { display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap', alignItems: 'flex-end' },
   filtroGroup:    { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 240 },
-  label:          { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary,#374151)' },
-  select:         { padding: '8px 12px', borderRadius: 8, border: '1px solid #d1d5db', background: 'var(--bg-card,white)', fontSize: 14, cursor: 'pointer' },
-  loading:        { textAlign: 'center', padding: 40, color: '#6b7280' },
-  empty:          { textAlign: 'center', padding: '48px 32px', color: '#9ca3af', fontSize: 15, background: 'var(--bg-card,white)', borderRadius: 12, border: '1px dashed #d1d5db' },
+  label:          { fontSize: 13, fontWeight: 600, color: 'var(--text-muted,#50504d)' },
+  select:         { padding: '8px 12px', borderRadius: 8, border: '1px solid #c7d5e6', background: 'var(--bg-card,white)', fontSize: 14, cursor: 'pointer' },
+  loading:        { textAlign: 'center', padding: 40, color: '#50504d' },
+  empty:          { textAlign: 'center', padding: '48px 32px', color: '#7a7a77', fontSize: 15, background: 'var(--bg-card,white)', borderRadius: 12, border: '1px dashed #c7d5e6' },
   // Tab bar
-  tabBar:         { display: 'flex', gap: 4, marginBottom: 20, background: '#f1f5f9', borderRadius: 10, padding: 4, width: 'fit-content' },
-  tab:            { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, background: 'transparent', color: '#6b7280', transition: 'all .15s' },
-  tabActive:      { background: 'white', color: '#111827', boxShadow: '0 1px 4px rgba(0,0,0,.1)' },
-  tabBadge:       { background: '#dbeafe', color: '#1d4ed8', borderRadius: 10, fontSize: 11, fontWeight: 700, padding: '1px 7px', minWidth: 20, textAlign: 'center' },
+  tabBar:         { display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-secondary,#e5edf7)', borderRadius: 10, padding: 4, width: 'fit-content' },
+  tab:            { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, background: 'transparent', color: '#50504d', transition: 'all .15s' },
+  tabActive:      { background: 'white', color: '#1D1D1B', boxShadow: '0 1px 4px rgba(0,0,0,.1)' },
+  tabBadge:       { background: '#c7d5e6', color: 'var(--primary)', borderRadius: 10, fontSize: 11, fontWeight: 700, padding: '1px 7px', minWidth: 20, textAlign: 'center' },
   // Feed cards
-  emptyFeed:      { textAlign: 'center', padding: '60px 32px', background: 'var(--bg-card,white)', borderRadius: 12, border: '1px dashed #d1d5db', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  feedCard:       { border: '1px solid #e5e7eb', borderRadius: 12, background: 'var(--bg-card,white)', overflow: 'hidden' },
-  feedCardHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', background: 'var(--bg-secondary,#f8fafc)', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid #e5e7eb' },
+  emptyFeed:      { textAlign: 'center', padding: '60px 32px', background: 'var(--bg-card,white)', borderRadius: 12, border: '1px dashed #c7d5e6', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  feedCard:       { border: '1px solid #c7d5e6', borderRadius: 12, background: 'var(--bg-card,white)', overflow: 'hidden' },
+  feedCardHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', background: 'var(--bg-secondary,#e5edf7)', flexWrap: 'wrap', gap: 10, borderBottom: '1px solid #c7d5e6' },
   feedCardLeft:   { display: 'flex', alignItems: 'center', gap: 12 },
-  feedIcon:       { width: 36, height: 36, borderRadius: 10, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  feedProvNombre: { fontSize: 15, fontWeight: 700, color: '#111827' },
-  feedProvEmail:  { fontSize: 12, color: '#6b7280', marginTop: 1 },
+  feedIcon:       { width: 36, height: 36, borderRadius: 10, background: '#e5edf7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  feedProvNombre: { fontSize: 15, fontWeight: 700, color: '#1D1D1B' },
+  feedProvEmail:  { fontSize: 12, color: '#50504d', marginTop: 1 },
   feedMeta:       { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   feedBadgeOficio:   { display: 'inline-flex', alignItems: 'center', background: '#ede9fe', color: '#5b21b6', padding: '3px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600 },
-  feedBadgeProyecto: { background: '#f3f4f6', color: '#374151', padding: '3px 8px', borderRadius: 10, fontSize: 11 },
-  feedBadgeFecha:    { display: 'inline-flex', alignItems: 'center', background: '#f9fafb', color: '#6b7280', padding: '3px 8px', borderRadius: 10, fontSize: 11 },
+  feedBadgeProyecto: { background: '#e5edf7', color: '#1D1D1B', padding: '3px 8px', borderRadius: 10, fontSize: 11 },
+  feedBadgeFecha:    { display: 'inline-flex', alignItems: 'center', background: '#e5edf7', color: '#50504d', padding: '3px 8px', borderRadius: 10, fontSize: 11 },
   btnIcon:           { background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4, borderRadius: 4, transition: 'background .2s' },
 
   feedTableWrapper:  { overflowX: 'auto' },
   feedTable:         { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  feedTh:            { padding: '9px 14px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontWeight: 700, color: '#374151', textAlign: 'right', whiteSpace: 'nowrap' },
-  feedTr:            { borderBottom: '1px solid #f3f4f6' },
+  feedTh:            { padding: '9px 14px', background: '#e5edf7', borderBottom: '1px solid #c7d5e6', fontWeight: 700, color: '#1D1D1B', textAlign: 'right', whiteSpace: 'nowrap' },
+  feedTr:            { borderBottom: '1px solid #e5edf7' },
   feedTd:            { padding: '10px 14px', verticalAlign: 'top' },
   // Comparativa agrupada
-  card:           { marginBottom: 20, border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', background: 'var(--bg-card,white)' },
-  cardHeader:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', cursor: 'pointer', background: 'var(--bg-secondary,#f8fafc)', flexWrap: 'wrap', gap: 10 },
+  card:           { marginBottom: 20, border: '1px solid #c7d5e6', borderRadius: 12, overflow: 'hidden', background: 'var(--bg-card,white)' },
+  cardHeader:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', cursor: 'pointer', background: 'var(--bg-secondary,#e5edf7)', flexWrap: 'wrap', gap: 10 },
   cardHeaderLeft: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   cardTitle:      { margin: 0, fontSize: 16, fontWeight: 700 },
-  badge:          { background: '#dbeafe', color: '#1d4ed8', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600 },
-  badgeProyecto:  { background: '#f3f4f6', color: '#374151', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  badge:          { background: '#c7d5e6', color: 'var(--primary)', padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600 },
+  badgeProyecto:  { background: '#e5edf7', color: '#1D1D1B', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 500, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   badgeWinner:    { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fef9c3', color: '#854d0e', padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700 },
   badgePendiente: { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: 10, fontSize: 11, fontWeight: 600 },
   badgeOk:        { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: 10, fontSize: 11, fontWeight: 600 },
-  badgeAdj2:      { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#dbeafe', color: '#1d4ed8', padding: '2px 6px', borderRadius: 10, fontSize: 11, fontWeight: 600 },
+  badgeAdj2:      { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#c7d5e6', color: 'var(--primary)', padding: '2px 6px', borderRadius: 10, fontSize: 11, fontWeight: 600 },
   badgeAlert:     { display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fee2e2', color: '#991b1b', padding: '2px 6px', borderRadius: 10, fontSize: 11, fontWeight: 600 },
   ahorroPos:      { display: 'inline-flex', alignItems: 'center', gap: 4, color: '#059669', fontWeight: 700, fontSize: 13 },
   ahorroNeg:      { display: 'inline-flex', alignItems: 'center', gap: 4, color: '#dc2626', fontWeight: 700, fontSize: 13 },
-  adjudicarBar:   { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: '#f0f9ff', borderBottom: '1px solid #e0f2fe', flexWrap: 'wrap' },
-  btnAdjudicar:   { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 },
+  adjudicarBar:   { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: '#e5edf7', borderBottom: '1px solid #c7d5e6', flexWrap: 'wrap' },
+  btnAdjudicar:   { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 },
   tableWrapper:   { overflowX: 'auto' },
   table:          { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
-  th:             { padding: '10px 12px', background: '#f9fafb', borderBottom: '2px solid #e5e7eb', fontWeight: 700, color: '#374151', textAlign: 'right', whiteSpace: 'nowrap' },
-  tr:             { borderBottom: '1px solid #f3f4f6' },
+  th:             { padding: '10px 12px', background: '#e5edf7', borderBottom: '2px solid #c7d5e6', fontWeight: 700, color: '#1D1D1B', textAlign: 'right', whiteSpace: 'nowrap' },
+  tr:             { borderBottom: '1px solid #e5edf7' },
   td:             { padding: '10px 12px', verticalAlign: 'top' },
-  comentario:     { fontSize: 11, color: '#6b7280', marginTop: 4, fontStyle: 'italic', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+  comentario:     { fontSize: 11, color: '#50504d', marginTop: 4, fontStyle: 'italic', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 };

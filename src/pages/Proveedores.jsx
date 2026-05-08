@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../utils/supabaseClient';
+import { TODOS_LOS_OFICIOS } from '../utils/aiAllocation';
 import { useModal, useToast } from '../utils/useModal';
 import { UserPlus, Trash2, Loader2, RefreshCw, CheckCircle } from 'lucide-react';
 
@@ -31,15 +31,7 @@ const Proveedores = () => {
     });
 
     const listadoOficiosDinámico = [...new Set([
-        ...[
-            "Albañilería", "Estructuras de Hormigón", "Estructuras Metálicas",
-            "Movimiento de Tierras", "Cimentaciones", "Cubiertas y Tejados",
-            "Impermeabilización", "Aislamientos", "Fontanería", "Electricidad",
-            "Climatización (HVAC)", "Carpintería de Madera", "Carpintería Metálica/Aluminio",
-            "Cristalería", "Pintura", "Yesos y Escayolas", "Solados y Alicatados",
-            "Falsos Techos", "Ascensores y Elevación", "Cerrajeria", "Jardinería y Exteriores",
-            "Limpieza de Obra", "Gestión de Residuos", "Seguridad y Salud", "Topografía"
-        ],
+        ...TODOS_LOS_OFICIOS,
         ...proveedores.map(p => p.Oficio).filter(Boolean)
     ])].sort();
 

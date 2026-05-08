@@ -8,7 +8,7 @@ export const TODOS_LOS_OFICIOS = [
     "Cristalería", "Pintura", "Yesos y Escayolas", "Solados y Alicatados",
     "Falsos Techos", "Ascensores y Elevación", "Cerrajería", "Jardinería y Exteriores",
     "Limpieza de Obra", "Gestión de Residuos", "Seguridad y Salud", "Demolición", 
-    "Saneamiento", "Instalaciones especiales", "Obra civil"
+    "Saneamiento", "Instalaciones especiales", "Obra civil", "Topografía"
 ];
 
 const BATCH_SIZE = 6;

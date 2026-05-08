@@ -64,7 +64,7 @@ const Historial = () => {
         let color = 'var(--text-primary)';
         
         if (origen === 'IA') { bgColor = 'rgba(168, 85, 247, 0.15)'; color = '#9333ea'; }
-        else if (origen === 'Histórico') { bgColor = 'rgba(59, 130, 246, 0.15)'; color = '#2563eb'; }
+        else if (origen === 'Histórico') { bgColor = 'rgba(0, 45, 84, 0.15)'; color = '#002D54'; }
         else if (origen === 'Manual') { bgColor = 'rgba(245, 158, 11, 0.15)'; color = '#d97706'; }
         else if (origen === 'Aceptación Presupuesto') { bgColor = 'rgba(22, 163, 74, 0.15)'; color = '#16a34a'; }
 

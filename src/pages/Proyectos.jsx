@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
-import { 
-    Loader2, RefreshCw, FolderOpen, CheckCircle, Clock, 
+import {
+    Loader2, RefreshCw, FolderOpen, CheckCircle, Clock,
     Download, FileCheck, Eye, X, AlertCircle, AlertTriangle
 } from 'lucide-react';
 
@@ -157,16 +157,16 @@ const Proyectos = () => {
 
     const downloadSignedPDF = (p) => {
         const doc = generarPresupuestoPDF({
-            cliente:      p.cliente_nombre || 'Sin especificar',
+            cliente: p.cliente_nombre || 'Sin especificar',
             propuesta_id: p.propuesta_id,
-            descripcion:  p.proyecto_descripcion || p.propuesta_id,
-            partidas:     p.partidas || [],
+            descripcion: p.proyecto_descripcion || p.propuesta_id,
+            partidas: p.partidas || [],
             precio_total: p.precio_total,
-            fecha:        p.fecha_envio,
-            token:        p.token,
-            titulo:       'Contrato de Obra — Copia Firmada',
+            fecha: p.fecha_envio,
+            token: p.token,
+            titulo: 'Contrato de Obra — Copia Firmada',
             firma_base64: p.firma_base64 || null,
-            fecha_firma:  p.fecha_firma || null,
+            fecha_firma: p.fecha_firma || null,
         });
         descargarPDF(doc, 'Contrato_Firmado_' + p.propuesta_id);
     };
@@ -253,7 +253,7 @@ const Proyectos = () => {
                                             </td>
                                             <td>{new Date(pro.fecha_recepcion).toLocaleDateString()}</td>
                                             <td>
-                                                <span className="badge" style={{ backgroundColor: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db' }}>
+                                                <span className="badge" style={{ backgroundColor: '#e5edf7', color: '#374151', border: '1px solid #c7d5e6' }}>
                                                     {pro.jefe_obra || 'Sin Asignar'}
                                                 </span>
                                             </td>
@@ -307,7 +307,7 @@ const Proyectos = () => {
             {modalConfirm && (
                 <Modal
                     title={modalConfirm.title}
-                    icon={<CheckCircle size={30} color={modalConfirm.type === 'success' ? '#16a34a' : '#2563eb'} />}
+                    icon={<CheckCircle size={30} color={modalConfirm.type === 'success' ? '#16a34a' : '#002D54'} />}
                     iconBg={modalConfirm.type === 'success' ? 'rgba(22,163,74,0.1)' : 'rgba(37,99,235,0.1)'}
                     onClose={() => setModalConfirm(null)}
                     footer={

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileUp, Files, Users, Box, Settings, BarChart2, Mailbox, HardHat, Database, History, FileCheck } from 'lucide-react';
+import { FileUp, Files, Users, Settings, BarChart2, Mailbox, HardHat, Database, History, FileCheck } from 'lucide-react';
 import { supabase } from './utils/supabaseClient';
 
 import NuevoProyecto from './pages/NuevoProyecto';

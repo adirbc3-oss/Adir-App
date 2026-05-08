@@ -607,7 +607,7 @@ const JefesObra = () => {
                                                         </td>
                                                         <td>{new Date(pro.fecha_recepcion).toLocaleDateString()}</td>
                                                         <td>
-                                                            <span className="badge" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                                                            <span className="badge" style={{ backgroundColor: '#e5edf7', color: '#002D54', border: '1px solid #c7d5e6' }}>
                                                                 {pro.jefe_obra || 'Sin Asignar'}
                                                             </span>
                                                         </td>
@@ -726,7 +726,7 @@ const modalContent = {
     // Aseguramos que sea el centro de la ventana
     margin: 'auto'
 };
-const btnCancel = { flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #d1d5db', background: 'white', fontWeight: 600, cursor: 'pointer' };
+const btnCancel = { flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #c7d5e6', background: 'white', fontWeight: 600, cursor: 'pointer' };
 const btnDanger = { flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#dc2626', color: 'white', fontWeight: 600, cursor: 'pointer' };
 const btnSuccess = { flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: '#16a34a', color: 'white', fontWeight: 600, cursor: 'pointer' };
 
