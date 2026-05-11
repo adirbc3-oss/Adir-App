@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { BASE_URL_LOCAL, N8N_BASE_URL } from '../config';
+import { N8N_BASE_URL } from '../config';
 import { supabase } from '../utils/supabaseClient';
 import { useModal, useToast } from '../utils/useModal';
 import { Loader2, Bot, ArrowLeft, Save, Trash2, Send, RefreshCw, Mail, Search, FileDown, ClipboardCheck } from 'lucide-react';

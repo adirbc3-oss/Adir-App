@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
-import {
+import { 
     Loader2, RefreshCw, FolderOpen, CheckCircle, Clock,
-    Download, FileCheck, Eye, X, AlertCircle, AlertTriangle
+    Download, FileCheck, Eye, X, AlertCircle, AlertTriangle, TrendingUp
 } from 'lucide-react';
 
 // ─── Modal Genérico ───
@@ -157,16 +157,16 @@ const Proyectos = () => {
 
     const downloadSignedPDF = (p) => {
         const doc = generarPresupuestoPDF({
-            cliente: p.cliente_nombre || 'Sin especificar',
+            cliente:      p.cliente_nombre || 'Sin especificar',
             propuesta_id: p.propuesta_id,
-            descripcion: p.proyecto_descripcion || p.propuesta_id,
-            partidas: p.partidas || [],
+            descripcion:  p.proyecto_descripcion || p.propuesta_id,
+            partidas:     p.partidas || [],
             precio_total: p.precio_total,
-            fecha: p.fecha_envio,
-            token: p.token,
-            titulo: 'Contrato de Obra — Copia Firmada',
+            fecha:        p.fecha_envio,
+            token:        p.token,
+            titulo:       'Contrato de Obra — Copia Firmada',
             firma_base64: p.firma_base64 || null,
-            fecha_firma: p.fecha_firma || null,
+            fecha_firma:  p.fecha_firma || null,
         });
         descargarPDF(doc, 'Contrato_Firmado_' + p.propuesta_id);
     };
@@ -211,7 +211,26 @@ const Proyectos = () => {
                 </button>
             </div>
 
-            <div style={{ display: 'flex', gap: '15px', marginTop: '20px', marginBottom: '20px' }}>
+            {!loading && proyectos.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px', marginTop: '20px', marginBottom: '4px' }}>
+                    {[
+                        { icon: <Clock size={20} color="#3b82f6"/>, label: 'En Curso', value: proyectos.filter(p => p.estado==='En Curso').length, bg: 'rgba(59,130,246,0.08)', color: '#3b82f6' },
+                        { icon: <CheckCircle size={20} color="#059669"/>, label: 'Finalizados', value: proyectos.filter(p => p.estado==='Finalizado').length, bg: 'rgba(5,150,105,0.08)', color: '#059669' },
+                        { icon: <FileCheck size={20} color="#7c3aed"/>, label: 'Facturacion Firmada', value: Object.values(presupuestosMap).filter(p=>p.estado==='firmado').reduce((s,p)=>s+parseFloat(p.precio_total||0),0).toLocaleString('es-ES',{maximumFractionDigits:0})+' EUR', bg: 'rgba(124,58,237,0.08)', color: '#7c3aed' },
+                        { icon: <TrendingUp size={20} color="#d97706"/>, label: 'Pdte. de Firma', value: Object.values(presupuestosMap).filter(p=>p.estado==='pendiente').length, bg: 'rgba(217,119,6,0.08)', color: '#d97706' },
+                    ].map((kpi,i) => (
+                        <div key={i} style={{ background: kpi.bg, borderRadius: '12px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', border: `1px solid ${kpi.color}22` }}>
+                            <div style={{ background: 'white', borderRadius: '8px', padding: '8px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', flexShrink: 0 }}>{kpi.icon}</div>
+                            <div>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>{kpi.label}</div>
+                                <div style={{ fontWeight: 800, color: kpi.color, fontSize: '1.05rem', lineHeight: 1.2 }}>{kpi.value}</div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '15px', marginTop: '16px', marginBottom: '20px' }}>
                 <button className={`btn ${filtro === 'En Curso' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFiltro('En Curso')} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Clock size={16} /> En Curso
                 </button>
@@ -253,7 +272,7 @@ const Proyectos = () => {
                                             </td>
                                             <td>{new Date(pro.fecha_recepcion).toLocaleDateString()}</td>
                                             <td>
-                                                <span className="badge" style={{ backgroundColor: '#e5edf7', color: '#374151', border: '1px solid #c7d5e6' }}>
+                                                <span className="badge" style={{ backgroundColor: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db' }}>
                                                     {pro.jefe_obra || 'Sin Asignar'}
                                                 </span>
                                             </td>
@@ -307,7 +326,7 @@ const Proyectos = () => {
             {modalConfirm && (
                 <Modal
                     title={modalConfirm.title}
-                    icon={<CheckCircle size={30} color={modalConfirm.type === 'success' ? '#16a34a' : '#002D54'} />}
+                    icon={<CheckCircle size={30} color={modalConfirm.type === 'success' ? '#16a34a' : '#2563eb'} />}
                     iconBg={modalConfirm.type === 'success' ? 'rgba(22,163,74,0.1)' : 'rgba(37,99,235,0.1)'}
                     onClose={() => setModalConfirm(null)}
                     footer={

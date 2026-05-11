@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { History, Search, Filter, Loader2, ArrowRight } from 'lucide-react';
+import { History, Search, Filter, Loader2, ArrowRight, Download, Bot, User, Clock, BookOpen } from 'lucide-react';
 
 const Historial = () => {
     const [logs, setLogs] = useState([]);
@@ -64,7 +64,7 @@ const Historial = () => {
         let color = 'var(--text-primary)';
         
         if (origen === 'IA') { bgColor = 'rgba(168, 85, 247, 0.15)'; color = '#9333ea'; }
-        else if (origen === 'Histórico') { bgColor = 'rgba(0, 45, 84, 0.15)'; color = '#002D54'; }
+        else if (origen === 'Histórico') { bgColor = 'rgba(59, 130, 246, 0.15)'; color = '#2563eb'; }
         else if (origen === 'Manual') { bgColor = 'rgba(245, 158, 11, 0.15)'; color = '#d97706'; }
         else if (origen === 'Aceptación Presupuesto') { bgColor = 'rgba(22, 163, 74, 0.15)'; color = '#16a34a'; }
 
@@ -78,19 +78,70 @@ const Historial = () => {
         );
     };
 
+
+    const exportCSV = () => {
+        const headers = ['Fecha','Proyecto','Origen','Campo','Valor Anterior','Valor Nuevo','Detalles'];
+        const rows = logsFiltrados.map(log => [
+            formatFecha(log.fecha_cambio),
+            log.proyecto_referencia || log.tipo_entidad || '',
+            log.origen_cambio || '',
+            log.campo_modificado || '',
+            log.valor_anterior || '',
+            log.valor_nuevo || '',
+            (log.detalles || '').replace(/"/g, '""')
+        ]);
+        const csv = [headers,...rows].map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+        const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href=url; a.download=`historial_${new Date().toISOString().split('T')[0]}.csv`; a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const statsOrigin = logs.reduce((acc,log)=>{
+        const k = log.origen_cambio||'Otro'; acc[k]=(acc[k]||0)+1; return acc;
+    },{});
+
+    const statsConfig = [
+        { key:'IA', label:'IA', icon:<Bot size={18} color="#9333ea"/>, bg:'rgba(147,51,234,0.08)', color:'#9333ea' },
+        { key:'Manual', label:'Manual', icon:<User size={18} color="#d97706"/>, bg:'rgba(217,119,6,0.08)', color:'#d97706' },
+        { key:'Histórico', label:'Histórico', icon:<BookOpen size={18} color="#002D54"/>, bg:'rgba(0,45,84,0.08)', color:'#002D54' },
+        { key:'Aceptación Presupuesto', label:'Aceptación', icon:<Clock size={18} color="#059669"/>, bg:'rgba(5,150,105,0.08)', color:'#059669' },
+    ];
+
     return (
         <div className="animate-fade-in" style={{ paddingBottom: '40px' }}>
             <div className="glass-card" style={{ marginBottom: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '12px', borderRadius: '12px' }}>
-                        <History size={28} color="var(--primary)" />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <div style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '12px', borderRadius: '12px' }}>
+                            <History size={28} color="var(--primary)" />
+                        </div>
+                        <div>
+                            <h1>Historial de Cambios</h1>
+                            <p>Registro de auditoría de todas las modificaciones de precios y asignaciones.</p>
+                        </div>
                     </div>
-                    <div>
-                        <h1>Historial de Cambios</h1>
-                        <p>Registro de auditoría de todas las modificaciones de precios y asignaciones.</p>
-                    </div>
+                    <button className="btn btn-secondary" onClick={exportCSV} disabled={logsFiltrados.length===0} style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                        <Download size={16}/> Exportar CSV
+                    </button>
                 </div>
             </div>
+
+            {!loading && logs.length > 0 && (
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(150px, 1fr))', gap:'12px', marginBottom:'20px' }}>
+                    {statsConfig.map(s => (
+                        <div key={s.key} onClick={()=>setFiltroOrigen(filtroOrigen===s.key?'':s.key)}
+                            style={{ background: filtroOrigen===s.key ? s.bg : 'var(--bg-card)', border: filtroOrigen===s.key ? `2px solid ${s.color}` : '2px solid transparent', borderRadius:'12px', padding:'14px 16px', display:'flex', alignItems:'center', gap:'10px', cursor:'pointer', transition:'all 0.2s', boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
+                            <div style={{ background:s.bg, borderRadius:'8px', padding:'8px', flexShrink:0 }}>{s.icon}</div>
+                            <div>
+                                <div style={{ fontSize:'0.68rem', color:'var(--text-muted)', textTransform:'uppercase', fontWeight:700 }}>{s.label}</div>
+                                <div style={{ fontWeight:800, color:s.color, fontSize:'1.2rem' }}>{statsOrigin[s.key]||0}</div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             <div className="glass-card" style={{ marginBottom: '20px' }}>
                 <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'center' }}>
