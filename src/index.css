@@ -70,12 +70,12 @@ body {
 
 .sidebar-logo {
   width: 100%;
-  max-width: 90px;
+  max-width: 100px;
   height: auto;
   object-fit: contain;
-  /* Forzamos a negro y luego aplicamos el azul exacto de los botones (#002D54) */
-  filter: brightness(0) saturate(100%) invert(27%) sepia(91%) saturate(2253%) hue-rotate(212deg) brightness(93%) contrast(105%);
-  margin-top: -10px;
+  /* Filtro optimizado para el azul corporativo #002D54 */
+  filter: brightness(0) saturate(100%) invert(11%) sepia(91%) saturate(2253%) hue-rotate(190deg) brightness(95%) contrast(110%);
+  margin-bottom: 10px;
 }
 
 .sidebar-nav {
@@ -369,6 +369,110 @@ tr:hover td {
   }
 }
 
+/* Project Cards for Borradores */
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.project-card {
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  transition: var(--transition);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.project-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary);
+}
+
+.project-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background-color: var(--primary);
+  opacity: 0.8;
+}
+
+.project-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.project-card-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.project-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.project-card-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--bg-secondary);
+}
+
+/* Providers List in Licitation */
+.providers-list {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+  padding: 8px;
+  background: white;
+}
+
+.provider-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.provider-item:hover {
+  background-color: var(--bg-secondary);
+}
+
+.provider-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
 /* Utility Styles for Corporate look */
 .text-success {
   color: var(--success);
@@ -411,4 +515,28 @@ tr:hover td {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+/* --- Tablas Detalladas --- */
+.table-container th {
+  font-size: 0.7rem;
+  padding: 10px 15px;
+}
+
+.table-container td {
+  padding: 10px 15px;
+}
+
+.table-container input[type='number'],
+.table-container input[type='text'],
+.table-container select {
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  width: 100%;
+}
+
+.table-container input[type='number']::-webkit-inner-spin-button,
+.table-container input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }

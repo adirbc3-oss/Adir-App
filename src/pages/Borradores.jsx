@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { N8N_BASE_URL } from '../config';
 import { supabase } from '../utils/supabaseClient';
 import { useModal, useToast } from '../utils/useModal';
-import { Loader2, Bot, ArrowLeft, Save, Trash2, Send, RefreshCw, Mail, Search, FileDown, ClipboardCheck } from 'lucide-react';
+import { Loader2, Bot, ArrowLeft, ArrowRight, Hash, Save, Trash2, Send, RefreshCw, Mail, Search, FileDown, ClipboardCheck, Folder, Calendar, User, Users, CheckSquare, Square, Check, X } from 'lucide-react';
 import { asignarProveedoresIA, TODOS_LOS_OFICIOS } from '../utils/aiAllocation';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
 
 const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     const { showConfirm, ModalUI } = useModal();
     const { showToast, ToastUI } = useToast();
+    const navigate = useNavigate();
 
     const [proyectos, setProyectos] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -38,6 +40,8 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     // Estados para edición de metadatos del proyecto
     const [showEditMetadata, setShowEditMetadata] = useState(false);
     const [metadataForm, setMetadataForm] = useState({ cliente: '', cliente_email: '', descripcion: '' });
+
+    const [showLicitationModal, setShowLicitationModal] = useState(false);
 
     // Sincronizar cambios locales con la memoria de sesión global
     useEffect(() => {
@@ -431,6 +435,31 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         setHasUnsavedChanges(true);
     };
 
+    const toggleProvider = (provName) => {
+        setSelectedProviders(prev => ({
+            ...prev,
+            [provName]: !prev[provName]
+        }));
+    };
+
+    const selectAllProvidersOficio = () => {
+        const provsOficio = proveedores.filter(p => p.Oficio === selectedOficio);
+        const newState = { ...selectedProviders };
+        provsOficio.forEach(p => {
+            newState[p.Nombre] = true;
+        });
+        setSelectedProviders(newState);
+    };
+
+    const deselectAllProvidersOficio = () => {
+        const provsOficio = proveedores.filter(p => p.Oficio === selectedOficio);
+        const newState = { ...selectedProviders };
+        provsOficio.forEach(p => {
+            newState[p.Nombre] = false;
+        });
+        setSelectedProviders(newState);
+    };
+
     const handleRequestQuotes = async () => {
         if (hasUnsavedChanges) await saveAssignments();
         const provs = proveedores.filter(p => p.Oficio === selectedOficio && selectedProviders[p.Nombre]);
@@ -531,45 +560,107 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                         </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '20px' }}>
-                        <div className="glass-card">
-                            <h3>🤖 IA</h3>
-                            <button className="btn btn-primary" onClick={handleAI} disabled={aiLoading} style={{ width: '100%' }}>Auto-asignar</button>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '20px', alignItems: 'start' }}>
+                        <div className="glass-card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                                <Bot size={22} color="var(--primary)" />
+                                <h3 style={{ margin: 0 }}>Inteligencia Artificial</h3>
+                            </div>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px', flex: 1 }}>
+                                Analiza las descripciones de las partidas para asignar automáticamente el oficio más adecuado y estimar precios basados en modelos de lenguaje.
+                            </p>
+                            <button className="btn btn-primary" onClick={handleAI} disabled={aiLoading} style={{ width: '100%' }}>
+                                {aiLoading ? <Loader2 className="loader-spinner" size={18} /> : <Bot size={18} />} 
+                                {aiLoading ? 'Procesando...' : 'Auto-asignar con IA'}
+                            </button>
                         </div>
-                        <div className="glass-card">
-                            <h3>🔍 Histórico</h3>
-                            <button className="btn btn-secondary" onClick={handleHistoricalAssign} disabled={histLoading} style={{ width: '100%' }}>Buscar Precios</button>
+
+                        <div className="glass-card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                                <Search size={22} color="var(--primary)" />
+                                <h3 style={{ margin: 0 }}>Buscador Histórico</h3>
+                            </div>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px', flex: 1 }}>
+                                Cruza los datos de este proyecto con tu base de precios propia y proyectos anteriores para aplicar precios reales ya utilizados.
+                            </p>
+                            <button className="btn btn-secondary" onClick={handleHistoricalAssign} disabled={histLoading} style={{ width: '100%' }}>
+                                {histLoading ? <Loader2 className="loader-spinner" size={18} /> : <RefreshCw size={18} />} 
+                                {histLoading ? 'Buscando...' : 'Aplicar Precios Históricos'}
+                            </button>
                         </div>
-                        <div className="glass-card">
-                            <h3>✉️ Licitación</h3>
-                            <select value={selectedOficio} onChange={(e) => setSelectedOficio(e.target.value)} style={{ width: '100%', marginBottom: '10px' }}>
-                                <option value="">Gremio</option>
-                                {oficiosAsignados.map(o => <option key={o} value={o}>{o}</option>)}
-                            </select>
-                            <button className="btn btn-primary" onClick={handleRequestQuotes} disabled={!selectedOficio || sendingEmails} style={{ width: '100%' }}>Enviar</button>
+
+                        <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                                <Mail size={22} color="var(--primary)" />
+                                <h3 style={{ margin: 0 }}>Licitación de Gremios</h3>
+                            </div>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px', flex: 1 }}>
+                                Envía solicitudes de presupuesto a tus proveedores de confianza filtrando por gremio y seleccionando destinatarios específicos.
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <select 
+                                    value={selectedOficio} 
+                                    onChange={(e) => {
+                                        setSelectedOficio(e.target.value);
+                                        setSelectedProviders({}); 
+                                    }} 
+                                    style={{ width: '100%' }}
+                                >
+                                    <option value="">Seleccionar Gremio</option>
+                                    {oficiosAsignados.map(o => <option key={o} value={o}>{o}</option>)}
+                                </select>
+
+                                <button 
+                                    className="btn btn-secondary" 
+                                    onClick={() => setShowLicitationModal(true)} 
+                                    disabled={!selectedOficio} 
+                                    style={{ width: '100%', gap: '8px' }}
+                                >
+                                    <Users size={16} /> Seleccionar Proveedores
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="glass-card" style={{ textAlign: 'right', marginBottom: '20px' }}>
-                        <div style={{ fontSize: '0.8rem' }}>TOTAL ESTIMADO</div>
-                        <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--success)' }}>{budgetTotal.toLocaleString('es-ES')} €</div>
+                    <div className="glass-card" style={{ 
+                        padding: '16px 24px', 
+                        marginBottom: '20px', 
+                        display: 'flex', 
+                        justifyContent: 'flex-end', 
+                        alignItems: 'center',
+                        gap: '20px',
+                        background: 'linear-gradient(90deg, transparent, rgba(0,45,84,0.03))'
+                    }}>
+                        <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Estimado Proyecto</div>
+                            <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+                                {budgetTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style={{ fontSize: '1.2rem', opacity: 0.7 }}>€</span>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="glass-card">
                         <div className="table-container">
                             <table>
                                 <thead>
-                                    <tr><th>Cap.</th><th>Descripción</th><th>Cant.</th><th>Ud.</th><th>Costo (€)</th><th>Oficio</th></tr>
+                                    <tr>
+                                        <th style={{ width: '80px' }}>Cap.</th>
+                                        <th>Descripción de la Partida</th>
+                                        <th style={{ width: '100px', textAlign: 'center' }}>Cant.</th>
+                                        <th style={{ width: '80px', textAlign: 'center' }}>Ud.</th>
+                                        <th style={{ width: '140px', textAlign: 'right' }}>Costo (€)</th>
+                                        <th style={{ width: '200px' }}>Oficio Asignado</th>
+                                    </tr>
                                 </thead>
                                 <tbody>
                                     {partidas.map((p, idx) => (
                                         <tr key={idx} style={{ backgroundColor: p.Capítulo?.endsWith('#') ? 'var(--bg-secondary)' : 'transparent' }}>
-                                            <td>{p.Capítulo?.replace(/#+/g, '')}</td>
-                                            <td>{p.Descripción}</td>
-                                            <td>{!p.Capítulo?.endsWith('#') && <input type="number" value={p.Cantidad} onChange={(e) => updateCantidad(idx, e.target.value)} style={{ width: '60px' }} />}</td>
-                                            <td>{!p.Capítulo?.endsWith('#') && <input type="text" value={p['Unidad IA']} onChange={(e) => updateUnidad(idx, e.target.value)} style={{ width: '50px' }} />}</td>
-                                            <td>{!p.Capítulo?.endsWith('#') && <input type="number" value={p['Precio Total (€)']} onChange={(e) => updatePrice(idx, e.target.value)} style={{ width: '90px' }} />}</td>
-                                            <td>{!p.Capítulo?.endsWith('#') && <select value={p["Oficio Asignado"]} onChange={(e) => updateOficio(idx, e.target.value)}>{listaOficios.map(of => <option key={of} value={of}>{of}</option>)}</select>}</td>
+                                            <td style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{p.Capítulo?.replace(/#+/g, '')}</td>
+                                            <td style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>{p.Descripción}</td>
+                                            <td style={{ textAlign: 'center' }}>{!p.Capítulo?.endsWith('#') && <input type="number" value={p.Cantidad} onChange={(e) => updateCantidad(idx, e.target.value)} style={{ width: '80px', textAlign: 'center' }} />}</td>
+                                            <td style={{ textAlign: 'center' }}>{!p.Capítulo?.endsWith('#') && <input type="text" value={p['Unidad IA']} onChange={(e) => updateUnidad(idx, e.target.value)} style={{ width: '60px', textAlign: 'center' }} />}</td>
+                                            <td style={{ textAlign: 'right' }}>{!p.Capítulo?.endsWith('#') && <input type="number" value={p['Precio Total (€)']} onChange={(e) => updatePrice(idx, e.target.value)} style={{ width: '110px', textAlign: 'right', fontWeight: 700, color: 'var(--primary)' }} />}</td>
+                                            <td>{!p.Capítulo?.endsWith('#') && <select value={p["Oficio Asignado"]} onChange={(e) => updateOficio(idx, e.target.value)} style={{ width: '100%' }}>{listaOficios.map(of => <option key={of} value={of}>{of}</option>)}</select>}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -610,6 +701,59 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                         </div>
                     </div>
                 )}
+
+                {showLicitationModal && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <div className="glass-card animate-fade-in" style={{ maxWidth: '500px', width: '90%', padding: '24px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                <div>
+                                    <h3 style={{ margin: 0 }}>Seleccionar Proveedores</h3>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Gremio: <strong>{selectedOficio}</strong></span>
+                                </div>
+                                <button className="btn-close" onClick={() => setShowLicitationModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)' }}><X size={20} /></button>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>DISPONIBLES</span>
+                                <div style={{ display: 'flex', gap: '12px' }}>
+                                    <button onClick={selectAllProvidersOficio} style={{ fontSize: '0.75rem', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Todos</button>
+                                    <button onClick={deselectAllProvidersOficio} style={{ fontSize: '0.75rem', color: 'var(--text-light)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Ninguno</button>
+                                </div>
+                            </div>
+
+                            <div className="providers-list" style={{ maxHeight: '300px', marginBottom: '24px', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '4px' }}>
+                                {proveedores.filter(p => p.Oficio === selectedOficio).length > 0 ? (
+                                    proveedores.filter(p => p.Oficio === selectedOficio).map(p => (
+                                        <div key={p.id} className="provider-item" onClick={() => toggleProvider(p.Nombre)} style={{ padding: '12px', borderBottom: '1px solid var(--bg-secondary)' }}>
+                                            {selectedProviders[p.Nombre] ? <CheckSquare size={18} color="var(--primary)" /> : <Square size={18} color="var(--border-color)" />}
+                                            <span style={{ fontSize: '0.95rem' }}>{p.Nombre}</span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-light)' }}>
+                                        No hay proveedores registrados para este gremio.
+                                    </div>
+                                )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowLicitationModal(false)}>Cancelar</button>
+                                <button 
+                                    className="btn btn-primary" 
+                                    style={{ flex: 2 }}
+                                    onClick={async () => {
+                                        await handleRequestQuotes();
+                                        setShowLicitationModal(false);
+                                    }} 
+                                    disabled={sendingEmails || Object.values(selectedProviders).filter(Boolean).length === 0}
+                                >
+                                    {sendingEmails ? <Loader2 className="loader-spinner" /> : <Send size={16} />} 
+                                    {sendingEmails ? 'Enviando...' : `Enviar a ${Object.values(selectedProviders).filter(Boolean).length} seleccionados`}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </>
         );
     }
@@ -617,40 +761,74 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     return (
         <div className="animate-fade-in">
             {ModalUI} {ToastUI}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h1>Borradores</h1>
-                <button className="btn btn-secondary" onClick={() => fetchProyectos(true)}><RefreshCw size={16} /></button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <div>
+                    <h1>Borradores</h1>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Gestiona tus licitaciones y presupuestos en curso.</p>
+                </div>
+                <button className="btn btn-secondary" onClick={() => fetchProyectos(true)} style={{ padding: '10px' }}><RefreshCw size={18} /></button>
             </div>
-            <div className="glass-card" style={{ marginTop: '24px' }}>
-                {projectToDelete && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <div className="glass-card" style={{ maxWidth: '400px', width: '90%', textAlign: 'center' }}>
-                            <h3 style={{ color: 'var(--danger)' }}>Confirmar borrado</h3>
-                            <p>¿Borrar {projectToDelete.Proyecto}?</p>
-                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                                <button className="btn btn-secondary" onClick={() => setProjectToDelete(null)}>Cancelar</button>
-                                <button className="btn btn-primary" style={{ backgroundColor: 'var(--danger)' }} onClick={() => { confirmDelete(projectToDelete); setProjectToDelete(null); }}>Borrar</button>
+
+            {loading ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', padding: '100px 0' }}>
+                    <Loader2 className="loader-spinner" style={{ width: '40px', height: '40px' }} />
+                    <p style={{ color: 'var(--text-muted)' }}>Cargando tus proyectos...</p>
+                </div>
+            ) : proyectos.length > 0 ? (
+                <div className="project-grid">
+                    {proyectos.map((pro, idx) => (
+                        <div key={idx} className="project-card animate-fade-in">
+                            <div className="project-card-header">
+                                <div className="project-card-info">
+                                    <h3 className="project-card-title">{pro.cliente || pro.Proyecto.split('_')[0]}</h3>
+                                    <div className="info-item">
+                                        <Hash size={14} /> <span>{pro.Proyecto}</span>
+                                    </div>
+                                    <div className="info-item">
+                                        <Calendar size={14} /> <span>Recibido: {pro.fecha_recepcion || "Fecha no disponible"}</span>
+                                    </div>
+                                    <div className="info-item">
+                                        <User size={14} /> <span>{pro.direccion || "Sin dirección asignada"}</span>
+                                    </div>
+                                </div>
+                                <div className="badge badge-blue">Borrador</div>
+                            </div>
+                            
+                            <div className="project-card-actions">
+                                <button className="btn btn-primary" onClick={() => openProject(pro)} style={{ flex: 1, gap: '6px' }}>
+                                    Abrir Proyecto <ArrowRight size={14} />
+                                </button>
+                                <button className="btn btn-secondary" onClick={() => setProjectToDelete(pro)} style={{ color: 'var(--danger)', padding: '10px' }}>
+                                    <Trash2 size={18} />
+                                </button>
                             </div>
                         </div>
-                    </div>
-                )}
-                <div className="table-container">
-                    <table>
-                        <thead><tr><th>Proyecto</th><th style={{ textAlign: 'right' }}>Acciones</th></tr></thead>
-                        <tbody>
-                            {proyectos.map((pro, idx) => (
-                                <tr key={idx}>
-                                    <td>{pro.cliente || pro.Proyecto.split('_')[0]}</td>
-                                    <td style={{ textAlign: 'right' }}>
-                                        <button className="btn btn-secondary btn-sm" onClick={() => openProject(pro)}>Abrir</button>
-                                        <button className="btn btn-secondary btn-sm" onClick={() => setProjectToDelete(pro)} style={{ color: 'var(--error)' }}><Trash2 size={14} /></button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    ))}
                 </div>
-            </div>
+            ) : (
+                <div className="glass-card" style={{ textAlign: 'center', padding: '60px 20px', marginTop: '24px' }}>
+                    <Folder size={48} color="var(--border-color)" style={{ marginBottom: '16px' }} />
+                    <h3>No hay borradores</h3>
+                    <p>Todos tus proyectos han sido procesados o aún no has subido ninguno.</p>
+                    <button className="btn btn-primary mt-4" onClick={() => navigate('/nuevo')}>Empezar nuevo proyecto</button>
+                </div>
+            )}
+
+            {projectToDelete && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div className="glass-card animate-fade-in" style={{ maxWidth: '400px', width: '90%', textAlign: 'center', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' }}>
+                        <div style={{ background: 'rgba(220, 38, 38, 0.1)', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                            <Trash2 size={30} color="var(--danger)" />
+                        </div>
+                        <h2 style={{ fontSize: '1.5rem', marginBottom: '10px' }}>¿Eliminar Borrador?</h2>
+                        <p style={{ marginBottom: '25px' }}>Esta acción no se puede deshacer. Se borrará permanentemente <strong>{projectToDelete.cliente || projectToDelete.Proyecto}</strong> y todas sus partidas.</p>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setProjectToDelete(null)}>Cancelar</button>
+                            <button className="btn btn-primary" style={{ flex: 1, backgroundColor: 'var(--danger)' }} onClick={() => { confirmDelete(projectToDelete); setProjectToDelete(null); }}>Eliminar Ahora</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
