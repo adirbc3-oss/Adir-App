@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { N8N_BASE_URL } from '../config';
 import { useToast } from '../utils/useModal';
 
 const Portal = () => {
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [solicitud, setSolicitud] = useState(null);
@@ -16,8 +18,7 @@ const Portal = () => {
   useEffect(() => {
     const fetchSolicitud = async () => {
       try {
-        const params = new URLSearchParams(window.location.search);
-        const token = params.get('token');
+        const token = searchParams.get('token');
         if (!token) throw new Error("Enlace inválido. Falta el token.");
 
         // Fetch Solicitud (usando limit(1) para evitar el error 406 si hay duplicados por pruebas de n8n)
@@ -64,7 +65,7 @@ const Portal = () => {
       }
     };
     fetchSolicitud();
-  }, []);
+  }, [searchParams]);
 
   const handlePriceChange = (id, value) => {
     setPrecios({ ...precios, [id]: value });

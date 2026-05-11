@@ -551,14 +551,6 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         let enviados = 0;
         let errores = 0;
 
-        // Timeout de 15s: n8n puede tardar en procesar pero no bloqueamos la UI indefinidamente
-        const fetchConTimeout = (url, opciones, ms = 15000) => {
-            const ctrl = new AbortController();
-            const id = setTimeout(() => ctrl.abort(), ms);
-            return fetch(url, { ...opciones, signal: ctrl.signal })
-                .finally(() => clearTimeout(id));
-        };
-
         try {
             for (const prov of provs) {
                 const payload = {
@@ -577,31 +569,21 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                         precio_estimado: parseFloat(t['Precio Total (€)']) || parseFloat(t.precio_base_estimado) || 0
                     }))
                 };
-                console.log(`[Licitación] Enviando a ${prov.Nombre} <${prov.Email}>:`, payload);
 
                 try {
-                    const res = await fetchConTimeout(
+                    const res = await fetch(
                         `${N8N_BASE_URL}/webhook/fase4-licitacion`,
                         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
                     );
-                    // n8n devuelve 200 aunque el workflow siga procesando en background
-                    if (res.status < 500) {
+                    if (res.ok) {
                         enviados++;
-                        console.log(`[Licitación] OK para ${prov.Nombre} — status ${res.status}`);
                     } else {
                         console.warn(`[Licitación] Error HTTP ${res.status} para ${prov.Nombre}`);
                         errores++;
                     }
                 } catch (fetchErr) {
-                    if (fetchErr.name === 'AbortError') {
-                        // Timeout: n8n recibió la petición pero tarda en responder (normal si está en modo "Wait for workflow")
-                        // Contamos como enviado porque el webhook SÍ llegó
-                        enviados++;
-                        console.warn(`[Licitación] Timeout para ${prov.Nombre} — el webhook llegó pero n8n tardó en responder. Revisa el flujo en n8n.`);
-                    } else {
-                        console.error(`[Licitación] Error de red para ${prov.Nombre}:`, fetchErr);
-                        errores++;
-                    }
+                    console.error(`[Licitación] Error de red para ${prov.Nombre}:`, fetchErr);
+                    errores++;
                 }
             }
 
