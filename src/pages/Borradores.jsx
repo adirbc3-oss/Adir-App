@@ -446,16 +446,15 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 const info = resultado.asignaciones[p.Capítulo];
                 if (info && info.oficio && info.oficio !== "Sin asignar") {
                     aplicadas++;
-                    const precioIA = info.precio || 0;
                     return {
                         ...p,
                         "Oficio Asignado": info.oficio,
-                        "Precio IA": precioIA,
-                        // Solo actualiza el precio visible si estaba a 0 o vacío
-                        "Precio Total (€)": (parseFloat(p["Precio Total (€)"]) > 0) ? p["Precio Total (€)"] : precioIA,
+                        "Precio IA": info.precio || 0,
+                        "Justificacion IA": info.justificacion || "",
                         "Unidad IA": info.unidad || p["Unidad IA"] || "ud",
                         isModified: true,
                         origen_modificacion: 'IA'
+                        // "Precio Total (€)" NO se toca — es el precio real que edita el usuario
                     };
                 }
                 return p;
@@ -552,50 +551,69 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         let enviados = 0;
         let errores = 0;
 
+        // Timeout de 15s: n8n puede tardar en procesar pero no bloqueamos la UI indefinidamente
+        const fetchConTimeout = (url, opciones, ms = 15000) => {
+            const ctrl = new AbortController();
+            const id = setTimeout(() => ctrl.abort(), ms);
+            return fetch(url, { ...opciones, signal: ctrl.signal })
+                .finally(() => clearTimeout(id));
+        };
+
         try {
             for (const prov of provs) {
+                const payload = {
+                    propuesta_id: activeProject.Proyecto,
+                    cliente_nombre: activeProject.cliente || activeProject.Proyecto,
+                    proveedor_id: String(prov.id),
+                    proveedor_nombre: prov.Nombre,
+                    proveedor_email: prov.Email,
+                    oficio_solicitado: selectedOficio,
+                    token: crypto.randomUUID(),
+                    tareas: tareasOficio.map(t => ({
+                        cap: t.Capítulo,
+                        descripcion: t.Descripción || t.texto_partida || '',
+                        unidad: t['Unidad IA'] || 'ud',
+                        cantidad: parseFloat(t.Cantidad) || 1,
+                        precio_estimado: parseFloat(t['Precio Total (€)']) || parseFloat(t.precio_base_estimado) || 0
+                    }))
+                };
+                console.log(`[Licitación] Enviando a ${prov.Nombre} <${prov.Email}>:`, payload);
+
                 try {
-                    const res = await fetch(`${N8N_BASE_URL}/webhook/fase4-licitacion`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            propuesta_id: activeProject.Proyecto,
-                            cliente_nombre: activeProject.cliente || activeProject.Proyecto,
-                            proveedor_id: prov.id,
-                            proveedor_nombre: prov.Nombre,
-                            proveedor_email: prov.Email,
-                            oficio_solicitado: selectedOficio,
-                            token: crypto.randomUUID(),
-                            tareas: tareasOficio.map(t => ({
-                                cap: t.Capítulo,
-                                descripcion: t.Descripción || t.texto_partida || '',
-                                unidad: t['Unidad IA'] || 'ud',
-                                cantidad: parseFloat(t.Cantidad) || 1,
-                                precio_estimado: parseFloat(t['Precio Total (€)']) || parseFloat(t.precio_base_estimado) || 0
-                            }))
-                        })
-                    });
-                    if (res.ok) {
+                    const res = await fetchConTimeout(
+                        `${N8N_BASE_URL}/webhook/fase4-licitacion`,
+                        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+                    );
+                    // n8n devuelve 200 aunque el workflow siga procesando en background
+                    if (res.status < 500) {
                         enviados++;
+                        console.log(`[Licitación] OK para ${prov.Nombre} — status ${res.status}`);
                     } else {
-                        console.warn(`Webhook respondió ${res.status} para ${prov.Nombre}`);
+                        console.warn(`[Licitación] Error HTTP ${res.status} para ${prov.Nombre}`);
                         errores++;
                     }
                 } catch (fetchErr) {
-                    console.error(`Error enviando a ${prov.Nombre}:`, fetchErr);
-                    errores++;
+                    if (fetchErr.name === 'AbortError') {
+                        // Timeout: n8n recibió la petición pero tarda en responder (normal si está en modo "Wait for workflow")
+                        // Contamos como enviado porque el webhook SÍ llegó
+                        enviados++;
+                        console.warn(`[Licitación] Timeout para ${prov.Nombre} — el webhook llegó pero n8n tardó en responder. Revisa el flujo en n8n.`);
+                    } else {
+                        console.error(`[Licitación] Error de red para ${prov.Nombre}:`, fetchErr);
+                        errores++;
+                    }
                 }
             }
 
             if (enviados > 0) {
-                showToast(`✅ Solicitudes enviadas a ${enviados} proveedor(es).${errores > 0 ? ` (${errores} fallaron)` : ''}`);
+                showToast(`✅ Solicitudes enviadas a ${enviados} proveedor(es).${errores > 0 ? ` (${errores} con error de red)` : ''}`);
             } else {
-                showToast(`No se pudo enviar a ningún proveedor. Revisa la conexión con n8n.`, "error");
+                showToast(`No se pudo conectar con n8n. Verifica que VITE_N8N_BASE_URL esté configurado en Vercel.`, "error");
             }
             setSelectedOficio("");
             setSelectedProviders({});
         } catch (err) {
-            showToast("Error inesperado al enviar solicitudes: " + err.message, "error");
+            showToast("Error inesperado: " + err.message, "error");
         } finally {
             setSendingEmails(false);
         }
@@ -758,23 +776,51 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                     <tr>
                                         <th style={{ width: '80px' }}>Cap.</th>
                                         <th>Descripción de la Partida</th>
-                                        <th style={{ width: '100px', textAlign: 'center' }}>Cant.</th>
-                                        <th style={{ width: '80px', textAlign: 'center' }}>Ud.</th>
-                                        <th style={{ width: '140px', textAlign: 'right' }}>Costo (€)</th>
-                                        <th style={{ width: '200px' }}>Oficio Asignado</th>
+                                        <th style={{ width: '90px', textAlign: 'center' }}>Cant.</th>
+                                        <th style={{ width: '70px', textAlign: 'center' }}>Ud.</th>
+                                        <th style={{ width: '130px', textAlign: 'right' }}>Precio Real (€)</th>
+                                        <th style={{ width: '130px', textAlign: 'right' }}>Est. IA (€)</th>
+                                        <th style={{ width: '190px' }}>Oficio Asignado</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {partidas.map((p, idx) => (
-                                        <tr key={idx} style={{ backgroundColor: p.Capítulo?.endsWith('#') ? 'var(--bg-secondary)' : 'transparent' }}>
-                                            <td style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{p.Capítulo?.replace(/#+/g, '')}</td>
-                                            <td style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>{p.Descripción}</td>
-                                            <td style={{ textAlign: 'center' }}>{!p.Capítulo?.endsWith('#') && <input type="number" value={p.Cantidad} onChange={(e) => updateCantidad(idx, e.target.value)} style={{ width: '80px', textAlign: 'center' }} />}</td>
-                                            <td style={{ textAlign: 'center' }}>{!p.Capítulo?.endsWith('#') && <input type="text" value={p['Unidad IA']} onChange={(e) => updateUnidad(idx, e.target.value)} style={{ width: '60px', textAlign: 'center' }} />}</td>
-                                            <td style={{ textAlign: 'right' }}>{!p.Capítulo?.endsWith('#') && <input type="number" value={p['Precio Total (€)']} onChange={(e) => updatePrice(idx, e.target.value)} style={{ width: '110px', textAlign: 'right', fontWeight: 700, color: 'var(--primary)' }} />}</td>
-                                            <td>{!p.Capítulo?.endsWith('#') && <select value={p["Oficio Asignado"]} onChange={(e) => updateOficio(idx, e.target.value)} style={{ width: '100%' }}>{listaOficios.map(of => <option key={of} value={of}>{of}</option>)}</select>}</td>
-                                        </tr>
-                                    ))}
+                                    {partidas.map((p, idx) => {
+                                        const esCapitulo = p.Capítulo?.endsWith('#');
+                                        const precioIA = parseFloat(p["Precio IA"]) || 0;
+                                        const justif = p["Justificacion IA"] || "";
+                                        return (
+                                            <tr key={idx} style={{ backgroundColor: esCapitulo ? 'var(--bg-secondary)' : 'transparent' }}>
+                                                <td style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{p.Capítulo?.replace(/#+/g, '')}</td>
+                                                <td style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>{p.Descripción}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {!esCapitulo && <input type="number" value={p.Cantidad} onChange={(e) => updateCantidad(idx, e.target.value)} style={{ width: '70px', textAlign: 'center' }} />}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {!esCapitulo && <input type="text" value={p['Unidad IA']} onChange={(e) => updateUnidad(idx, e.target.value)} style={{ width: '55px', textAlign: 'center' }} />}
+                                                </td>
+                                                <td style={{ textAlign: 'right' }}>
+                                                    {!esCapitulo && <input type="number" value={p['Precio Total (€)']} onChange={(e) => updatePrice(idx, e.target.value)} style={{ width: '110px', textAlign: 'right', fontWeight: 700, color: 'var(--primary)' }} />}
+                                                </td>
+                                                <td style={{ textAlign: 'right' }}>
+                                                    {!esCapitulo && precioIA > 0 && (
+                                                        <div title={justif || "Sin justificación"} style={{ cursor: justif ? 'help' : 'default' }}>
+                                                            <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                                                {precioIA.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            </span>
+                                                            {justif && (
+                                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', opacity: 0.75, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>
+                                                                    {justif}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    {!esCapitulo && <select value={p["Oficio Asignado"]} onChange={(e) => updateOficio(idx, e.target.value)} style={{ width: '100%' }}>{listaOficios.map(of => <option key={of} value={of}>{of}</option>)}</select>}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
