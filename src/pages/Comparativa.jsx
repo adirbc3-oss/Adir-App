@@ -167,7 +167,8 @@ function ComparativaAgrupada({
   estadoBadge, propuestas,
   openModalCompetencia,
   hideCompetitors = false,
-  isGlobalView = false
+  isGlobalView = false,
+  deleteSolicitud
 }) {
   const gruposOrdenados = Object.entries(comparativa);
 
@@ -287,7 +288,18 @@ function ComparativaAgrupada({
                               color: adjProvId && p.proveedor_id === adjProvId ? '#002D54'
                                 : p.solicitud_id === minTotalId ? '#059669' : p.esLocal ? '#92400e' : undefined
                             }}>
-                              {p.nombre}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                                {p.nombre}
+                                {!p.esLocal && deleteSolicitud && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); deleteSolicitud(p.solicitud_id); }}
+                                    title="Eliminar presupuesto"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#ef4444', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </div>
                               {!p.esLocal && (
                                   <div style={{ fontWeight: 400, fontSize: 11, marginTop: 2 }}>{estadoBadge(p.estado)}</div>
                               )}
@@ -504,7 +516,9 @@ export default function Comparativa() {
       allRespuestas.forEach(r => { if (r.solicitud_id && r.partida_id) respsMap[`${r.solicitud_id}__${r.partida_id}`] = r; });
 
       const grupos = {};
-      solicsFiltradas.forEach(sol => {
+      solicsFiltradas
+        .filter(sol => allRespuestas.some(r => r.solicitud_id === sol.id))
+        .forEach(sol => {
         const key = `${sol.oficio_solicitado}__${sol.propuesta_id}`;
         if (!grupos[key]) grupos[key] = { oficio: sol.oficio_solicitado, proyecto: sol.propuesta_id, solicitudes: [] };
         grupos[key].solicitudes.push(sol);
@@ -1009,6 +1023,7 @@ export default function Comparativa() {
               propuestas={allPropuestas}
               openModalCompetencia={handleOpenCompetencia}
               hideCompetitors={true}
+              deleteSolicitud={deleteSolicitud}
             />
           )}
           {vista === 'proyectos' && (

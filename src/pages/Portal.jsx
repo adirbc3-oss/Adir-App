@@ -11,6 +11,7 @@ const Portal = () => {
   const [solicitud, setSolicitud] = useState(null);
   const [partidas, setPartidas] = useState([]);
   const [precios, setPrecios] = useState({});
+  const [comentarios, setComentarios] = useState({});
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const { showToast, ToastUI } = useToast();
@@ -71,6 +72,10 @@ const Portal = () => {
     setPrecios({ ...precios, [id]: value });
   };
 
+  const handleComentarioChange = (id, value) => {
+    setComentarios({ ...comentarios, [id]: value });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -81,7 +86,8 @@ const Portal = () => {
         proveedor_id: solicitud.proveedor_id,
         precios: partidas.map(p => ({
           partida_id: p.id,
-          precio_ofertado: parseFloat(precios[p.id] || 0)
+          precio_ofertado: parseFloat(precios[p.id] || 0),
+          comentarios: comentarios[p.id] || ''
         }))
       };
 
@@ -125,6 +131,7 @@ const Portal = () => {
               <th style={{ padding: 10, textAlign: 'center' }}>Ud.</th>
               <th style={{ padding: 10, textAlign: 'right' }}>Cantidad</th>
               <th style={{ padding: 10, textAlign: 'right' }}>Precio Unitario (€)</th>
+              <th style={{ padding: 10, textAlign: 'left' }}>Observaciones</th>
             </tr>
           </thead>
           <tbody>
@@ -134,15 +141,24 @@ const Portal = () => {
                 <td style={{ padding: 10, textAlign: 'center' }}>{p.unidad || 'ud'}</td>
                 <td style={{ padding: 10, textAlign: 'right' }}>{p.cantidad || 1}</td>
                 <td style={{ padding: 10, textAlign: 'right' }}>
-                  <input 
-                    type="number" 
-                    step="0.01" 
+                  <input
+                    type="number"
+                    step="0.01"
                     min="0"
                     required
                     style={{ padding: 8, width: 100, textAlign: 'right', border: '1px solid #ced4da', borderRadius: 4 }}
                     value={precios[p.id] || ''}
                     onChange={(e) => handlePriceChange(p.id, e.target.value)}
                     placeholder="0.00"
+                  />
+                </td>
+                <td style={{ padding: 10 }}>
+                  <input
+                    type="text"
+                    style={{ padding: 8, width: '100%', minWidth: 150, border: '1px solid #ced4da', borderRadius: 4 }}
+                    value={comentarios[p.id] || ''}
+                    onChange={(e) => handleComentarioChange(p.id, e.target.value)}
+                    placeholder="Notas opcionales..."
                   />
                 </td>
               </tr>

@@ -550,9 +550,28 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         setSendingEmails(true);
         let enviados = 0;
         let errores = 0;
+        let saltados = 0;
 
         try {
+            // Deduplication: skip providers with a pending (not yet responded) solicitud
+            const { data: existingSols } = await supabase
+                .from('solicitudes')
+                .select('proveedor_id, estado_solicitud')
+                .eq('propuesta_id', activeProject.Proyecto)
+                .eq('oficio_solicitado', selectedOficio);
+
+            const pendingProvIds = new Set(
+                (existingSols || [])
+                    .filter(s => !['Respondido', 'Adjudicada', 'Rechazada'].includes(s.estado_solicitud))
+                    .map(s => String(s.proveedor_id))
+            );
+
             for (const prov of provs) {
+                if (pendingProvIds.has(String(prov.id))) {
+                    console.info(`[Licitación] Saltando ${prov.Nombre} - ya tiene solicitud pendiente.`);
+                    saltados++;
+                    continue;
+                }
                 const payload = {
                     propuesta_id: activeProject.Proyecto,
                     cliente_nombre: activeProject.cliente || activeProject.Proyecto,
@@ -588,7 +607,10 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             }
 
             if (enviados > 0) {
-                showToast(`✅ Solicitudes enviadas a ${enviados} proveedor(es).${errores > 0 ? ` (${errores} con error de red)` : ''}`);
+                const saltadosMsg = saltados > 0 ? ` (${saltados} ya tenían solicitud pendiente, omitidos)` : '';
+                showToast(`✅ Solicitudes enviadas a ${enviados} proveedor(es).${errores > 0 ? ` (${errores} con error de red)` : ''}${saltadosMsg}`);
+            } else if (saltados > 0) {
+                showToast(`Todos los proveedores seleccionados ya tienen una solicitud pendiente sin responder.`, "warning");
             } else {
                 showToast(`No se pudo conectar con n8n. Verifica que VITE_N8N_BASE_URL esté configurado en Vercel.`, "error");
             }
