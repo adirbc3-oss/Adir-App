@@ -319,34 +319,54 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     const handleHistoricalAssign = async () => {
         setHistLoading(true);
         try {
+            // 1. Buscar en base ADIR por código exacto
             const codigosActuales = partidas
                 .map(p => p.texto_partida ? p.texto_partida.split('::')[0].trim() : "")
                 .filter(c => c && !c.includes('#'));
-            const { data: baseData, error: baseError } = await supabase
-                .from('base_precios_adir')
-                .select('codigo, precio_total')
-                .in('codigo', codigosActuales);
-            const adirBaseMap = new Map();
-            if (!baseError && baseData) baseData.forEach(item => adirBaseMap.set(item.codigo, item.precio_total));
 
-            const oneYearAgo = new Date();
-            oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+            const adirBaseMap = new Map();
+            if (codigosActuales.length > 0) {
+                const { data: baseData, error: baseError } = await supabase
+                    .from('base_precios_adir')
+                    .select('codigo, precio_total, unidad')
+                    .in('codigo', codigosActuales);
+                if (!baseError && baseData) {
+                    baseData.forEach(item => adirBaseMap.set(item.codigo, { precio: item.precio_total, unidad: item.unidad }));
+                }
+            }
+
+            // 2. Buscar en histórico (sin límite de fecha, todos los proyectos anteriores)
             const { data: propData, error: propError } = await supabase
                 .from('propuestas')
                 .select('Proyecto')
-                .gte('fecha_recepcion', oneYearAgo.toISOString().split('T')[0])
-                .neq('Proyecto', activeProject.Proyecto);
+                .neq('Proyecto', activeProject.Proyecto)
+                .neq('estado', 'Pendiente');
 
-            let historyMap = new Map();
+            const historyMap = new Map();   // clave: texto_partida exacto
+            const codeHistMap = new Map();  // clave: código (antes de ::)
+
             if (!propError && propData && propData.length > 0) {
                 const { data: partData, error: partError } = await supabase
                     .from('partidas')
-                    .select('texto_partida, precio_adjudicado, precio_base_estimado')
+                    .select('texto_partida, precio_adjudicado, precio_base_estimado, unidad')
                     .in('propuesta_id', propData.map(p => p.Proyecto));
+
                 if (!partError && partData) {
                     partData.forEach(p => {
-                        const price = p.precio_adjudicado > 0 ? parseFloat(p.precio_adjudicado) : (p.precio_base_estimado > 0 ? parseFloat(p.precio_base_estimado) : 0);
-                        if (price > 0) historyMap.set(p.texto_partida, price);
+                        const precio = parseFloat(p.precio_adjudicado) > 0
+                            ? parseFloat(p.precio_adjudicado)
+                            : (parseFloat(p.precio_base_estimado) > 0 ? parseFloat(p.precio_base_estimado) : 0);
+                        if (precio > 0 && p.texto_partida) {
+                            // Match exacto por texto_partida completo
+                            if (!historyMap.has(p.texto_partida)) {
+                                historyMap.set(p.texto_partida, { precio, unidad: p.unidad });
+                            }
+                            // Match por código (más flexible)
+                            const code = p.texto_partida.split('::')[0]?.trim();
+                            if (code && !codeHistMap.has(code)) {
+                                codeHistMap.set(code, { precio, unidad: p.unidad });
+                            }
+                        }
                     });
                 }
             }
@@ -355,25 +375,62 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             const newPartidas = partidas.map(p => {
                 if (p.Capítulo && p.Capítulo.match(/#+$/)) return p;
                 const codigo = p.texto_partida ? p.texto_partida.split('::')[0].trim() : "";
-                const precioAdir = adirBaseMap.get(codigo);
-                if (precioAdir && precioAdir > 0) {
+
+                // Prioridad 1: Base ADIR
+                const adirMatch = adirBaseMap.get(codigo);
+                if (adirMatch && adirMatch.precio > 0) {
                     aplicadasAdir++;
-                    return { ...p, "Precio Total (€)": precioAdir, isModified: true, origen_modificacion: 'Base ADIR' };
+                    return {
+                        ...p,
+                        "Precio Total (€)": adirMatch.precio,
+                        "Unidad IA": adirMatch.unidad || p["Unidad IA"] || "ud",
+                        isModified: true,
+                        origen_modificacion: 'Base ADIR'
+                    };
                 }
-                const precioHist = historyMap.get(p.texto_partida);
-                if (precioHist && precioHist > 0) {
+
+                // Prioridad 2: Histórico exacto
+                const histExact = historyMap.get(p.texto_partida);
+                if (histExact && histExact.precio > 0) {
                     aplicadasHist++;
-                    return { ...p, "Precio Total (€)": precioHist, isModified: true, origen_modificacion: 'Histórico' };
+                    return {
+                        ...p,
+                        "Precio Total (€)": histExact.precio,
+                        "Unidad IA": histExact.unidad || p["Unidad IA"] || "ud",
+                        isModified: true,
+                        origen_modificacion: 'Histórico'
+                    };
                 }
+
+                // Prioridad 3: Histórico por código
+                const histCode = codeHistMap.get(codigo);
+                if (histCode && histCode.precio > 0) {
+                    aplicadasHist++;
+                    return {
+                        ...p,
+                        "Precio Total (€)": histCode.precio,
+                        "Unidad IA": histCode.unidad || p["Unidad IA"] || "ud",
+                        isModified: true,
+                        origen_modificacion: 'Histórico (código)'
+                    };
+                }
+
                 return p;
             });
+
             if (aplicadasAdir > 0 || aplicadasHist > 0) {
                 setPartidas(newPartidas);
                 setHasUnsavedChanges(true);
                 showToast(`✅ Aplicados ${aplicadasAdir} de Base ADIR y ${aplicadasHist} de históricos.`);
-            } else showToast('No se encontraron coincidencias.', 'warning');
-        } catch (error) { showToast('Error al buscar precios.', 'error'); }
-        finally { setHistLoading(false); }
+            } else {
+                showToast('No se encontraron coincidencias en histórico ni base ADIR.', 'warning');
+            }
+        } catch (error) {
+            console.error("Error en búsqueda histórica:", error);
+            showToast('Error al buscar precios: ' + error.message, 'error');
+        } finally {
+            setHistLoading(false);
+        }
     };
 
     const handleAI = async () => {
@@ -389,7 +446,17 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 const info = resultado.asignaciones[p.Capítulo];
                 if (info && info.oficio && info.oficio !== "Sin asignar") {
                     aplicadas++;
-                    return { ...p, "Oficio Asignado": info.oficio, "Precio IA": info.precio || 0, "Unidad IA": info.unidad || "ud", isModified: true, origen_modificacion: 'IA' };
+                    const precioIA = info.precio || 0;
+                    return {
+                        ...p,
+                        "Oficio Asignado": info.oficio,
+                        "Precio IA": precioIA,
+                        // Solo actualiza el precio visible si estaba a 0 o vacío
+                        "Precio Total (€)": (parseFloat(p["Precio Total (€)"]) > 0) ? p["Precio Total (€)"] : precioIA,
+                        "Unidad IA": info.unidad || p["Unidad IA"] || "ud",
+                        isModified: true,
+                        origen_modificacion: 'IA'
+                    };
                 }
                 return p;
             });
@@ -461,32 +528,77 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     };
 
     const handleRequestQuotes = async () => {
-        if (hasUnsavedChanges) await saveAssignments();
+        // Guardar cambios antes de enviar para que el precio esté actualizado en BD
+        if (hasUnsavedChanges) {
+            const saved = await saveAssignments();
+            if (!saved) {
+                showToast("No se pudo guardar antes de enviar. Inténtalo de nuevo.", "error");
+                return;
+            }
+        }
+
         const provs = proveedores.filter(p => p.Oficio === selectedOficio && selectedProviders[p.Nombre]);
         if (provs.length === 0) return showToast("Selecciona proveedores.", "warning");
-        const tareasOficio = partidas.filter(p => p["Oficio Asignado"] === selectedOficio && !p.Capítulo.endsWith('#'));
+
+        const tareasOficio = partidas.filter(p =>
+            p["Oficio Asignado"] === selectedOficio && !p.Capítulo?.endsWith('#')
+        );
+
+        if (tareasOficio.length === 0) {
+            return showToast(`No hay partidas asignadas al gremio "${selectedOficio}".`, "warning");
+        }
+
         setSendingEmails(true);
+        let enviados = 0;
+        let errores = 0;
+
         try {
             for (const prov of provs) {
-                await fetch(`${N8N_BASE_URL}/webhook/fase4-licitacion`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        propuesta_id: activeProject.Proyecto,
-                        proveedor_id: prov.id,
-                        proveedor_nombre: prov.Nombre,
-                        proveedor_email: prov.Email,
-                        oficio_solicitado: selectedOficio,
-                        token: crypto.randomUUID(),
-                        tareas: tareasOficio.map(t => ({ cap: t.Capítulo, descripcion: t.Descripción, unidad: t['Unidad IA'] || 'ud', precio_estimado: t.precio_base_estimado || 0 }))
-                    })
-                });
+                try {
+                    const res = await fetch(`${N8N_BASE_URL}/webhook/fase4-licitacion`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            propuesta_id: activeProject.Proyecto,
+                            cliente_nombre: activeProject.cliente || activeProject.Proyecto,
+                            proveedor_id: prov.id,
+                            proveedor_nombre: prov.Nombre,
+                            proveedor_email: prov.Email,
+                            oficio_solicitado: selectedOficio,
+                            token: crypto.randomUUID(),
+                            tareas: tareasOficio.map(t => ({
+                                cap: t.Capítulo,
+                                descripcion: t.Descripción || t.texto_partida || '',
+                                unidad: t['Unidad IA'] || 'ud',
+                                cantidad: parseFloat(t.Cantidad) || 1,
+                                precio_estimado: parseFloat(t['Precio Total (€)']) || parseFloat(t.precio_base_estimado) || 0
+                            }))
+                        })
+                    });
+                    if (res.ok) {
+                        enviados++;
+                    } else {
+                        console.warn(`Webhook respondió ${res.status} para ${prov.Nombre}`);
+                        errores++;
+                    }
+                } catch (fetchErr) {
+                    console.error(`Error enviando a ${prov.Nombre}:`, fetchErr);
+                    errores++;
+                }
             }
-            showToast(`✅ Solicitudes enviadas.`);
+
+            if (enviados > 0) {
+                showToast(`✅ Solicitudes enviadas a ${enviados} proveedor(es).${errores > 0 ? ` (${errores} fallaron)` : ''}`);
+            } else {
+                showToast(`No se pudo enviar a ningún proveedor. Revisa la conexión con n8n.`, "error");
+            }
             setSelectedOficio("");
             setSelectedProviders({});
-        } catch (err) { showToast("Error al enviar solicitudes.", "error"); }
-        finally { setSendingEmails(false); }
+        } catch (err) {
+            showToast("Error inesperado al enviar solicitudes: " + err.message, "error");
+        } finally {
+            setSendingEmails(false);
+        }
     };
 
     const updateOficio = (idx, newOficio) => {

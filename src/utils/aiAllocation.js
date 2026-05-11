@@ -88,7 +88,8 @@ export const asignarProveedoresIA = async (partidas, proveedores, onProgress) =>
         .map(p => ({
             id: p.id || Math.random().toString(36),
             cap: p.Capítulo || p.Capitulo || "S/C",
-            desc: (p.Descripción || p.Descripcion || p.texto_partida || "").toString().trim()
+            desc: (p.Descripción || p.Descripcion || p.texto_partida || "").toString().trim(),
+            unidad: p["Unidad IA"] || p.unidad || ""
         }));
 
     if (itemsParaIA.length === 0) return { asignaciones: {}, sinProveedor: [] };
@@ -104,37 +105,59 @@ export const asignarProveedoresIA = async (partidas, proveedores, onProgress) =>
             const adirContext = await getAdirContext(item.desc);
             const histContext = await getHistoricalContext(item.desc);
             const cypeContext = await getCypeContext(item.desc);
-            
+
             let combinedContext = "";
             if (adirContext) combinedContext += `\nBASE DE PRECIOS ADIR (PRIORIDAD ALTA):\n${adirContext}`;
             if (histContext) combinedContext += `\nDATOS HISTÓRICOS ADJUDICADOS:\n${histContext}`;
             combinedContext += `\nDATOS CYPE MURCIA:\n${cypeContext}`;
-            
-            return `TAREA ID: ${item.id}\nDESCRIPCIÓN: ${item.desc}\n${combinedContext}`;
+
+            const unidadActual = item.unidad ? `\nUNIDAD ACTUAL: ${item.unidad}` : '\nUNIDAD ACTUAL: (sin asignar — asignar la más apropiada)';
+
+            return `TAREA ID: ${item.id}\nDESCRIPCIÓN: ${item.desc}${unidadActual}\n${combinedContext}`;
         });
         
         const bloquesContexto = await Promise.all(contextPromises);
 
-        const prompt = `Eres Auditor de Costos 2026. Valora estas TAREAS.
-        
+        const prompt = `Eres Auditor de Costos de Construcción 2026. Valora estas TAREAS de obra.
+
 REGLAS PARA ASIGNAR PRECIO (ORDEN DE PRIORIDAD):
-1. BASE ADIR OFICIAL: Si existe un dato de "BASE DE PRECIOS ADIR", úsalo como PRECIO BASE. Es la referencia interna del cliente.
-2. HISTÓRICO REAL: Si no hay base ADIR pero hay "HISTÓRICOS ADJUDICADOS", úsalos.
-3. CYPE MURCIA: Úsalo solo como referencia de mercado si no hay datos internos.
+1. BASE ADIR OFICIAL: Si existe dato "BASE DE PRECIOS ADIR", úsalo como PRECIO BASE. Es la referencia interna prioritaria.
+2. HISTÓRICO REAL: Si no hay base ADIR pero hay "HISTÓRICOS ADJUDICADOS", úsalos como precio.
+3. CYPE MURCIA: Solo como referencia de mercado si no hay datos internos.
+4. Si ninguna fuente tiene dato, estima el precio razonable para Murcia 2026.
 
-REGLAS PARA ASIGNAR OFICIO:
-1. Obligatorio: Escoge SIEMPRE un gremio de la lista "OFICIOS POSIBLES".
-2. Si la tarea incluye material de fontanería (bañera, grifo, PVC), asigna "Fontanería".
-3. Si incluye madera (puertas, muebles, tarima), asigna "Carpintería de Madera".
-4. Si incluye tirar cosas, asignar "Demolición".
+REGLAS PARA ASIGNAR OFICIO (lista OFICIOS POSIBLES):
+1. Siempre elige UN gremio de la lista "OFICIOS POSIBLES".
+2. Fontanería: bañera, grifo, PVC, tubo, sanitario, desagüe.
+3. Carpintería de Madera: puertas, muebles, tarima, parquet.
+4. Demolición: derribar, tirar, desmontar, demoler.
+5. Electricidad: cable, cuadro eléctrico, enchufe, interruptor, luminaria.
+6. Albañilería: tabique, ladrillo, mortero, enlucido, revoco.
+7. Solados y Alicatados: suelo, pavimento, cerámica, porcelánico, gres.
+8. Pintura: pintar, pintura, imprimación, barniz.
 
-Responde ÚNICAMENTE con JSON:
+REGLAS PARA ASIGNAR UNIDAD:
+- Si la partida ya tiene UNIDAD ACTUAL asignada, mantenla sin cambiarla.
+- Si UNIDAD ACTUAL está "(sin asignar)", elige la más apropiada:
+  * "ud": trabajos completos (instalar cocina, sanitario, puerta, ventana, aparato), cuando son unidades contables
+  * "m2": superficies (pintura, alicatado, solado, falso techo, impermeabilización, enfoscado)
+  * "ml": lineales (rodapiés, tubería, perfil, canaleta, zócalo, bajante)
+  * "m3": volúmenes (excavación, relleno, hormigón, movimiento de tierras)
+  * "kg": peso (acero, ferralla, escombros en tonelaje pequeño)
+  * "t": toneladas (escombros, áridos en grande)
+  * "h": horas (asistencia técnica, mano de obra genérica)
+  * "pa": partida alzada (presupuesto global sin medición exacta)
+  * "mes": trabajos continuados por mes (limpieza periódica, vigilancia)
+
+OFICIOS POSIBLES: ${oficiosDisponibles}
+
+Responde ÚNICAMENTE con JSON válido:
 {"asignaciones": {
   "<TAREA ID>": {
     "oficio": "<gremio de la lista>",
-    "precio": <numero>,
-    "unidad": "<ud|m2|ml|m3>",
-    "justificacion": "<Menciona si es de Base ADIR, Histórico o CYPE>"
+    "precio": <numero sin simbolo €>,
+    "unidad": "<unidad elegida>",
+    "justificacion": "<Base ADIR / Histórico / CYPE / Estimación — una línea>"
   }
 }}
 

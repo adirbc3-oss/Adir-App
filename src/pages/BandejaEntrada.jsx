@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { Loader2, Mailbox, CheckCircle, Trash2, Clock, Bell, Archive } from 'lucide-react';
+import { Loader2, Mailbox, CheckCircle, Trash2, Clock, Bell, Archive, Mail, User } from 'lucide-react';
 import { useToast } from '../utils/useModal';
+
+const isEmailFormat = (str) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str || '');
 
 const BandejaEntrada = () => {
     const [pendientes, setPendientes] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [actionLoading, setActionLoading] = useState({}); 
-    const [editTitles, setEditTitles] = useState({}); // Títulos editables por el usuario
+    const [actionLoading, setActionLoading] = useState({});
+    const [editTitles, setEditTitles] = useState({});
+    const [editClientes, setEditClientes] = useState({});
+    const [editEmails, setEditEmails] = useState({});
     const { showToast, ToastUI } = useToast();
     const [notificaciones, setNotificaciones] = useState([]);
 
@@ -19,16 +23,30 @@ const BandejaEntrada = () => {
                 .select('*')
                 .eq('estado', 'Pendiente')
                 .order('fecha_recepcion', { ascending: false });
-                
+
             if (error) throw error;
             setPendientes(data || []);
-            
-            // Inicializar títulos editables con el nombre limpio
+
             const initialTitles = {};
+            const initialClientes = {};
+            const initialEmails = {};
             (data || []).forEach(p => {
-                initialTitles[p.Proyecto] = (p.cliente || p.Proyecto || "").split('_')[0];
+                // Título: extraer nombre limpio del ID del proyecto
+                const rawName = (p.Proyecto || "").replace(/_\d{8,}.*$/, '').replace(/_/g, ' ').trim();
+                initialTitles[p.Proyecto] = rawName || p.Proyecto;
+
+                // Si cliente es un email, usarlo como email y dejar nombre vacío
+                if (isEmailFormat(p.cliente)) {
+                    initialEmails[p.Proyecto] = p.cliente;
+                    initialClientes[p.Proyecto] = '';
+                } else {
+                    initialClientes[p.Proyecto] = p.cliente || '';
+                    initialEmails[p.Proyecto] = p.direccion || '';
+                }
             });
             setEditTitles(initialTitles);
+            setEditClientes(initialClientes);
+            setEditEmails(initialEmails);
         } catch (error) {
             console.error("Error al cargar la bandeja de entrada:", error);
             showToast("Error de conexión al cargar la bandeja.", "error");
@@ -77,17 +95,19 @@ const BandejaEntrada = () => {
 
     const handleAccept = async (proyectoId) => {
         if (!proyectoId) return;
-        
+
         const finalTitle = editTitles[proyectoId] || "Sin Título";
-        
+        const finalCliente = editClientes[proyectoId] || '';
+        const finalEmail = editEmails[proyectoId] || '';
+
         setActionLoading(prev => ({ ...prev, [proyectoId]: true }));
         try {
-            // Actualizamos tanto el estado como el nombre amigable (cliente para este caso)
             const { error } = await supabase
                 .from('propuestas')
-                .update({ 
+                .update({
                     estado: 'Borrador',
-                    cliente: finalTitle 
+                    cliente: finalTitle,
+                    direccion: finalEmail
                 })
                 .eq('Proyecto', proyectoId);
 
@@ -219,15 +239,15 @@ const BandejaEntrada = () => {
                         const uniqueKey = p.Proyecto || `pendiente-${index}`;
                         return (
                             <div key={uniqueKey} className="glass-card" style={{ display: 'flex', flexDirection: 'column', borderTop: '4px solid var(--accent-primary)' }}>
-                                <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>
-                                    Título del Proyecto
+                                <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Nombre del Proyecto
                                 </label>
-                                <input 
+                                <input
                                     type="text"
                                     className="input"
-                                    style={{ 
-                                        marginBottom: '15px', 
-                                        fontSize: '1.1rem', 
+                                    style={{
+                                        marginBottom: '10px',
+                                        fontSize: '1.05rem',
                                         fontWeight: '600',
                                         backgroundColor: 'rgba(255,255,255,0.5)',
                                         border: '1px solid var(--border-color)'
@@ -236,14 +256,34 @@ const BandejaEntrada = () => {
                                     onChange={(e) => setEditTitles(prev => ({ ...prev, [p.Proyecto]: e.target.value }))}
                                     placeholder="Nombre del presupuesto..."
                                 />
-                                
-                                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '5px' }}>
-                                    <span style={{ fontWeight: '500' }}>Remitente:</span> {p.cliente || "Desconocido"}
-                                </p>
-                                
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '24px' }}>
-                                    <Clock size={14} />
-                                    Recibido el: {p.fecha_recepcion ? new Date(p.fecha_recepcion).toLocaleDateString() : 'Hoy'}
+
+                                <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <User size={11} /> Cliente / Empresa
+                                </label>
+                                <input
+                                    type="text"
+                                    className="input"
+                                    style={{ marginBottom: '10px', backgroundColor: 'rgba(255,255,255,0.5)', border: '1px solid var(--border-color)' }}
+                                    value={editClientes[p.Proyecto] || ""}
+                                    onChange={(e) => setEditClientes(prev => ({ ...prev, [p.Proyecto]: e.target.value }))}
+                                    placeholder="Nombre del cliente..."
+                                />
+
+                                <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Mail size={11} /> Email de Contacto
+                                </label>
+                                <input
+                                    type="email"
+                                    className="input"
+                                    style={{ marginBottom: '12px', backgroundColor: 'rgba(255,255,255,0.5)', border: '1px solid var(--border-color)' }}
+                                    value={editEmails[p.Proyecto] || ""}
+                                    onChange={(e) => setEditEmails(prev => ({ ...prev, [p.Proyecto]: e.target.value }))}
+                                    placeholder="correo@cliente.com"
+                                />
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '18px' }}>
+                                    <Clock size={13} />
+                                    Recibido el: {p.fecha_recepcion ? new Date(p.fecha_recepcion).toLocaleDateString('es-ES') : 'Hoy'}
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
