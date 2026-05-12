@@ -272,16 +272,22 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         try {
             const updatePromises = partidas
                 .filter(p => p.id)
-                .map(p =>
-                    supabase.from('partidas').update({
-                        precio_base_estimado: parseFloat(p["Precio Total (€)"]) || 0,
+                .map(p => {
+                    const isAdjudicado = p.estado_adjudicacion === 'Adjudicado';
+                    const updatePayload = {
                         oficio_asignado: p["Oficio Asignado"] === "Sin asignar" ? null : p["Oficio Asignado"],
                         precio_ia: parseFloat(p["Precio IA"]) || null,
                         unidad: p["Unidad IA"] || null,
                         cantidad: parseFloat(p.Cantidad) || 0,
                         force_quote: p["Needs Quote"] || false
-                    }).eq('id', p.id)
-                );
+                    };
+                    // Never overwrite precio_base_estimado for adjudicated partidas
+                    // — their real price lives in precio_adjudicado
+                    if (!isAdjudicado) {
+                        updatePayload.precio_base_estimado = parseFloat(p["Precio Total (€)"]) || 0;
+                    }
+                    return supabase.from('partidas').update(updatePayload).eq('id', p.id);
+                });
 
             const results = await Promise.all(updatePromises);
             const hasError = results.find(r => r.error);
@@ -553,21 +559,24 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         let saltados = 0;
 
         try {
-            // Deduplication: skip providers with ANY existing solicitud for this project/trade
-            // (If the user wants to re-request, they must first delete the old one in Comparativa)
+            // Deduplication: skip providers with a PENDING (non-responded) solicitud
+            // for this same project+oficio. If they already responded, allow re-requesting.
             const { data: existingSols } = await supabase
                 .from('solicitudes')
-                .select('proveedor_id')
+                .select('proveedor_id, estado')
                 .eq('propuesta_id', activeProject.Proyecto)
                 .eq('oficio_solicitado', selectedOficio);
 
+            // Only block re-send if the existing solicitud is still pending (not yet responded)
             const pendingProvIds = new Set(
-                (existingSols || []).map(s => String(s.proveedor_id))
+                (existingSols || [])
+                    .filter(s => s.estado !== 'Respondido')
+                    .map(s => String(s.proveedor_id))
             );
 
             for (const prov of provs) {
                 if (pendingProvIds.has(String(prov.id))) {
-                    console.info(`[Licitación] Saltando ${prov.Nombre} - ya tiene solicitud pendiente.`);
+                    console.info(`[Licitación] Saltando ${prov.Nombre} - ya tiene solicitud pendiente sin responder.`);
                     saltados++;
                     continue;
                 }
@@ -609,7 +618,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 const saltadosMsg = saltados > 0 ? ` (${saltados} omitidos por solicitud previa existente)` : '';
                 showToast(`✅ Solicitudes enviadas a ${enviados} proveedor(es).${errores > 0 ? ` (${errores} con error de red)` : ''}${saltadosMsg}`);
             } else if (saltados > 0) {
-                showToast(`Todos los proveedores seleccionados ya tienen una solicitud (si deseas reenviar, elimina la previa en Comparativa).`, "warning");
+                showToast(`Todos los proveedores seleccionados ya tienen una solicitud pendiente sin responder. Cuando respondan podrás volver a solicitar.`, "warning");
             } else {
                 showToast(`No se pudo conectar con n8n. Verifica que VITE_N8N_BASE_URL esté configurado en Vercel.`, "error");
             }
@@ -804,21 +813,24 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                                 <td style={{ textAlign: 'right' }}>
                                                     {!esCapitulo && (
                                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
-                                                            {p.estado_adjudicacion === 'Adjudicado' && <Trophy size={14} color="#059669" title="Precio Adjudicado" />}
-                                                            <input 
-                                                                type="number" 
-                                                                value={p['Precio Total (€)']} 
-                                                                onChange={(e) => updatePrice(idx, e.target.value)} 
-                                                                style={{ 
-                                                                    width: '110px', 
-                                                                    textAlign: 'right', 
-                                                                    fontWeight: p.estado_adjudicacion === 'Adjudicado' ? 800 : 700, 
+                                                            {p.estado_adjudicacion === 'Adjudicado' && <Trophy size={14} color="#059669" title="Precio adjudicado — solo modificable desde Comparativa" />}
+                                                            <input
+                                                                type="number"
+                                                                value={p['Precio Total (€)']}
+                                                                onChange={(e) => p.estado_adjudicacion !== 'Adjudicado' && updatePrice(idx, e.target.value)}
+                                                                readOnly={p.estado_adjudicacion === 'Adjudicado'}
+                                                                title={p.estado_adjudicacion === 'Adjudicado' ? 'Precio adjudicado — solo modificable desde Comparativa' : ''}
+                                                                style={{
+                                                                    width: '110px',
+                                                                    textAlign: 'right',
+                                                                    fontWeight: p.estado_adjudicacion === 'Adjudicado' ? 800 : 700,
                                                                     color: p.estado_adjudicacion === 'Adjudicado' ? '#059669' : 'var(--primary)',
                                                                     background: p.estado_adjudicacion === 'Adjudicado' ? '#d1fae5' : 'transparent',
                                                                     border: p.estado_adjudicacion === 'Adjudicado' ? '1px solid #10b981' : '1px solid transparent',
                                                                     borderRadius: '4px',
-                                                                    padding: '4px'
-                                                                }} 
+                                                                    padding: '4px',
+                                                                    cursor: p.estado_adjudicacion === 'Adjudicado' ? 'not-allowed' : 'text'
+                                                                }}
                                                             />
                                                         </div>
                                                     )}
