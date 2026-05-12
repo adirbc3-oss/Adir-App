@@ -9,11 +9,47 @@ import {
   Inbox, List, X, Euro, Calendar, User, Briefcase, Upload, Loader2, FileText
 } from 'lucide-react';
 import { parseBC3 } from '../utils/bc3Parser';
-import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
+import { generarPresupuestoPDF, generarPDFOfertaProveedor, descargarPDF } from '../utils/pdfUtils';
 
 
 // ─── Vista: FEED GLOBAL de respuestas recibidas ──────────────────────────────
-function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proyectoSel, oficioSel, deleteSolicitud }) {
+function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proyectoSel, oficioSel, deleteSolicitud, allPartidas }) {
+  const handleDescargarPDF = (sol, resps) => {
+    const fechaResp = resps.reduce((max, r) => (r.created_at > max ? r.created_at : max), '');
+    const partidasPDF = resps.map(r => {
+      let part = (allPartidas || partidas).find(p => p.id === r.partida_id);
+      if (!part) {
+        const rCode = (r.partida_id || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
+        part = (allPartidas || partidas).find(p =>
+          p.propuesta_id === sol.propuesta_id &&
+          (p.texto_partida ? p.texto_partida.split('::')[0].replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '') : '') === rCode
+        );
+      }
+      const descripcion = part
+        ? (part.texto_descripcion || (part.texto_partida ? part.texto_partida.split('::').slice(1).join('::') : part.id))
+        : (r.partida_id || 'Partida');
+      return {
+        descripcion,
+        unidad: part?.unidad || 'ud',
+        cantidad: part?.cantidad || 1,
+        precioOfertado: Number(r.precio_ofertado) || 0,
+        comentario: r.comentarios || '',
+      };
+    });
+
+    const doc = generarPDFOfertaProveedor({
+      proveedorNombre: sol.proveedor_nombre || sol.proveedor_email || 'Proveedor',
+      proveedorEmail: sol.proveedor_email || '',
+      proyectoNombre: propuestas.find(p => p.Proyecto === sol.propuesta_id)?.cliente || sol.propuesta_id || '',
+      oficio: sol.oficio_solicitado || '',
+      fecha: fechaResp || sol.fecha_envio || new Date().toISOString(),
+      partidas: partidasPDF,
+      comentariosGenerales: sol.comentarios_generales || '',
+    });
+
+    const safeName = `Oferta_${(sol.proveedor_nombre || 'proveedor').replace(/\s+/g, '_')}_${(sol.oficio_solicitado || '').replace(/\s+/g, '_')}_${(sol.propuesta_id || '').replace(/\s+/g, '_')}`;
+    descargarPDF(doc, safeName);
+  };
   // Agrupar respuestas por solicitud_id
   const feedItems = useMemo(() => {
     const solsFiltradas = solicitudes.filter(s => {
@@ -97,7 +133,14 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
                 {(sol.estado_solicitud === 'Adjudicada' || sol.estado === 'Adjudicada') && (
                   <span style={s.badgeAdj2}><Trophy size={11} /> Adjudicado</span>
                 )}
-                <button 
+                <button
+                  onClick={() => handleDescargarPDF(sol, resps)}
+                  style={{ ...s.btnIcon, color: '#2563eb' }}
+                  title="Descargar oferta en PDF"
+                >
+                  <Download size={14} />
+                </button>
+                <button
                   onClick={() => deleteSolicitud(sol.id)}
                   style={{ ...s.btnIcon, color: '#ef4444' }}
                   title="Eliminar presupuesto y resetear solicitud"
@@ -166,7 +209,7 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
 function ComparativaAgrupada({
   comparativa, oficiosAbiertos, toggleGrupo,
   adjudicaciones, adjudicar, adjudicando,
-  estadoBadge, propuestas,
+  estadoBadge, propuestas, allSolicitudes = [],
   openModalCompetencia,
   hideCompetitors = false,
   isGlobalView = false,
@@ -295,26 +338,28 @@ function ComparativaAgrupada({
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        const doc = generarPresupuestoPDF({
-                                            cliente: p.nombre,
-                                            propuesta_id: p.solicitud_id,
-                                            descripcion: `Presupuesto de ${oficio}`,
+                                        const solFeed = allSolicitudes.find(s => s.id === p.solicitud_id);
+                                        const doc = generarPDFOfertaProveedor({
+                                            proveedorNombre: p.nombre,
+                                            proveedorEmail: solFeed?.proveedor_email || '',
+                                            proyectoNombre: propuestas.find(pr => pr.Proyecto === proyecto)?.cliente || proyecto,
+                                            oficio,
+                                            fecha: solFeed?.fecha_respuesta || new Date().toISOString(),
                                             partidas: filas.map(f => ({
-                                                Capítulo: f.partida.codigo || '',
-                                                Descripción: f.partida.texto_descripcion || f.partida.texto_partida,
-                                                Cantidad: f.partida.cantidad || 1,
-                                                'Unidad IA': f.partida.unidad || 'ud',
-                                                'Precio Total (€)': f.precios[p.solicitud_id]?.precio || 0
-                                            })).filter(f => f['Precio Total (€)'] > 0),
-                                            precio_total: totales[p.solicitud_id] || 0,
-                                            titulo: 'Presupuesto Proveedor',
+                                                descripcion: f.partida.texto_descripcion || (f.partida.texto_partida ? f.partida.texto_partida.split('::').slice(1).join('::') : ''),
+                                                unidad: f.partida.unidad || 'ud',
+                                                cantidad: f.partida.cantidad || 1,
+                                                precioOfertado: f.precios[p.solicitud_id]?.precio || 0,
+                                                comentario: f.precios[p.solicitud_id]?.comentario || '',
+                                            })).filter(f => f.precioOfertado > 0),
+                                            comentariosGenerales: solFeed?.comentarios_generales || '',
                                         });
-                                        descargarPDF(doc, `Presupuesto_${p.nombre}_${oficio}`);
+                                        descargarPDF(doc, `Oferta_${p.nombre.replace(/\s+/g,'_')}_${oficio.replace(/\s+/g,'_')}`);
                                     }}
-                                    title="Descargar PDF"
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: adjProvId && p.proveedor_id === adjProvId ? '#002D54' : '#16a34a', display: 'flex', alignItems: 'center' }}
+                                    title="Descargar oferta en PDF"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: adjProvId && p.proveedor_id === adjProvId ? '#002D54' : '#2563eb', display: 'flex', alignItems: 'center' }}
                                 >
-                                    <FileText size={12} />
+                                    <Download size={12} />
                                 </button>
                                 {!p.esLocal && deleteSolicitud && (
                                   <button
@@ -412,7 +457,7 @@ function ComparativaAgrupada({
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function Comparativa() {
+export default function Comparativa({ setSessionCache }) {
   const { ModalUI } = useModal();
   const { showToast, ToastUI } = useToast();
 
@@ -670,6 +715,9 @@ export default function Comparativa() {
 
         // 3. Update State Local
         setAdjudicaciones(prev => { const n = { ...prev }; delete n[grupoKey]; return n; });
+        if (setSessionCache) {
+          setSessionCache(prev => { const copy = { ...prev }; delete copy[proyecto]; return copy; });
+        }
         cargarTodo(); // Recargar para asegurar sincro
         return;
       }
@@ -716,7 +764,13 @@ export default function Comparativa() {
       } catch (emailErr) { console.warn('Error notificacion:', emailErr); }
 
       setAdjudicaciones(prev => ({ ...prev, [grupoKey]: prov.proveedor_id }));
+      // Invalidar sessionCache de Borradores para este proyecto, para que al abrir
+      // el proyecto se recarguen los precios adjudicados frescos desde la BD.
+      if (setSessionCache) {
+        setSessionCache(prev => { const copy = { ...prev }; delete copy[proyecto]; return copy; });
+      }
       cargarTodo(); // Recargar para sincronizar precios en todas las vistas
+      showToast(`✅ Adjudicado a ${prov.nombre}. Los precios se reflejarán en Borradores al abrir el proyecto.`);
 
     } catch (err) {
       console.error('Error en adjudicación:', err);
@@ -1031,6 +1085,7 @@ export default function Comparativa() {
               solicitudes={allSolicitudes}
               respuestas={allRespuestas}
               partidas={allPartidas}
+              allPartidas={allPartidas}
               propuestas={allPropuestas}
               proyectoSel={proyectoSel}
               oficioSel={oficioSel}
@@ -1047,6 +1102,7 @@ export default function Comparativa() {
               adjudicando={adjudicando}
               estadoBadge={estadoBadge}
               propuestas={allPropuestas}
+              allSolicitudes={allSolicitudes}
               openModalCompetencia={handleOpenCompetencia}
               hideCompetitors={true}
               deleteSolicitud={deleteSolicitud}

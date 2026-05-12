@@ -239,6 +239,190 @@ export function generarPresupuestoPDF(data) {
 }
 
 /**
+ * Genera un PDF con la oferta recibida de un proveedor (precios + observaciones).
+ * Usado por: Comparativa → botón PDF por proveedor.
+ *
+ * @param {Object} data
+ * @param {string}  data.proveedorNombre       - Nombre del proveedor
+ * @param {string}  [data.proveedorEmail]      - Email del proveedor
+ * @param {string}  data.proyectoNombre        - ID / nombre del proyecto
+ * @param {string}  data.oficio                - Gremio solicitado
+ * @param {string}  [data.fecha]               - Fecha de respuesta (ISO)
+ * @param {Array}   data.partidas              - [{descripcion, unidad, cantidad, precioOfertado, comentario}]
+ * @param {string}  [data.comentariosGenerales] - Anotaciones generales del proveedor
+ * @returns {jsPDF}
+ */
+export function generarPDFOfertaProveedor(data) {
+    const {
+        proveedorNombre     = 'Proveedor',
+        proveedorEmail      = '',
+        proyectoNombre      = '',
+        oficio              = '',
+        fecha               = new Date().toISOString(),
+        partidas            = [],
+        comentariosGenerales = '',
+    } = data;
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210;
+
+    // ── 1. CABECERA ────────────────────────────────────────────────────────────
+    doc.setFillColor(...AZUL);
+    doc.rect(0, 0, W, 38, 'F');
+
+    try { doc.addImage(logoBase64, 'JPEG', 8, 6, 24, 24); } catch (_) {}
+
+    doc.setFontSize(18);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ADIR REFORMAS', 38, 17);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('OFERTA RECIBIDA — ' + oficio.toUpperCase(), 38, 26);
+
+    // Badge gremio
+    doc.setFillColor(255, 255, 255);
+    doc.setGState(doc.GState({ opacity: 0.15 }));
+    doc.roundedRect(W - 56, 8, 50, 20, 3, 3, 'F');
+    doc.setGState(doc.GState({ opacity: 1 }));
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text(oficio.substring(0, 20).toUpperCase(), W - 53, 20);
+
+    // ── 2. DATOS PROVEEDOR / PROYECTO ─────────────────────────────────────────
+    const fechaFormateada = (() => {
+        try { return new Date(fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }); }
+        catch (_) { return fecha; }
+    })();
+
+    doc.setFillColor(...AZUL_LIGHT);
+    doc.rect(0, 38, W, 32, 'F');
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...AZUL);
+    doc.text('PROVEEDOR', 14, 47);
+    doc.text('PROYECTO', 90, 47);
+    doc.text('FECHA RESPUESTA', 155, 47);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...GRIS_TEXTO);
+    doc.setFontSize(10);
+    doc.text(proveedorNombre.substring(0, 35), 14, 55);
+    doc.text(proyectoNombre.substring(0, 30), 90, 55);
+    doc.text(fechaFormateada, 155, 55);
+
+    if (proveedorEmail) {
+        doc.setFontSize(8);
+        doc.setTextColor(...GRIS_MUTED);
+        doc.text(proveedorEmail.substring(0, 40), 14, 62);
+    }
+
+    // ── 3. TABLA DE PARTIDAS ───────────────────────────────────────────────────
+    const VERDE_CELL = [209, 250, 229];
+    const total = partidas.reduce((s, p) => s + (Number(p.precioOfertado) || 0), 0);
+
+    const filas = partidas.map(p => {
+        const precio = Number(p.precioOfertado) || 0;
+        const cantidad = Number(p.cantidad) || 1;
+        const unitaria = cantidad > 0 ? precio / cantidad : precio;
+        return [
+            { content: p.descripcion || '', styles: { textColor: GRIS_TEXTO } },
+            { content: (p.unidad || 'ud'), styles: { halign: 'center' } },
+            { content: cantidad.toString(), styles: { halign: 'center' } },
+            { content: unitaria.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right' } },
+            { content: precio.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right', fontStyle: 'bold', textColor: [5, 150, 105] } },
+            { content: p.comentario || '', styles: { textColor: GRIS_MUTED, fontSize: 7.5 } },
+        ];
+    });
+
+    autoTable(doc, {
+        startY: 76,
+        head: [['Descripción', 'Ud.', 'Cant.', 'P. Unit.', 'P. Total', 'Observaciones']],
+        body: filas,
+        theme: 'plain',
+        headStyles: {
+            fillColor: AZUL,
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 8,
+            cellPadding: 3,
+        },
+        bodyStyles: {
+            fontSize: 8,
+            cellPadding: 3,
+            lineWidth: 0.1,
+            lineColor: [220, 224, 235],
+        },
+        alternateRowStyles: { fillColor: GRIS_FILA },
+        columnStyles: {
+            0: { cellWidth: 'auto' },
+            1: { cellWidth: 14, halign: 'center' },
+            2: { cellWidth: 14, halign: 'center' },
+            3: { cellWidth: 26, halign: 'right' },
+            4: { cellWidth: 26, halign: 'right' },
+            5: { cellWidth: 36 },
+        },
+        margin: { left: 14, right: 14 },
+    });
+
+    // ── 4. TOTAL ───────────────────────────────────────────────────────────────
+    const tableEnd = (doc.lastAutoTable?.finalY || 80) + 8;
+    const totalStr = total.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €';
+
+    doc.setFillColor(...AZUL_LIGHT);
+    doc.roundedRect(W - 90, tableEnd - 2, 76, 18, 3, 3, 'F');
+    doc.setDrawColor(...AZUL);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(W - 90, tableEnd - 2, 76, 18, 3, 3, 'S');
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...AZUL);
+    doc.text('TOTAL OFERTA', W - 87, tableEnd + 5);
+    doc.setFontSize(14);
+    doc.text(totalStr, W - 16, tableEnd + 13, { align: 'right' });
+
+    // ── 5. ANOTACIONES GENERALES ───────────────────────────────────────────────
+    let nextY = tableEnd + 28;
+
+    if (comentariosGenerales && comentariosGenerales.trim()) {
+        doc.setFillColor(255, 251, 235);
+        doc.setDrawColor(251, 191, 36);
+        doc.setLineWidth(0.4);
+        doc.roundedRect(14, nextY, W - 28, 14 + Math.min(comentariosGenerales.length / 60 * 5, 30), 3, 3, 'FD');
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(146, 64, 14);
+        doc.text('Anotaciones del proveedor:', 20, nextY + 7);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...GRIS_TEXTO);
+        const lineas = doc.splitTextToSize(comentariosGenerales, W - 40);
+        doc.text(lineas, 20, nextY + 13);
+        nextY += 20 + lineas.length * 5;
+    }
+
+    // ── 6. PIE DE PÁGINA ───────────────────────────────────────────────────────
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setDrawColor(200, 210, 230);
+        doc.setLineWidth(0.3);
+        doc.line(14, 285, W - 14, 285);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...GRIS_MUTED);
+        doc.text('ADIR REFORMAS  |  Oferta recibida de: ' + proveedorNombre, 14, 290);
+        doc.text(`Pág. ${i} / ${pageCount}`, W - 14, 290, { align: 'right' });
+    }
+
+    return doc;
+}
+
+/**
  * Descarga un documento jsPDF con nombre correcto y extensión .pdf.
  * Usa dataURIstring + <a download> para máxima compatibilidad.
  * @param {jsPDF} doc
