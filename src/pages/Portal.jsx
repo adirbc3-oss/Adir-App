@@ -12,6 +12,7 @@ const Portal = () => {
   const [partidas, setPartidas] = useState([]);
   const [precios, setPrecios] = useState({});
   const [comentarios, setComentarios] = useState({});
+  const [comentariosGenerales, setComentariosGenerales] = useState('');
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const { showToast, ToastUI } = useToast();
@@ -88,7 +89,8 @@ const Portal = () => {
           partida_id: p.id,
           precio_ofertado: parseFloat(precios[p.id] || 0),
           comentarios: comentarios[p.id] || ''
-        }))
+        })),
+        comentarios_generales: comentariosGenerales
       };
 
       const webhookUrl = `${N8N_BASE_URL}/webhook/fase5-respuesta`;
@@ -165,6 +167,18 @@ const Portal = () => {
             ))}
           </tbody>
         </table>
+        
+        <div style={{ marginTop: 24, padding: 20, background: '#f8f9fa', borderRadius: 8, border: '1px solid #dee2e6' }}>
+          <h4 style={{ margin: '0 0 10px 0', color: '#495057' }}>Anotaciones Generales</h4>
+          <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#6c757d' }}>Si necesitas hacer algún comentario general sobre el proyecto o las condiciones, indícalo aquí:</p>
+          <textarea
+            style={{ width: '100%', minHeight: 80, padding: 12, borderRadius: 4, border: '1px solid #ced4da', resize: 'vertical' }}
+            placeholder="Anotaciones, plazos estimados, condiciones especiales..."
+            value={comentariosGenerales}
+            onChange={(e) => setComentariosGenerales(e.target.value)}
+          />
+        </div>
+
         <div style={{ marginTop: 20, textAlign: 'right' }}>
           <button 
             type="submit" 

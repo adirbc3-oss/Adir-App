@@ -6,9 +6,11 @@ import { useModal, useToast } from '../utils/useModal';
 import {
   BarChart2, ChevronDown, ChevronRight, CheckCircle, Clock,
   AlertCircle, Trophy, Download, TrendingDown, TrendingUp, RefreshCw,
-  Inbox, List, X, Euro, Calendar, User, Briefcase, Upload, Loader2
+  Inbox, List, X, Euro, Calendar, User, Briefcase, Upload, Loader2, FileText
 } from 'lucide-react';
 import { parseBC3 } from '../utils/bc3Parser';
+import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
+
 
 // ─── Vista: FEED GLOBAL de respuestas recibidas ──────────────────────────────
 function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proyectoSel, oficioSel, deleteSolicitud }) {
@@ -290,6 +292,30 @@ function ComparativaAgrupada({
                             }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
                                 {p.nombre}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const doc = generarPresupuestoPDF({
+                                            cliente: p.nombre,
+                                            propuesta_id: p.solicitud_id,
+                                            descripcion: `Presupuesto de ${oficio}`,
+                                            partidas: filas.map(f => ({
+                                                Capítulo: f.partida.codigo || '',
+                                                Descripción: f.partida.texto_descripcion || f.partida.texto_partida,
+                                                Cantidad: f.partida.cantidad || 1,
+                                                'Unidad IA': f.partida.unidad || 'ud',
+                                                'Precio Total (€)': f.precios[p.solicitud_id]?.precio || 0
+                                            })).filter(f => f['Precio Total (€)'] > 0),
+                                            precio_total: totales[p.solicitud_id] || 0,
+                                            titulo: 'Presupuesto Proveedor',
+                                        });
+                                        descargarPDF(doc, `Presupuesto_${p.nombre}_${oficio}`);
+                                    }}
+                                    title="Descargar PDF"
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: adjProvId && p.proveedor_id === adjProvId ? '#002D54' : '#16a34a', display: 'flex', alignItems: 'center' }}
+                                >
+                                    <FileText size={12} />
+                                </button>
                                 {!p.esLocal && deleteSolicitud && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); deleteSolicitud(p.solicitud_id); }}
@@ -579,8 +605,10 @@ export default function Comparativa() {
         const key = `${oficio}__${proyectoSel}`;
         const partidasGrupo = allPartidas.filter(p => p.propuesta_id === proyectoSel && (normalize(p.oficio_asignado) === normalize(oficio) || normalize(p.oficio_necesario) === normalize(oficio)));
         
-        // Proveedores reales
-        const proveedores = allSolicitudes.filter(s => s.propuesta_id === proyectoSel && normalize(s.oficio_solicitado) === normalize(oficio))
+        // Proveedores reales (solo si tienen respuestas)
+        const proveedores = allSolicitudes
+          .filter(s => s.propuesta_id === proyectoSel && normalize(s.oficio_solicitado) === normalize(oficio))
+          .filter(s => allRespuestas.some(r => r.solicitud_id === s.id))
           .map(s => ({ solicitud_id: s.id, nombre: s.proveedor_nombre || 'Prov.', esLocal: false }));
         
         // Competencias externas
@@ -711,13 +739,11 @@ export default function Comparativa() {
 
     setLoading(true);
     try {
-      // 1. Borrar respuestas
+      // 1. Borrar respuestas asociadas
       await supabase.from('respuestas').delete().eq('solicitud_id', solicitudId);
       
-      // 2. Resetear solicitud a estado 'Enviado'
-      await supabase.from('solicitudes').update({
-        estado_solicitud: 'Enviado'
-      }).eq('id', solicitudId);
+      // 2. Borrar la solicitud por completo
+      await supabase.from('solicitudes').delete().eq('id', solicitudId);
 
       setConfirmingDelete(null);
       await cargarTodo();

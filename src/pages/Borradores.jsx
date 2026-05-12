@@ -553,17 +553,16 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         let saltados = 0;
 
         try {
-            // Deduplication: skip providers with a pending (not yet responded) solicitud
+            // Deduplication: skip providers with ANY existing solicitud for this project/trade
+            // (If the user wants to re-request, they must first delete the old one in Comparativa)
             const { data: existingSols } = await supabase
                 .from('solicitudes')
-                .select('proveedor_id, estado_solicitud')
+                .select('proveedor_id')
                 .eq('propuesta_id', activeProject.Proyecto)
                 .eq('oficio_solicitado', selectedOficio);
 
             const pendingProvIds = new Set(
-                (existingSols || [])
-                    .filter(s => !['Respondido', 'Adjudicada', 'Rechazada'].includes(s.estado_solicitud))
-                    .map(s => String(s.proveedor_id))
+                (existingSols || []).map(s => String(s.proveedor_id))
             );
 
             for (const prov of provs) {
@@ -607,10 +606,10 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             }
 
             if (enviados > 0) {
-                const saltadosMsg = saltados > 0 ? ` (${saltados} ya tenían solicitud pendiente, omitidos)` : '';
+                const saltadosMsg = saltados > 0 ? ` (${saltados} omitidos por solicitud previa existente)` : '';
                 showToast(`✅ Solicitudes enviadas a ${enviados} proveedor(es).${errores > 0 ? ` (${errores} con error de red)` : ''}${saltadosMsg}`);
             } else if (saltados > 0) {
-                showToast(`Todos los proveedores seleccionados ya tienen una solicitud pendiente sin responder.`, "warning");
+                showToast(`Todos los proveedores seleccionados ya tienen una solicitud (si deseas reenviar, elimina la previa en Comparativa).`, "warning");
             } else {
                 showToast(`No se pudo conectar con n8n. Verifica que VITE_N8N_BASE_URL esté configurado en Vercel.`, "error");
             }
@@ -803,7 +802,26 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                                     {!esCapitulo && <input type="text" value={p['Unidad IA']} onChange={(e) => updateUnidad(idx, e.target.value)} style={{ width: '55px', textAlign: 'center' }} />}
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
-                                                    {!esCapitulo && <input type="number" value={p['Precio Total (€)']} onChange={(e) => updatePrice(idx, e.target.value)} style={{ width: '110px', textAlign: 'right', fontWeight: 700, color: 'var(--primary)' }} />}
+                                                    {!esCapitulo && (
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                                            {p.estado_adjudicacion === 'Adjudicado' && <Trophy size={14} color="#059669" title="Precio Adjudicado" />}
+                                                            <input 
+                                                                type="number" 
+                                                                value={p['Precio Total (€)']} 
+                                                                onChange={(e) => updatePrice(idx, e.target.value)} 
+                                                                style={{ 
+                                                                    width: '110px', 
+                                                                    textAlign: 'right', 
+                                                                    fontWeight: p.estado_adjudicacion === 'Adjudicado' ? 800 : 700, 
+                                                                    color: p.estado_adjudicacion === 'Adjudicado' ? '#059669' : 'var(--primary)',
+                                                                    background: p.estado_adjudicacion === 'Adjudicado' ? '#d1fae5' : 'transparent',
+                                                                    border: p.estado_adjudicacion === 'Adjudicado' ? '1px solid #10b981' : '1px solid transparent',
+                                                                    borderRadius: '4px',
+                                                                    padding: '4px'
+                                                                }} 
+                                                            />
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
                                                     {!esCapitulo && precioIA > 0 && (
