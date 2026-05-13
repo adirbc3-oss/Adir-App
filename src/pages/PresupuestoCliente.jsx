@@ -17,6 +17,8 @@ const PresupuestoCliente = () => {
     const [hasSigned, setHasSigned] = useState(false);
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
+    const [firmaData, setFirmaData] = useState(null);
+    const [fechaFirma, setFechaFirma] = useState(null);
 
     const canvasRef = useRef(null);
     const lastPos = useRef({ x: 0, y: 0 });
@@ -137,6 +139,10 @@ const PresupuestoCliente = () => {
 
             if (error) throw error;
 
+            const ahora = new Date().toISOString();
+            setFirmaData(firmaBase64);
+            setFechaFirma(ahora);
+
             // Notificar a n8n
             try {
                 await fetch(`${N8N_BASE_URL}/webhook/presupuesto-firmado`, {
@@ -224,11 +230,34 @@ const PresupuestoCliente = () => {
 
     if (success) return (
         <div style={styles.centered}>
-            <div style={styles.successBox}>
+            <div style={{ ...styles.successBox, maxWidth: 480 }}>
                 <CheckCircle size={60} color="#16a34a" />
                 <h2 style={{ color: '#15803d' }}>¡Presupuesto Firmado!</h2>
                 <p>Hemos recibido su conformidad. Nos pondremos en contacto con usted en breve para coordinar el inicio de la obra.</p>
-                <p style={{ fontSize: '0.8rem', color: '#6b7280' }}>Puede cerrar esta ventana.</p>
+                {firmaData && presupuesto && (
+                    <button
+                        onClick={() => {
+                            const doc = generarPresupuestoPDF({
+                                cliente:      presupuesto.cliente_nombre || 'Sin especificar',
+                                propuesta_id: presupuesto.propuesta_id,
+                                descripcion:  presupuesto.proyecto_descripcion || presupuesto.propuesta_id,
+                                partidas:     presupuesto.partidas || [],
+                                precio_total: presupuesto.precio_total,
+                                fecha:        presupuesto.fecha_envio,
+                                token:        presupuesto.token,
+                                titulo:       'Contrato de Obra — Copia Firmada',
+                                firma_base64: firmaData,
+                                fecha_firma:  fechaFirma,
+                            });
+                            descargarPDF(doc, 'Contrato_Firmado_' + presupuesto.propuesta_id);
+                        }}
+                        style={{ ...styles.btnPrimary, marginTop: 16, width: '100%', justifyContent: 'center' }}
+                    >
+                        <Download size={16} />
+                        Descargar mi copia firmada en PDF
+                    </button>
+                )}
+                <p style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: 12 }}>Puede cerrar esta ventana cuando lo desee.</p>
             </div>
         </div>
     );

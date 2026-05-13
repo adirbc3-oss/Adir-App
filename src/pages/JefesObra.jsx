@@ -365,6 +365,37 @@ const JefesObra = () => {
 
             const portalUrl = `${window.location.origin}/presupuesto-cliente?token=${token}`;
 
+            // Construir tabla HTML del presupuesto para incluirla en el email
+            const partidasEmail = partidas.filter(p => !p.Capítulo?.endsWith('#'));
+            const filasHtml = partidasEmail.map((p, i) => `
+                <tr style="background:${i % 2 === 0 ? '#e5edf7' : '#ffffff'};">
+                    <td style="padding:10px 14px;font-size:13px;color:#334155;border-bottom:1px solid #c7d5e6;">
+                        ${(p.Descripción || p.texto_partida || '-').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                    </td>
+                    <td style="padding:10px 14px;font-size:13px;text-align:right;font-weight:600;color:#002D54;border-bottom:1px solid #c7d5e6;white-space:nowrap;">
+                        ${parseFloat(p['Precio Total (€)'] || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                    </td>
+                </tr>`).join('');
+
+            const htmlPresupuesto = `
+                <table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;margin:16px 0;">
+                    <thead>
+                        <tr style="background:#002D54;color:white;">
+                            <th style="padding:11px 14px;text-align:left;font-size:13px;">Descripción</th>
+                            <th style="padding:11px 14px;text-align:right;font-size:13px;width:130px;">Importe (€)</th>
+                        </tr>
+                    </thead>
+                    <tbody>${filasHtml}</tbody>
+                    <tfoot>
+                        <tr style="background:#002D54;color:white;">
+                            <td style="padding:12px 14px;font-weight:bold;font-size:15px;">TOTAL PRESUPUESTO</td>
+                            <td style="padding:12px 14px;text-align:right;font-weight:bold;font-size:15px;white-space:nowrap;">
+                                ${precioTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>`;
+
             // Fire-and-forget: no esperamos respuesta de n8n para no bloquear la UI
             fetch(`${N8N_BASE_URL}/webhook/presupuesto-cliente`, {
                 method: 'POST',
@@ -375,7 +406,8 @@ const JefesObra = () => {
                     cliente_nombre: activeProject.cliente || activeProject.Proyecto,
                     proyecto: activeProject.Proyecto,
                     precio_total: precioTotal,
-                    portal_url: portalUrl
+                    portal_url: portalUrl,
+                    html_presupuesto: htmlPresupuesto
                 })
             }).catch(e => console.warn('n8n no disponible, email no enviado:', e));
 
