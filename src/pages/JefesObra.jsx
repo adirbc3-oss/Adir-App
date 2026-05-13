@@ -396,6 +396,9 @@ const JefesObra = () => {
                     </tfoot>
                 </table>`;
 
+            // Sanitizar HTML: comillas dobles → simples, colapsar whitespace (seguro para JSON)
+            const htmlPresupuestoSafe = htmlPresupuesto.replace(/"/g, "'").replace(/\s+/g, ' ').trim();
+
             // Fire-and-forget: no esperamos respuesta de n8n para no bloquear la UI
             fetch(`${N8N_BASE_URL}/webhook/presupuesto-cliente`, {
                 method: 'POST',
@@ -407,7 +410,7 @@ const JefesObra = () => {
                     proyecto: activeProject.Proyecto,
                     precio_total: precioTotal,
                     portal_url: portalUrl,
-                    html_presupuesto: htmlPresupuesto
+                    html_presupuesto: htmlPresupuestoSafe
                 })
             }).catch(e => console.warn('n8n no disponible, email no enviado:', e));
 
