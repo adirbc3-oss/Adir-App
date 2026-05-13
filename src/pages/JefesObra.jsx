@@ -365,22 +365,19 @@ const JefesObra = () => {
 
             const portalUrl = `${window.location.origin}/presupuesto-cliente?token=${token}`;
 
-            try {
-                await fetch(`${N8N_BASE_URL}/webhook/presupuesto-cliente`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        token,
-                        cliente_email: activeProject.direccion || '',
-                        cliente_nombre: activeProject.cliente || activeProject.Proyecto,
-                        proyecto: activeProject.Proyecto,
-                        precio_total: precioTotal,
-                        portal_url: portalUrl
-                    })
-                });
-            } catch (e) {
-                console.warn('n8n no disponible, email no enviado:', e);
-            }
+            // Fire-and-forget: no esperamos respuesta de n8n para no bloquear la UI
+            fetch(`${N8N_BASE_URL}/webhook/presupuesto-cliente`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token,
+                    cliente_email: activeProject.direccion || '',
+                    cliente_nombre: activeProject.cliente || activeProject.Proyecto,
+                    proyecto: activeProject.Proyecto,
+                    precio_total: precioTotal,
+                    portal_url: portalUrl
+                })
+            }).catch(e => console.warn('n8n no disponible, email no enviado:', e));
 
             showAlert(`✅ Proyecto aprobado y en curso.\n\n📧 Presupuesto enviado al cliente.\n\n🔗 Enlace:\n${portalUrl}`, { type: 'success', title: '¡Proyecto Aprobado!' });
             setActiveProject(null);
