@@ -5,7 +5,8 @@ import { History, Search, Filter, Loader2, ArrowRight, Download, Bot, User, Cloc
 const Historial = () => {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
-    
+    const [propuestasMap, setPropuestasMap] = useState({});
+
     // Filtros
     const [searchTerm, setSearchTerm] = useState('');
     const [filtroOrigen, setFiltroOrigen] = useState('');
@@ -13,7 +14,27 @@ const Historial = () => {
 
     useEffect(() => {
         fetchHistorial();
+        fetchPropuestas();
     }, [filtroOrigen, filtroEntidad]);
+
+    const fetchPropuestas = async () => {
+        try {
+            const { data } = await supabase.from('propuestas').select('Proyecto, cliente');
+            if (data) {
+                const map = {};
+                data.forEach(p => { if (p.Proyecto) map[p.Proyecto] = p.cliente || null; });
+                setPropuestasMap(map);
+            }
+        } catch (e) { console.warn('No se pudo cargar mapa de propuestas:', e); }
+    };
+
+    const formatProyecto = (ref) => {
+        if (!ref) return '—';
+        // Si tenemos el nombre del cliente en el mapa, usarlo
+        if (propuestasMap[ref]) return propuestasMap[ref];
+        // Fallback: limpiar el ID (quitar timestamp + guiones bajos)
+        return ref.replace(/_\d{8,}.*$/, '').replace(/_/g, ' ').trim() || ref;
+    };
 
     const fetchHistorial = async () => {
         setLoading(true);
@@ -219,7 +240,12 @@ const Historial = () => {
                                             {formatFecha(log.fecha_cambio)}
                                         </td>
                                         <td style={{ fontWeight: 'bold' }}>
-                                            {log.proyecto_referencia || log.tipo_entidad}
+                                            {formatProyecto(log.proyecto_referencia) || log.tipo_entidad}
+                                            {log.proyecto_referencia && propuestasMap[log.proyecto_referencia] && (
+                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>
+                                                    {log.proyecto_referencia.replace(/_\d{8,}.*$/, '').replace(/_/g, ' ').trim()}
+                                                </div>
+                                            )}
                                         </td>
                                         <td>{getOrigenBadge(log.origen_cambio)}</td>
                                         <td style={{ fontSize: '0.85rem' }}>{log.campo_modificado}</td>

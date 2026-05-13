@@ -436,6 +436,26 @@ const JefesObra = () => {
                             </div>
                         </div>
 
+                        {!loadingProject && partidas.length > 0 && (
+                            <div style={{
+                                position: 'sticky', bottom: 0, zIndex: 10,
+                                background: 'var(--bg-card)', borderTop: '2px solid var(--primary)',
+                                padding: '14px 24px', borderRadius: '0 0 16px 16px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                boxShadow: '0 -4px 20px rgba(0,0,0,0.1)', marginBottom: '8px'
+                            }}>
+                                <span style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                    Total presupuesto ({partidas.filter(p => !p.Capítulo?.endsWith('#')).length} partidas)
+                                </span>
+                                <span style={{ fontWeight: 800, fontSize: '1.4rem', color: 'var(--primary)' }}>
+                                    {partidas
+                                        .filter(p => !p.Capítulo?.endsWith('#'))
+                                        .reduce((acc, p) => acc + (parseFloat(p['Precio Total (€)']) || 0), 0)
+                                        .toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                                </span>
+                            </div>
+                        )}
+
                         <div className="glass-card">
                             {loadingProject ? (
                                 <div style={{ textAlign: 'center', padding: '40px' }}><Loader2 className="loader-spinner" size={32} /></div>
