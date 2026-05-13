@@ -40,6 +40,9 @@ const PresupuestoCliente = () => {
 
                 if (error || !data) throw new Error('Presupuesto no encontrado. El enlace puede haber caducado.');
                 if (data.estado === 'firmado') {
+                    setPresupuesto(data);
+                    setFirmaData(data.firma_base64 || null);
+                    setFechaFirma(data.fecha_firma || null);
                     setSuccess(true);
                     setLoading(false);
                     return;
