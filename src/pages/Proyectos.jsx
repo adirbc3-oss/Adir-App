@@ -59,6 +59,13 @@ const Proyectos = () => {
 
     useEffect(() => {
         fetchProyectos();
+        const channel = supabase
+            .channel('proyectos_firma_realtime')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'presupuestos_cliente' }, () => {
+                fetchProyectos();
+            })
+            .subscribe();
+        return () => supabase.removeChannel(channel);
     }, []);
 
     const fetchProyectos = async () => {

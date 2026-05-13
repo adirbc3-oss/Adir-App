@@ -363,7 +363,7 @@ const JefesObra = () => {
                 precio_total: precioTotal
             });
 
-            const portalUrl = `${window.location.origin}/presupuesto-cliente?token=${token}`;
+            const portalUrl = `${window.location.origin}/#/presupuesto-cliente?token=${token}`;
 
             // Construir tabla HTML del presupuesto para incluirla en el email
             const partidasEmail = partidas.filter(p => !p.Capítulo?.endsWith('#'));

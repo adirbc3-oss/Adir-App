@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { N8N_BASE_URL } from '../config';
 import { useModal } from '../utils/useModal';
@@ -6,6 +7,7 @@ import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
 import { Download, PenLine, CheckCircle, X, Loader2 } from 'lucide-react';
 
 const PresupuestoCliente = () => {
+    const location = useLocation();
     const { showAlert, ModalUI } = useModal();
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -26,7 +28,7 @@ const PresupuestoCliente = () => {
     useEffect(() => {
         const fetchPresupuesto = async () => {
             try {
-                const params = new URLSearchParams(window.location.search);
+                const params = new URLSearchParams(location.search);
                 const token = params.get('token');
                 if (!token) throw new Error('Enlace inválido. Falta el token de seguridad.');
 
