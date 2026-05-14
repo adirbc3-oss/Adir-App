@@ -17,7 +17,7 @@ import BasePrecios from './pages/BasePrecios';
 import Historial from './pages/Historial';
 import PresupuestosFirmados from './pages/PresupuestosFirmados';
 
-import logoAdir from './assets/adir_logo.png';
+import logoAdir from './assets/adirblanco-header.webp';
 
 const NavBadge = ({ count }) => {
   if (!count || count === 0) return null;

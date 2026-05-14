@@ -69,9 +69,7 @@ body {
 }
 
 .sidebar-logo {
-  width: 100%;
-  max-width: 100px;
-  height: auto;
+  max-height: 48px; width: auto; max-width: 100%;
   object-fit: contain;
   /* Filtro optimizado para el azul corporativo #002D54 */
   filter: brightness(0) saturate(100%) invert(11%) sepia(91%) saturate(2253%) hue-rotate(190deg) brightness(95%) contrast(110%);
