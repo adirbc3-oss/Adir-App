@@ -2,10 +2,10 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { logoBase64 } from '../assets/logoBase64';
 
-// ─── Colores corporativos ADIR ───────────────────────────────────────────────
-const AZUL        = [30, 64, 175];   // Azul principal
-const AZUL_LIGHT  = [239, 246, 255]; // Fondo azul claro
-const VERDE       = [22, 163, 74];   // Verde firma/aprobado
+// ─── Colores corporativos ADIR (sincronizados con --primary: #002D54) ────────
+const AZUL        = [0, 45, 84];     // #002D54 — azul principal app
+const AZUL_LIGHT  = [199, 213, 230]; // #c7d5e6 — fondo azul claro app
+const VERDE       = [5, 150, 105];   // --success: #059669
 const GRIS_TEXTO  = [80, 80, 80];
 const GRIS_MUTED  = [140, 140, 140];
 const GRIS_FILA   = [248, 249, 252]; // Fila alternada tabla
@@ -51,7 +51,7 @@ export function generarPresupuestoPDF(data) {
 
     // Logo
     try {
-        doc.addImage(logoBase64, 'JPEG', 8, 6, 24, 24);
+        doc.addImage(logoBase64, 'WEBP', 8, 6, 24, 24);
     } catch (_) { /* sin logo no bloquea */ }
 
     // Nombre empresa
@@ -231,7 +231,7 @@ export function generarPresupuestoPDF(data) {
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(...GRIS_MUTED);
-        doc.text('ADIR REFORMAS  |  oscarcanovasalcazar2@gmail.com', 14, 290);
+        doc.text('ADIR REFORMAS  |  adirbc3@gmail.com', 14, 290);
         doc.text(`Pág. ${i} / ${pageCount}`, W - 14, 290, { align: 'right' });
     }
 
@@ -270,7 +270,7 @@ export function generarPDFOfertaProveedor(data) {
     doc.setFillColor(...AZUL);
     doc.rect(0, 0, W, 38, 'F');
 
-    try { doc.addImage(logoBase64, 'JPEG', 8, 6, 24, 24); } catch (_) {}
+    try { doc.addImage(logoBase64, 'WEBP', 8, 6, 24, 24); } catch (_) {}
 
     doc.setFontSize(18);
     doc.setTextColor(255, 255, 255);

@@ -42,6 +42,12 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     const [metadataForm, setMetadataForm] = useState({ cliente: '', cliente_email: '', descripcion: '' });
 
     const [showLicitationModal, setShowLicitationModal] = useState(false);
+    const [rawInputs, setRawInputs] = useState({});
+
+    const formatDecimal = (val) =>
+        (parseFloat(val) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const parseDecimal = (str) =>
+        parseFloat((str || '0').replace(/\./g, '').replace(',', '.')) || 0;
 
     // Sincronizar cambios locales con la memoria de sesión global
     useEffect(() => {
@@ -937,7 +943,17 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                                     {p.Descripción}
                                                 </td>
                                                 <td style={{ ...emptyCell }}>
-                                                    {esPartida && <input type="number" value={p.Cantidad} onChange={(e) => updateCantidad(idx, e.target.value)} style={{ width: '70px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: '4px' }} />}
+                                                    {esPartida && <input
+                                                        type="text"
+                                                        value={rawInputs[`cant_${idx}`] ?? formatDecimal(p.Cantidad)}
+                                                        onChange={(e) => setRawInputs(prev => ({ ...prev, [`cant_${idx}`]: e.target.value }))}
+                                                        onBlur={(e) => {
+                                                            const v = parseDecimal(e.target.value);
+                                                            updateCantidad(idx, v);
+                                                            setRawInputs(prev => { const n = { ...prev }; delete n[`cant_${idx}`]; return n; });
+                                                        }}
+                                                        style={{ width: '70px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: '4px' }}
+                                                    />}
                                                 </td>
                                                 <td style={{ ...emptyCell }}>
                                                     {esPartida && <input type="text" value={p['Unidad IA']} onChange={(e) => updateUnidad(idx, e.target.value)} style={{ width: '55px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: '4px' }} />}
@@ -947,9 +963,18 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
                                                             {p.estado_adjudicacion === 'Adjudicado' && <Trophy size={14} color="#059669" title="Precio adjudicado — solo modificable desde Comparativa" />}
                                                             <input
-                                                                type="number"
-                                                                value={p['Precio Total (€)']}
-                                                                onChange={(e) => p.estado_adjudicacion !== 'Adjudicado' && updatePrice(idx, e.target.value)}
+                                                                type="text"
+                                                                value={rawInputs[`price_${idx}`] ?? formatDecimal(p['Precio Total (€)'])}
+                                                                onChange={(e) => {
+                                                                    if (p.estado_adjudicacion === 'Adjudicado') return;
+                                                                    setRawInputs(prev => ({ ...prev, [`price_${idx}`]: e.target.value }));
+                                                                }}
+                                                                onBlur={(e) => {
+                                                                    if (p.estado_adjudicacion === 'Adjudicado') return;
+                                                                    const v = parseDecimal(e.target.value);
+                                                                    updatePrice(idx, v);
+                                                                    setRawInputs(prev => { const n = { ...prev }; delete n[`price_${idx}`]; return n; });
+                                                                }}
                                                                 readOnly={p.estado_adjudicacion === 'Adjudicado'}
                                                                 title={p.estado_adjudicacion === 'Adjudicado' ? 'Precio adjudicado — solo modificable desde Comparativa' : ''}
                                                                 style={{

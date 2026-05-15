@@ -1,57 +1,60 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Loader2, Settings, Key, Mail } from 'lucide-react';
+import { Save, Loader2, Settings, Key, Mail, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useToast } from '../utils/useModal';
+import { supabase } from '../utils/supabaseClient';
 
 const Ajustes = () => {
     const { showToast, ToastUI } = useToast();
-    const [emailConfig, setEmailConfig] = useState({ correo: '', password: '' });
     const [mistralKey, setMistralKey] = useState('');
     const [mistralConfigured, setMistralConfigured] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
     const [savingMistral, setSavingMistral] = useState(false);
 
-
-
     useEffect(() => {
-        // Leer configuración desde localStorage (no necesita servidor)
-        const savedKey = localStorage.getItem('mistral_api_key');
-        if (savedKey && savedKey.length > 10) {
-            setMistralConfigured(true);
-        }
-        const savedEmail = localStorage.getItem('email_config');
-        if (savedEmail) {
-            try { setEmailConfig(JSON.parse(savedEmail)); } catch (e) { console.error("Error parsing email config", e); }
-        }
-        setLoading(false);
+        const init = async () => {
+            // Leer clave Mistral desde Supabase (fallback: localStorage)
+            try {
+                const { data } = await supabase
+                    .from('configuracion')
+                    .select('valor')
+                    .eq('clave', 'mistral_api_key')
+                    .maybeSingle();
+                if (data?.valor && data.valor.length > 10) {
+                    setMistralConfigured(true);
+                    // Sincronizar a localStorage como caché local
+                    localStorage.setItem('mistral_api_key', data.valor);
+                    return;
+                }
+            } catch (_) {}
+            // Fallback a localStorage
+            const cached = localStorage.getItem('mistral_api_key');
+            if (cached && cached.length > 10) setMistralConfigured(true);
+            setLoading(false);
+        };
+        init().finally(() => setLoading(false));
     }, []);
 
-    const handleSaveEmail = (e) => {
+    const handleSaveMistral = async (e) => {
         e.preventDefault();
-        setSaving(true);
-        try {
-            localStorage.setItem('email_config', JSON.stringify(emailConfig));
-            showToast("Credenciales de correo guardadas correctamente");
-        } catch (err) {
-            showToast("Error al guardar las credenciales de correo", "error");
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleSaveMistral = (e) => {
-        e.preventDefault();
-        if (!mistralKey || mistralKey.trim().length < 10) {
+        const key = mistralKey.trim();
+        if (!key || key.length < 10) {
             showToast("Introduce una API Key de Mistral válida (más de 10 caracteres)", "error");
             return;
         }
         setSavingMistral(true);
         try {
-            localStorage.setItem('mistral_api_key', mistralKey.trim());
+            // Guardar en Supabase (disponible desde cualquier navegador)
+            const { error } = await supabase
+                .from('configuracion')
+                .upsert({ clave: 'mistral_api_key', valor: key, updated_at: new Date().toISOString() }, { onConflict: 'clave' });
+            if (error) throw error;
+            // También en localStorage como caché inmediata
+            localStorage.setItem('mistral_api_key', key);
             setMistralConfigured(true);
-            showToast("API Key de Mistral guardada correctamente ✅");
+            setMistralKey('');
+            showToast("API Key guardada en la nube ✅ — disponible desde cualquier navegador");
         } catch (err) {
-            showToast("Error al guardar la API Key de Mistral", "error");
+            showToast("Error al guardar la API Key: " + err.message, "error");
         } finally {
             setSavingMistral(false);
         }
@@ -72,15 +75,19 @@ const Ajustes = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '680px' }}>
 
                     {/* MISTRAL API */}
-                    <div className="glass-card" style={{ border: mistralConfigured ? '1px solid #16a34a' : '1px solid var(--accent-primary)' }}>
+                    <div className="glass-card" style={{ border: mistralConfigured ? '1px solid var(--success)' : '1px solid var(--primary)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                            <Key size={22} color="var(--accent-primary)" />
-                            <h2 style={{ margin: 0 }}>🤖 IA de Asignación — Mistral API</h2>
-                            {mistralConfigured && <span className="badge badge-green" style={{ marginLeft: 'auto' }}>✅ Configurada</span>}
+                            <Key size={22} color="var(--primary)" />
+                            <h2 style={{ margin: 0 }}>Inteligencia Artificial — Mistral</h2>
+                            {mistralConfigured && (
+                                <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--success)', fontSize: '0.85rem', fontWeight: 600 }}>
+                                    <CheckCircle size={14} /> Configurada
+                                </span>
+                            )}
                         </div>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                            La IA de asignación de partidas utiliza Mistral para obtener resultados de alta precisión.
-                            Obtén tu clave gratuita en{' '}
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                            La clave se guarda en la base de datos de la app — no tendrás que introducirla de nuevo desde ningún navegador.
+                            Obtén tu clave en{' '}
                             <a href="https://console.mistral.ai" target="_blank" rel="noopener noreferrer">console.mistral.ai</a>.
                         </p>
                         <form onSubmit={handleSaveMistral}>
@@ -90,52 +97,44 @@ const Ajustes = () => {
                                     type="password"
                                     value={mistralKey}
                                     onChange={e => setMistralKey(e.target.value)}
-                                    placeholder={mistralConfigured ? "La clave ya está guardada (escribe una nueva para cambiarla)" : "Pega aquí tu API Key de Mistral..."}
-                                    style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ccc', fontFamily: 'monospace' }}
+                                    placeholder={mistralConfigured ? "Clave ya guardada — escribe una nueva para reemplazarla" : "Pega aquí tu API Key de Mistral..."}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid var(--border-color)', fontFamily: 'monospace' }}
                                 />
                             </div>
                             <button type="submit" className="btn btn-primary" disabled={savingMistral} style={{ marginTop: '16px' }}>
                                 {savingMistral ? <Loader2 className="loader-spinner" size={16} /> : <Save size={16} />}
-                                {savingMistral ? ' Guardando...' : ' Guardar API Key'}
+                                {savingMistral ? ' Guardando...' : ' Guardar en la nube'}
                             </button>
                         </form>
                     </div>
 
-                    {/* CORREO */}
+                    {/* CORREO — informativo */}
                     <div className="glass-card">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                            <Mail size={22} color="var(--accent-primary)" />
-                            <h2 style={{ margin: 0 }}>📧 Configuración de Correo</h2>
+                            <Mail size={22} color="var(--primary)" />
+                            <h2 style={{ margin: 0 }}>Configuración de Correo</h2>
                         </div>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                            Para alertas automáticas a proveedores. Usa 'Contraseñas de aplicación' de Gmail o Outlook.
-                        </p>
-                        <form onSubmit={handleSaveEmail}>
-                            <div className="form-group">
-                                <label>Correo Emisor</label>
-                                <input
-                                    type="email"
-                                    value={emailConfig.correo}
-                                    onChange={e => setEmailConfig({ ...emailConfig, correo: e.target.value })}
-                                    placeholder="tu-correo@gmail.com"
-                                    style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
-                                />
+
+                        {/* Aviso de arquitectura fija */}
+                        <div style={{ display: 'flex', gap: '10px', padding: '12px 14px', background: '#fff8e1', border: '1px solid #f59e0b', borderRadius: '8px', marginBottom: '16px' }}>
+                            <AlertTriangle size={18} color="#d97706" style={{ flexShrink: 0, marginTop: '1px' }} />
+                            <div style={{ fontSize: '0.83rem', color: '#92400e' }}>
+                                <strong>El envío de correos está gestionado por n8n + Brevo</strong>, no directamente desde la app.
+                                El correo emisor fijo es <code style={{ background: '#fef3c7', padding: '1px 4px', borderRadius: '3px' }}>adirbc3@gmail.com</code> configurado en el workflow de n8n.
+                                Cambiarlo aquí <strong>no afectaría</strong> al envío real — para modificarlo hay que actualizar los nodos "Enviar Email (Brevo)" en n8n.
                             </div>
-                            <div className="form-group" style={{ marginTop: '16px' }}>
-                                <label>Contraseña de Aplicación</label>
-                                <input
-                                    type="password"
-                                    value={emailConfig.password}
-                                    onChange={e => setEmailConfig({ ...emailConfig, password: e.target.value })}
-                                    placeholder="••••••••••••"
-                                    style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
-                                />
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <div style={{ padding: '12px', background: 'var(--bg-secondary)', borderRadius: '6px' }}>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>CORREO EMISOR (n8n)</div>
+                                <div style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: 'var(--primary)' }}>adirbc3@gmail.com</div>
                             </div>
-                            <button type="submit" className="btn btn-success" disabled={saving} style={{ marginTop: '20px' }}>
-                                {saving ? <Loader2 className="loader-spinner" size={16} /> : <Save size={16} />}
-                                {saving ? ' Guardando...' : ' Guardar Credenciales'}
-                            </button>
-                        </form>
+                            <div style={{ padding: '12px', background: 'var(--bg-secondary)', borderRadius: '6px' }}>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>PROVEEDOR DE ENVÍO</div>
+                                <div style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: 'var(--primary)' }}>Brevo API</div>
+                            </div>
+                        </div>
                     </div>
 
                 </div>

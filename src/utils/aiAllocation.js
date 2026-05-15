@@ -80,8 +80,23 @@ const getAdirContext = async (descripcion) => {
 };
 
 export const asignarProveedoresIA = async (partidas, proveedores, onProgress) => {
-    const apiKey = localStorage.getItem('mistral_api_key');
-    if (!apiKey) throw new Error("API Key no configurada.");
+    // Fast path: localStorage cache
+    let apiKey = localStorage.getItem('mistral_api_key');
+    if (!apiKey || apiKey.length < 10) {
+        // Fallback: read from Supabase configuracion table (cloud storage)
+        try {
+            const { data } = await supabase
+                .from('configuracion')
+                .select('valor')
+                .eq('clave', 'mistral_api_key')
+                .maybeSingle();
+            if (data?.valor && data.valor.length > 10) {
+                apiKey = data.valor;
+                localStorage.setItem('mistral_api_key', apiKey);
+            }
+        } catch (_) {}
+    }
+    if (!apiKey || apiKey.length < 10) throw new Error("API Key no configurada. Ve a Ajustes para añadirla.");
     
     const itemsParaIA = partidas
         .filter(p => !((p.Capítulo || p.Capitulo || "").endsWith('#')))
