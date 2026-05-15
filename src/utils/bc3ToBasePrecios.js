@@ -57,8 +57,9 @@ const RATIO_DEFAULT = { mo: 0.35, mat: 0.60, maq: 0.05 };
 
 /**
  * Devuelve el ratio estimado de desglose según la descripción/categoría.
+ * Exportada para que pdfExtractor y el modal puedan usarla.
  */
-function getRatio(texto) {
+export function getRatio(texto) {
   const t = (texto || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   for (const { keywords, ratio } of RATIOS_POR_CATEGORIA) {
     if (keywords.some(kw => t.includes(kw))) return ratio;

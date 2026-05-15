@@ -1,315 +1,467 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useModal, useToast } from '../utils/useModal';
-import { Search, Save, FileUp, Loader2, Database, TableProperties, X, CheckCircle, AlertCircle, Upload, Info } from 'lucide-react';
+import {
+  Search, Save, FileUp, Loader2, Database, TableProperties,
+  X, CheckCircle, AlertCircle, Upload, Info, FileText, AlertTriangle
+} from 'lucide-react';
 import { bc3ToBasePrecios } from '../utils/bc3ToBasePrecios';
+import { extraerPartidasDePDF } from '../utils/pdfExtractor';
+import { detectarSimilares, detectarDuplicadosInternos } from '../utils/similarityUtils';
+import { getRatio } from '../utils/bc3ToBasePrecios';
 
-const PAGE_SIZE = 50;
-const UPSERT_BATCH = 200; // filas por lote de upsert
+const PAGE_SIZE    = 50;
+const UPSERT_BATCH = 200;
 
-// ── Utilidad: leer archivo como texto (latin1 para BC3) ──────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function readFileAsLatin1(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = e => resolve(e.target.result);
+    reader.onload  = e => resolve(e.target.result);
     reader.onerror = reject;
     reader.readAsText(file, 'windows-1252');
   });
 }
 
-// ── Modal de subida BC3 ───────────────────────────────────────────────────────
-function ModalBC3({ onClose, onImportDone, showToast }) {
-  const [dragging, setDragging] = useState(false);
-  const [parsing,  setParsing]  = useState(false);
-  const [preview,  setPreview]  = useState(null); // { filas, stats }
-  const [importing, setImporting] = useState(false);
+function scoreColor(score) {
+  if (score >= 0.8) return '#ef4444';  // rojo → casi idéntico
+  if (score >= 0.65) return '#f59e0b'; // naranja → similar
+  return '#22c55e';                    // verde → diferente
+}
+
+function scoreLabel(tipo, score) {
+  if (tipo === 'igual') return `Muy similar (${Math.round(score * 100)}%)`;
+  return `Posible duplicado (${Math.round(score * 100)}%)`;
+}
+
+// ── Modal de importación (BC3 y PDF) ─────────────────────────────────────────
+
+function ModalImport({ onClose, onImportDone, showToast }) {
+  // Pasos: 'tipo' → 'drop' → 'parsing' → 'similares' → 'preview' → 'importing' → 'done'
+  const [step, setStep]             = useState('drop'); // skip 'tipo', elegir en drop zone
+  const [fileType, setFileType]     = useState(null);   // 'bc3' | 'pdf'
+  const [dragging, setDragging]     = useState(false);
+  const [parsing, setParsing]       = useState(false);
+  const [error, setError]           = useState('');
+  const [partidas, setPartidas]     = useState([]); // partidas parseadas brutas
+  const [conMatch, setConMatch]     = useState([]); // partidas + campo match
+  const [decisions, setDecisions]   = useState({}); // idx → 'crear'|'actualizar'|'ignorar'
+  const [importing, setImporting]   = useState(false);
   const [importProgress, setImportProgress] = useState(0);
-  const [importDone, setImportDone] = useState(false);
-  const [error, setError] = useState('');
+  const [importStats, setImportStats] = useState(null);
   const inputRef = useRef(null);
 
+  // ── Manejo de archivo ─────────────────────────────────────────────────────
+
   const handleFile = useCallback(async (file) => {
-    if (!file || !file.name.toLowerCase().endsWith('.bc3')) {
-      setError('El archivo debe tener extensión .bc3');
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext !== 'bc3' && ext !== 'pdf') {
+      setError('Selecciona un archivo .bc3 o .pdf');
       return;
     }
     setError('');
+    setFileType(ext);
     setParsing(true);
-    setPreview(null);
+    setStep('parsing');
+
     try {
-      const text = await readFileAsLatin1(file);
-      const filas = bc3ToBasePrecios(text);
+      let filas = [];
+
+      if (ext === 'bc3') {
+        const text = await readFileAsLatin1(file);
+        filas = bc3ToBasePrecios(text);
+      } else {
+        // PDF
+        const raw = await extraerPartidasDePDF(file);
+        if (raw.length === 0) {
+          setError('No se encontraron partidas con precio en el PDF. Asegúrate de que no está escaneado como imagen.');
+          setStep('drop');
+          setParsing(false);
+          return;
+        }
+        // Para PDF: completar con estimación de desglose
+        filas = raw.map(p => {
+          const ratio = getRatio(p.descripcion_corta);
+          return {
+            codigo:            null, // sin código en PDF
+            categoria:         'Importado PDF',
+            descripcion_corta: p.descripcion_corta,
+            unidad:            p.unidad,
+            precio_total:      p.precio_total,
+            mano_de_obra:      parseFloat((p.precio_total * ratio.mo).toFixed(4)),
+            materiales_y_otros: parseFloat((p.precio_total * ratio.mat).toFixed(4)),
+            maquinaria:        parseFloat((p.precio_total * ratio.maq).toFixed(4)),
+            desglose_estimado: true,
+          };
+        });
+      }
 
       if (filas.length === 0) {
-        setError('No se encontraron partidas válidas en el archivo BC3.');
+        setError('No se encontraron partidas válidas en el archivo.');
+        setStep('drop');
         return;
       }
 
-      // Estadísticas de preview
-      const estimados  = filas.filter(f => f.desglose_estimado).length;
-      const conDatos   = filas.length - estimados;
-      const cats = [...new Set(filas.map(f => f.categoria))];
+      // Detectar duplicados internos (dentro del mismo archivo)
+      const dupesInternos = detectarDuplicadosInternos(filas);
+      const filasUnicas = filas.filter((_, i) => !dupesInternos.has(i));
 
-      setPreview({ filas, stats: { total: filas.length, conDatos, estimados, cats } });
+      // Comparar con base de datos existente
+      const { data: existentes = [] } = await supabase
+        .from('base_precios_adir')
+        .select('id, codigo, descripcion_corta, precio_total, categoria')
+        .limit(5000);
+
+      const conMatchArr = detectarSimilares(filasUnicas, existentes || []);
+      setPartidas(filasUnicas);
+      setConMatch(conMatchArr);
+
+      // Decisiones iniciales automáticas
+      const dec = {};
+      conMatchArr.forEach((p, i) => {
+        if (!p.match) dec[i] = 'crear';
+        else if (p.match.tipo === 'igual') dec[i] = 'actualizar';
+        else dec[i] = 'crear'; // similares → dejar que el usuario decida
+      });
+      setDecisions(dec);
+
+      setStep('similares');
     } catch (e) {
       console.error(e);
       setError('Error al procesar el archivo: ' + e.message);
+      setStep('drop');
     } finally {
       setParsing(false);
     }
   }, []);
 
-  // Drag & drop
   const onDrop = (e) => {
     e.preventDefault();
     setDragging(false);
-    const file = e.dataTransfer.files[0];
-    handleFile(file);
+    handleFile(e.dataTransfer.files[0]);
   };
 
+  // ── Importar ──────────────────────────────────────────────────────────────
+
   const handleImport = async () => {
-    if (!preview) return;
     setImporting(true);
     setImportProgress(0);
-    const { filas } = preview;
-    const total = filas.length;
-    let done = 0;
-    let errores = 0;
+    let creadas = 0, actualizadas = 0, ignoradas = 0, errores = 0;
 
-    // Upsert en lotes
-    for (let i = 0; i < total; i += UPSERT_BATCH) {
-      const lote = filas.slice(i, i + UPSERT_BATCH).map(({ desglose_estimado, ...rest }) => rest);
-      try {
-        const { error } = await supabase
-          .from('base_precios_adir')
-          .upsert(lote, { onConflict: 'codigo', ignoreDuplicates: false });
-        if (error) {
-          console.error('Upsert error:', error);
-          errores += lote.length;
+    const toCreate  = conMatch.filter((_, i) => decisions[i] === 'crear');
+    const toUpdate  = conMatch.filter((_, i) => decisions[i] === 'actualizar');
+    ignoradas       = conMatch.filter((_, i) => decisions[i] === 'ignorar').length;
+
+    const total = toCreate.length + toUpdate.length;
+    let done = 0;
+
+    // ── Crear nuevas (upsert por descripcion_corta si no tienen código) ──
+    for (let i = 0; i < toCreate.length; i += UPSERT_BATCH) {
+      const lote = toCreate.slice(i, i + UPSERT_BATCH).map(({ desglose_estimado, match, pagina, ...rest }) => {
+        // Si es PDF sin código, generar uno provisional
+        if (!rest.codigo) {
+          rest.codigo = 'PDF_' + Math.random().toString(36).slice(2, 8).toUpperCase();
         }
-      } catch (e) {
-        errores += lote.length;
-      }
+        return rest;
+      });
+      try {
+        const { error } = await supabase.from('base_precios_adir').upsert(lote, { onConflict: 'codigo' });
+        if (error) { errores += lote.length; console.error(error); }
+        else creadas += lote.length;
+      } catch (e) { errores += lote.length; }
       done += lote.length;
       setImportProgress(Math.round((done / total) * 100));
     }
 
-    setImporting(false);
-    setImportDone(true);
-    if (errores === 0) {
-      showToast(`${total} partidas importadas/actualizadas correctamente.`);
-    } else {
-      showToast(`Importación con ${errores} errores de ${total} partidas.`, 'error');
+    // ── Actualizar precio en existentes ──────────────────────────────────
+    for (const p of toUpdate) {
+      try {
+        const { error } = await supabase
+          .from('base_precios_adir')
+          .update({
+            precio_total:      p.precio_total,
+            mano_de_obra:      p.mano_de_obra,
+            materiales_y_otros: p.materiales_y_otros,
+            maquinaria:        p.maquinaria,
+          })
+          .eq('id', p.match.existente.id);
+        if (error) errores++;
+        else actualizadas++;
+      } catch { errores++; }
+      done++;
+      setImportProgress(Math.round((done / total) * 100));
     }
+
+    setImporting(false);
+    setImportStats({ creadas, actualizadas, ignoradas, errores });
+    setStep('done');
+    if (errores === 0) showToast(`✓ ${creadas} creadas, ${actualizadas} actualizadas.`);
+    else showToast(`Importación con ${errores} errores.`, 'error');
     onImportDone();
   };
 
-  // ── UI del modal ────────────────────────────────────────────────────────────
+  // ── Estadísticas de similares ─────────────────────────────────────────────
+  const numIguales  = conMatch.filter(p => p.match?.tipo === 'igual').length;
+  const numSimilar  = conMatch.filter(p => p.match?.tipo === 'similar').length;
+  const numNuevas   = conMatch.filter(p => !p.match).length;
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   const overlayStyle = {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-    zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
-    padding: '20px'
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+    zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
   };
   const boxStyle = {
-    background: 'var(--bg-primary)', borderRadius: '16px',
-    padding: '32px', maxWidth: '720px', width: '100%',
-    maxHeight: '90vh', overflowY: 'auto',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.4)'
+    background: 'var(--bg-primary)', borderRadius: '16px', padding: '28px',
+    maxWidth: '820px', width: '100%', maxHeight: '92vh', overflowY: 'auto',
+    boxShadow: '0 24px 64px rgba(0,0,0,0.45)',
   };
 
   return (
-    <div style={overlayStyle} onClick={e => e.target === e.currentTarget && onClose()}>
+    <div style={overlayStyle} onClick={e => e.target === e.currentTarget && !importing && onClose()}>
       <div style={boxStyle}>
+
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '22px' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '1.4rem' }}>Importar BC3 a Base de Precios</h2>
-            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-              Añade o actualiza partidas en la base ADIR desde un archivo .bc3
+            <h2 style={{ margin: 0, fontSize: '1.35rem' }}>Importar a Base de Precios</h2>
+            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+              Sube un archivo <strong>.bc3</strong> (FIEBDC) o un <strong>.pdf</strong> de tarifa de precios
             </p>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-            <X size={22} />
-          </button>
+          {!importing && (
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}>
+              <X size={20} />
+            </button>
+          )}
         </div>
 
-        {/* Drop zone (sólo si no hay preview) */}
-        {!preview && !parsing && (
-          <div
-            onDragOver={e => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={onDrop}
-            onClick={() => inputRef.current?.click()}
-            style={{
-              border: `2px dashed ${dragging ? 'var(--primary)' : 'var(--border-color)'}`,
-              borderRadius: '12px', padding: '48px 24px', textAlign: 'center',
-              cursor: 'pointer', transition: 'all 0.2s',
-              background: dragging ? 'var(--primary-light)' : 'transparent'
-            }}
-          >
-            <Upload size={40} style={{ color: dragging ? 'var(--primary)' : 'var(--text-muted)', marginBottom: '12px' }} />
-            <p style={{ margin: 0, fontWeight: 600, fontSize: '1.1rem' }}>Arrastra tu archivo .BC3 aquí</p>
-            <p style={{ margin: '8px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>o haz clic para seleccionarlo</p>
-            <input ref={inputRef} type="file" accept=".bc3" style={{ display: 'none' }}
-              onChange={e => handleFile(e.target.files[0])} />
-          </div>
-        )}
-
-        {/* Parsing spinner */}
-        {parsing && (
-          <div style={{ textAlign: 'center', padding: '48px 0' }}>
-            <Loader2 size={36} className="loader-spinner" style={{ display: 'inline-block', marginBottom: '12px' }} />
-            <p style={{ color: 'var(--text-muted)' }}>Analizando archivo BC3…</p>
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px',
-            background: 'rgba(239,68,68,0.1)', borderRadius: '10px', color: '#ef4444', marginTop: '16px' }}>
-            <AlertCircle size={18} /> {error}
-          </div>
-        )}
-
-        {/* Preview */}
-        {preview && !importDone && (
+        {/* ── DROP ZONE ── */}
+        {step === 'drop' && (
           <>
-            {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
-              <StatCard label="Partidas encontradas" value={preview.stats.total} color="var(--primary)" />
-              <StatCard label="Con desglose real" value={preview.stats.conDatos} color="#22c55e"
-                sub="desde descomposición BC3" />
-              <StatCard label="Desglose estimado" value={preview.stats.estimados} color="#f59e0b"
-                sub="por tipo de trabajo" />
+            <div
+              onDragOver={e => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={onDrop}
+              onClick={() => inputRef.current?.click()}
+              style={{
+                border: `2px dashed ${dragging ? 'var(--primary)' : 'var(--border-color)'}`,
+                borderRadius: '12px', padding: '52px 24px', textAlign: 'center',
+                cursor: 'pointer', transition: 'all 0.2s',
+                background: dragging ? 'var(--primary-light)' : 'transparent',
+              }}
+            >
+              <Upload size={44} style={{ color: dragging ? 'var(--primary)' : 'var(--text-muted)', marginBottom: '14px' }} />
+              <p style={{ margin: 0, fontWeight: 600, fontSize: '1.1rem' }}>Arrastra tu archivo aquí</p>
+              <p style={{ margin: '8px 0 0', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                o haz clic para seleccionarlo
+              </p>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '18px' }}>
+                <TypeBadge icon={<FileText size={14} />} label=".BC3" desc="FIEBDC-3" color="var(--primary)" />
+                <TypeBadge icon={<FileText size={14} />} label=".PDF" desc="Tarifa de precios" color="#f59e0b" />
+              </div>
+              <input ref={inputRef} type="file" accept=".bc3,.pdf" style={{ display: 'none' }}
+                onChange={e => handleFile(e.target.files[0])} />
+            </div>
+            {error && <ErrorBanner msg={error} />}
+          </>
+        )}
+
+        {/* ── PARSING ── */}
+        {step === 'parsing' && (
+          <div style={{ textAlign: 'center', padding: '52px 0' }}>
+            <Loader2 size={38} className="loader-spinner" style={{ display: 'inline-block', marginBottom: '14px' }} />
+            <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+              {fileType === 'pdf' ? 'Extrayendo partidas del PDF…' : 'Analizando archivo BC3…'}
+            </p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '6px' }}>
+              Comparando con {'>'}5.000 partidas existentes…
+            </p>
+          </div>
+        )}
+
+        {/* ── REVISIÓN DE SIMILARES ── */}
+        {step === 'similares' && (
+          <>
+            {/* Stats row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '18px' }}>
+              <StatCard label="Nuevas"       value={numNuevas}  color="#22c55e" sub="se añadirán" />
+              <StatCard label="Muy similares" value={numIguales} color="#ef4444" sub="actualizar precio" />
+              <StatCard label="Parecidas"     value={numSimilar} color="#f59e0b" sub="revisa manualmente" />
             </div>
 
-            {/* Aviso estimación */}
-            {preview.stats.estimados > 0 && (
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 16px',
-                background: 'rgba(245,158,11,0.08)', borderRadius: '10px', marginBottom: '16px',
-                border: '1px solid rgba(245,158,11,0.3)' }}>
-                <Info size={16} style={{ color: '#f59e0b', marginTop: '2px', flexShrink: 0 }} />
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  <strong>{preview.stats.estimados} partidas</strong> no tienen descomposición MO/Mat/Maq en el BC3.
-                  Se ha estimado el desglose según el tipo de trabajo (albañilería, electricidad, fontanería…).
-                  Puedes ajustarlo después editando cada partida.
+            {/* Aviso si hay similares */}
+            {(numIguales + numSimilar) > 0 && (
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '12px 14px',
+                background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.25)',
+                borderRadius: '10px', marginBottom: '14px' }}>
+                <AlertTriangle size={16} style={{ color: '#f59e0b', marginTop: '2px', flexShrink: 0 }} />
+                <p style={{ margin: 0, fontSize: '0.83rem', color: 'var(--text-secondary)' }}>
+                  Se han detectado partidas similares a las ya existentes. Decide para cada una si
+                  <strong> actualizar el precio</strong> en la base, <strong>crear nueva entrada</strong> o <strong>ignorar</strong>.
                 </p>
               </div>
             )}
 
-            {/* Categorías detectadas */}
-            <div style={{ marginBottom: '16px' }}>
-              <p style={{ margin: '0 0 8px', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                Categorías detectadas ({preview.stats.cats.length}):
-              </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {preview.stats.cats.slice(0, 20).map((c, i) => (
-                  <span key={i} style={{ background: 'var(--primary-light)', color: 'var(--primary)',
-                    padding: '2px 10px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 500 }}>
-                    {c}
-                  </span>
-                ))}
-                {preview.stats.cats.length > 20 && (
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', padding: '2px 6px' }}>
-                    +{preview.stats.cats.length - 20} más
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Tabla preview (primeras 15 filas) */}
-            <div style={{ overflowX: 'auto', marginBottom: '20px', borderRadius: '8px',
-              border: '1px solid var(--border-color)' }}>
-              <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: 'var(--bg-secondary)' }}>
-                    <th style={th}>Código</th>
-                    <th style={th}>Categoría</th>
-                    <th style={th}>Descripción</th>
-                    <th style={th}>Ud.</th>
-                    <th style={th}>M.O.</th>
-                    <th style={th}>Mat.</th>
-                    <th style={th}>Maq.</th>
-                    <th style={th}>Total</th>
-                    <th style={th}>Orig.</th>
+            {/* Tabla de revisión */}
+            <div style={{ maxHeight: '380px', overflowY: 'auto', borderRadius: '8px',
+              border: '1px solid var(--border-color)', marginBottom: '18px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-secondary)', zIndex: 1 }}>
+                  <tr>
+                    <th style={th}>Nueva partida</th>
+                    <th style={th}>Precio</th>
+                    <th style={th}>Similar existente</th>
+                    <th style={th}>Coincidencia</th>
+                    <th style={th}>Acción</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.filas.slice(0, 15).map((f, i) => (
-                    <tr key={i} style={{ borderTop: '1px solid var(--border-color)' }}>
-                      <td style={td}><code style={{ fontSize: '0.75rem' }}>{f.codigo}</code></td>
-                      <td style={{ ...td, maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                        title={f.categoria}>{f.categoria}</td>
-                      <td style={{ ...td, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                        title={f.descripcion_corta}>{f.descripcion_corta}</td>
-                      <td style={td}>{f.unidad}</td>
-                      <td style={td}>{f.mano_de_obra?.toFixed(2)}</td>
-                      <td style={td}>{f.materiales_y_otros?.toFixed(2)}</td>
-                      <td style={td}>{f.maquinaria?.toFixed(2)}</td>
-                      <td style={{ ...td, fontWeight: 700, color: 'var(--primary)' }}>{f.precio_total?.toFixed(2)}</td>
-                      <td style={{ ...td, textAlign: 'center' }}>
-                        {f.desglose_estimado
-                          ? <span title="Desglose estimado" style={{ color: '#f59e0b' }}>~</span>
-                          : <span title="Datos reales del BC3" style={{ color: '#22c55e' }}>✓</span>}
+                  {conMatch.map((p, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid var(--border-color)',
+                      background: decisions[i] === 'ignorar' ? 'rgba(100,100,100,0.05)' : undefined,
+                      opacity: decisions[i] === 'ignorar' ? 0.5 : 1 }}>
+                      <td style={{ ...td, maxWidth: '200px' }}>
+                        <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                          title={p.descripcion_corta}>{p.descripcion_corta}</div>
+                        <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{p.unidad} · {p.categoria}</div>
+                      </td>
+                      <td style={{ ...td, fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
+                        {p.precio_total?.toFixed(2)} €
+                      </td>
+                      <td style={{ ...td, maxWidth: '180px' }}>
+                        {p.match ? (
+                          <>
+                            <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.78rem' }}
+                              title={p.match.existente.descripcion_corta}>{p.match.existente.descripcion_corta}</div>
+                            <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+                              Precio actual: {p.match.existente.precio_total} €
+                            </div>
+                          </>
+                        ) : (
+                          <span style={{ color: '#22c55e', fontSize: '0.78rem' }}>— Nueva —</span>
+                        )}
+                      </td>
+                      <td style={td}>
+                        {p.match ? (
+                          <span style={{ background: scoreColor(p.match.score) + '22',
+                            color: scoreColor(p.match.score), padding: '2px 8px',
+                            borderRadius: '20px', fontSize: '0.73rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            {scoreLabel(p.match.tipo, p.match.score)}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#22c55e', fontSize: '0.73rem' }}>Nueva</span>
+                        )}
+                      </td>
+                      <td style={td}>
+                        <select
+                          value={decisions[i]}
+                          onChange={e => setDecisions(d => ({ ...d, [i]: e.target.value }))}
+                          style={{ fontSize: '0.78rem', padding: '3px 6px', borderRadius: '6px',
+                            border: '1px solid var(--border-color)', background: 'var(--bg-primary)',
+                            color: decisions[i] === 'ignorar' ? 'var(--text-muted)' : undefined }}
+                        >
+                          <option value="crear">Crear nueva</option>
+                          {p.match && <option value="actualizar">Actualizar precio</option>}
+                          <option value="ignorar">Ignorar</option>
+                        </select>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {preview.filas.length > 15 && (
-                <div style={{ padding: '8px 12px', fontSize: '0.8rem', color: 'var(--text-muted)',
-                  borderTop: '1px solid var(--border-color)', textAlign: 'center' }}>
-                  Mostrando 15 de {preview.filas.length} partidas
-                </div>
-              )}
             </div>
 
-            {/* Barra de progreso */}
-            {importing && (
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.85rem' }}>
-                  <span>Importando…</span><span>{importProgress}%</span>
-                </div>
-                <div style={{ height: '8px', background: 'var(--bg-secondary)', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${importProgress}%`, background: 'var(--primary)',
-                    transition: 'width 0.3s', borderRadius: '4px' }} />
-                </div>
-              </div>
-            )}
+            {/* Acciones rápidas */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '5px 12px' }}
+                onClick={() => {
+                  const dec = {};
+                  conMatch.forEach((p, i) => { dec[i] = p.match?.tipo === 'igual' ? 'actualizar' : 'crear'; });
+                  setDecisions(dec);
+                }}>
+                Auto: actualizar iguales, crear resto
+              </button>
+              <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '5px 12px' }}
+                onClick={() => {
+                  const dec = {};
+                  conMatch.forEach((p, i) => { dec[i] = p.match ? 'ignorar' : 'crear'; });
+                  setDecisions(dec);
+                }}>
+                Solo nuevas (ignorar similares)
+              </button>
+            </div>
 
-            {/* Acciones */}
+            {/* Resumen de decisiones */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', fontSize: '0.83rem' }}>
+              <span>📥 {Object.values(decisions).filter(d => d === 'crear').length} a crear</span>
+              <span>🔄 {Object.values(decisions).filter(d => d === 'actualizar').length} a actualizar</span>
+              <span style={{ color: 'var(--text-muted)' }}>⏭ {Object.values(decisions).filter(d => d === 'ignorar').length} ignoradas</span>
+            </div>
+
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => { setPreview(null); setError(''); }}
-                disabled={importing}>
+              <button className="btn btn-secondary" onClick={() => { setStep('drop'); setConMatch([]); setPartidas([]); }}>
                 Cambiar archivo
               </button>
-              <button className="btn btn-primary" onClick={handleImport} disabled={importing}
+              <button className="btn btn-primary" onClick={handleImport}
+                disabled={Object.values(decisions).every(d => d === 'ignorar')}
                 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {importing ? <><Loader2 size={16} className="loader-spinner" /> Importando…</>
-                  : <><FileUp size={16} /> Importar {preview.stats.total} partidas</>}
+                <FileUp size={15} />
+                Confirmar importación
               </button>
             </div>
           </>
         )}
 
-        {/* Éxito */}
-        {importDone && (
+        {/* ── IMPORTANDO ── */}
+        {importing && (
+          <div style={{ margin: '16px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '0.85rem' }}>
+              <span>Importando…</span><span>{importProgress}%</span>
+            </div>
+            <div style={{ height: '8px', background: 'var(--bg-secondary)', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${importProgress}%`, background: 'var(--primary)',
+                transition: 'width 0.3s', borderRadius: '4px' }} />
+            </div>
+          </div>
+        )}
+
+        {/* ── HECHO ── */}
+        {step === 'done' && importStats && (
           <div style={{ textAlign: 'center', padding: '32px 0' }}>
-            <CheckCircle size={48} style={{ color: '#22c55e', marginBottom: '12px' }} />
-            <h3 style={{ margin: '0 0 8px' }}>¡Importación completada!</h3>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
-              {preview.stats.total} partidas añadidas/actualizadas en la base de precios ADIR.
-            </p>
+            <CheckCircle size={52} style={{ color: '#22c55e', marginBottom: '14px' }} />
+            <h3 style={{ margin: '0 0 10px' }}>¡Importación completada!</h3>
+            <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', margin: '16px 0', flexWrap: 'wrap' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: '#22c55e' }}>{importStats.creadas}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>creadas</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary)' }}>{importStats.actualizadas}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>actualizadas</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-muted)' }}>{importStats.ignoradas}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>ignoradas</div>
+              </div>
+              {importStats.errores > 0 && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', fontWeight: 700, color: '#ef4444' }}>{importStats.errores}</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>errores</div>
+                </div>
+              )}
+            </div>
             <button className="btn btn-primary" onClick={onClose}>Cerrar</button>
           </div>
         )}
+
       </div>
     </div>
   );
 }
 
-const th = { padding: '8px 10px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' };
-const td = { padding: '6px 10px' };
+// ── Sub-componentes pequeños ──────────────────────────────────────────────────
 
 function StatCard({ label, value, color, sub }) {
   return (
@@ -317,31 +469,52 @@ function StatCard({ label, value, color, sub }) {
       borderLeft: `4px solid ${color}` }}>
       <div style={{ fontSize: '1.8rem', fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
       <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '4px' }}>{label}</div>
-      {sub && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>{sub}</div>}
+      {sub && <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: '2px' }}>{sub}</div>}
     </div>
   );
 }
 
+function TypeBadge({ icon, label, desc, color }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px',
+      border: `1px solid ${color}40`, borderRadius: '20px', color }}>
+      {icon}
+      <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{label}</span>
+      <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{desc}</span>
+    </div>
+  );
+}
+
+function ErrorBanner({ msg }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px',
+      background: 'rgba(239,68,68,0.1)', borderRadius: '10px', color: '#ef4444', marginTop: '14px' }}>
+      <AlertCircle size={16} /> {msg}
+    </div>
+  );
+}
+
+const th = { padding: '8px 10px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap', fontSize: '0.78rem' };
+const td = { padding: '7px 10px', verticalAlign: 'middle' };
+
 // ── Página principal ──────────────────────────────────────────────────────────
 
 const BasePrecios = () => {
-  const { showAlert, ModalUI } = useModal();
+  const { ModalUI }          = useModal();
   const { showToast, ToastUI } = useToast();
 
-  const [activeTab, setActiveTab] = useState('adir');
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [activeTab,             setActiveTab]             = useState('adir');
+  const [data,                  setData]                  = useState([]);
+  const [loading,               setLoading]               = useState(false);
+  const [searchTerm,            setSearchTerm]            = useState('');
+  const [selectedCategory,      setSelectedCategory]      = useState('');
   const [categoriasDisponibles, setCategoriasDisponibles] = useState([]);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [showBC3Modal, setShowBC3Modal] = useState(false);
-
-  // Editing
-  const [editingId, setEditingId] = useState(null);
-  const [editValues, setEditValues] = useState({});
-  const [saving, setSaving] = useState(false);
+  const [page,                  setPage]                  = useState(0);
+  const [hasMore,               setHasMore]               = useState(true);
+  const [showImportModal,       setShowImportModal]       = useState(false);
+  const [editingId,             setEditingId]             = useState(null);
+  const [editValues,            setEditValues]            = useState({});
+  const [saving,                setSaving]                = useState(false);
 
   useEffect(() => { fetchData(true); }, [activeTab, searchTerm, selectedCategory]);
   useEffect(() => { cargarCategorias(); setSelectedCategory(''); }, [activeTab]);
@@ -349,49 +522,32 @@ const BasePrecios = () => {
   const cargarCategorias = async () => {
     const table = activeTab === 'adir' ? 'base_precios_adir' : 'PreciosCype';
     try {
-      if (activeTab === 'adir') {
-        const { data } = await supabase.from(table).select('categoria').limit(3000);
-        if (data) setCategoriasDisponibles([...new Set(data.map(d => d.categoria).filter(Boolean))].sort());
-      } else {
-        const { data } = await supabase.from(table).select('categoria').limit(2000);
-        if (data) setCategoriasDisponibles([...new Set(data.map(d => d.categoria).filter(Boolean))].sort());
-      }
-    } catch (e) { console.error('Error cargando categorías:', e); }
+      const { data } = await supabase.from(table).select('categoria').limit(3000);
+      if (data) setCategoriasDisponibles([...new Set(data.map(d => d.categoria).filter(Boolean))].sort());
+    } catch (e) { console.error('Error categorías:', e); }
   };
 
   const fetchData = async (reset = false) => {
     setLoading(true);
     const currentPage = reset ? 0 : page;
     if (reset) { setPage(0); setData([]); }
-
     const table = activeTab === 'adir' ? 'base_precios_adir' : 'PreciosCype';
     try {
-      let query = supabase.from(table)
-        .select('*')
-        .not('codigo', 'ilike', '%#')
-        .order('codigo', { ascending: true });
-
-      if (searchTerm) {
-        query = query.or(`codigo.ilike.%${searchTerm}%,descripcion_corta.ilike.%${searchTerm}%`);
-      }
-      if (selectedCategory) {
-        query = query.ilike('categoria', `%${selectedCategory}%`);
-      }
-
+      let query = supabase.from(table).select('*')
+        .not('codigo', 'ilike', '%#').order('codigo', { ascending: true });
+      if (searchTerm) query = query.or(`codigo.ilike.%${searchTerm}%,descripcion_corta.ilike.%${searchTerm}%`);
+      if (selectedCategory) query = query.ilike('categoria', `%${selectedCategory}%`);
       const from = currentPage * PAGE_SIZE;
-      const { data: resultData, error } = await query.range(from, from + PAGE_SIZE - 1);
+      const { data: res, error } = await query.range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
-
-      if (resultData) {
-        reset ? setData(resultData) : setData(prev => [...prev, ...resultData]);
-        setHasMore(resultData.length === PAGE_SIZE);
+      if (res) {
+        reset ? setData(res) : setData(prev => [...prev, ...res]);
+        setHasMore(res.length === PAGE_SIZE);
       }
-    } catch (error) {
-      console.error('Error fetching data:', error);
+    } catch (e) {
+      console.error('fetchData:', e);
       showToast('Error al cargar los datos.', 'error');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { if (page > 0) fetchData(); }, [page]);
@@ -399,139 +555,116 @@ const BasePrecios = () => {
   const handleEditClick = (item) => {
     setEditingId(item.id);
     setEditValues({
-      precio_total: item.precio_total || 0,
-      mano_de_obra: item.mano_de_obra || 0,
+      precio_total:      item.precio_total || 0,
+      mano_de_obra:      item.mano_de_obra || 0,
       materiales_y_otros: activeTab === 'adir' ? item.materiales_y_otros : item.materiales,
-      maquinaria: item.maquinaria || 0
+      maquinaria:        item.maquinaria || 0,
     });
   };
 
   const handleSaveEdit = async (id) => {
     setSaving(true);
     const table = activeTab === 'adir' ? 'base_precios_adir' : 'PreciosCype';
-    const updatePayload = {
+    const payload = {
       precio_total: parseFloat(editValues.precio_total),
       mano_de_obra: parseFloat(editValues.mano_de_obra),
-      maquinaria: parseFloat(editValues.maquinaria)
+      maquinaria:   parseFloat(editValues.maquinaria),
     };
-    if (activeTab === 'adir') updatePayload.materiales_y_otros = parseFloat(editValues.materiales_y_otros);
-    else updatePayload.materiales = parseFloat(editValues.materiales_y_otros);
-
+    if (activeTab === 'adir') payload.materiales_y_otros = parseFloat(editValues.materiales_y_otros);
+    else payload.materiales = parseFloat(editValues.materiales_y_otros);
     try {
-      const itemOriginal = data.find(d => d.id === id);
-      const { error } = await supabase.from(table).update(updatePayload).eq('id', id);
+      const orig = data.find(d => d.id === id);
+      const { error } = await supabase.from(table).update(payload).eq('id', id);
       if (error) throw error;
       await supabase.from('historial_cambios').insert({
-        origen_cambio: 'Manual',
-        tipo_entidad: activeTab === 'adir' ? 'Base ADIR' : 'Base CYPE',
-        entidad_id: itemOriginal.codigo,
-        campo_modificado: 'Precio Total',
-        valor_anterior: String(itemOriginal.precio_total || 0),
-        valor_nuevo: String(updatePayload.precio_total),
-        detalles: itemOriginal.descripcion_corta
+        origen_cambio: 'Manual', tipo_entidad: activeTab === 'adir' ? 'Base ADIR' : 'Base CYPE',
+        entidad_id: orig.codigo, campo_modificado: 'Precio Total',
+        valor_anterior: String(orig.precio_total || 0), valor_nuevo: String(payload.precio_total),
+        detalles: orig.descripcion_corta,
       });
       showToast('Precio actualizado correctamente.');
-      setData(data.map(d => d.id === id ? { ...d, ...updatePayload } : d));
+      setData(data.map(d => d.id === id ? { ...d, ...payload } : d));
       setEditingId(null);
-    } catch (error) {
-      console.error('Error updating price:', error);
+    } catch (e) {
+      console.error(e);
       showToast('Error al actualizar precio.', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleImportDone = () => {
-    fetchData(true);
-    cargarCategorias();
+    } finally { setSaving(false); }
   };
 
   return (
     <div className="animate-fade-in" style={{ paddingBottom: '40px' }}>
       {ModalUI}
       {ToastUI}
-      {showBC3Modal && (
-        <ModalBC3
-          onClose={() => setShowBC3Modal(false)}
-          onImportDone={handleImportDone}
+      {showImportModal && (
+        <ModalImport
+          onClose={() => setShowImportModal(false)}
+          onImportDone={() => { fetchData(true); cargarCategorias(); }}
           showToast={showToast}
         />
       )}
 
+      {/* Header */}
       <div className="glass-card" style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
           <div>
             <h1>Bases de Precios</h1>
             <p>Visualiza y modifica las bases de precios oficiales.</p>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            {activeTab === 'adir' && (
-              <button className="btn btn-secondary" onClick={() => setShowBC3Modal(true)}>
-                <FileUp size={16} /> Subir BC3
-              </button>
-            )}
-          </div>
+          {activeTab === 'adir' && (
+            <button className="btn btn-secondary" onClick={() => setShowImportModal(true)}>
+              <FileUp size={16} /> Subir BC3 / PDF
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Tabs + tabla */}
       <div className="glass-card" style={{ marginBottom: '20px', padding: '0' }}>
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)' }}>
-          {['adir', 'cype'].map(tab => (
+          {[['adir', <Database size={18} />, 'Base Oficial ADIR'],
+            ['cype', <TableProperties size={18} />, 'Base CYPE Murcia']].map(([tab, icon, label]) => (
             <button key={tab}
               style={{
-                flex: 1, padding: '15px',
+                flex: 1, padding: '15px', border: 'none', cursor: 'pointer',
                 background: activeTab === tab ? 'var(--primary-light)' : 'transparent',
-                border: 'none', borderBottom: activeTab === tab ? '2px solid var(--primary)' : '2px solid transparent',
+                borderBottom: activeTab === tab ? '2px solid var(--primary)' : '2px solid transparent',
                 color: activeTab === tab ? 'var(--primary)' : 'var(--text-muted)',
-                fontWeight: 600, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
               }}
               onClick={() => setActiveTab(tab)}
             >
-              {tab === 'adir' ? <><Database size={18} /> Base Oficial ADIR</> : <><TableProperties size={18} /> Base CYPE Murcia</>}
+              {icon} {label}
             </button>
           ))}
         </div>
 
         <div style={{ padding: '20px' }}>
+          {/* Filtros */}
           <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: '2', minWidth: '250px' }}>
               <Search size={18} style={{ position: 'absolute', top: '12px', left: '12px', color: 'var(--text-light)' }} />
-              <input
-                type="text"
-                placeholder="Buscar por código o descripción..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                style={{ width: '100%', paddingLeft: '40px' }}
-              />
+              <input type="text" placeholder="Buscar por código o descripción..."
+                value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                style={{ width: '100%', paddingLeft: '40px' }} />
             </div>
             <div style={{ flex: '1', minWidth: '200px' }}>
-              <select
-                value={selectedCategory}
-                onChange={e => setSelectedCategory(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}
-              >
+              <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px',
+                  border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
                 <option value="">Todas las categorías</option>
-                {categoriasDisponibles.map((cat, idx) => (
-                  <option key={idx} value={cat}>{cat}</option>
-                ))}
+                {categoriasDisponibles.map((cat, i) => <option key={i} value={cat}>{cat}</option>)}
               </select>
             </div>
           </div>
 
+          {/* Tabla */}
           <div className="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>Código</th>
-                  <th>Categoría</th>
-                  <th>Descripción</th>
-                  <th>Ud.</th>
-                  <th>M.O. (€)</th>
-                  <th>Mat/Otros (€)</th>
-                  <th>Maq. (€)</th>
-                  <th>Precio Total (€)</th>
-                  <th>Acciones</th>
+                  <th>Código</th><th>Categoría</th><th>Descripción</th><th>Ud.</th>
+                  <th>M.O. (€)</th><th>Mat/Otros (€)</th><th>Maq. (€)</th>
+                  <th>Precio Total (€)</th><th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -542,7 +675,6 @@ const BasePrecios = () => {
                     <td style={{ maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                       title={item.descripcion_corta}>{item.descripcion_corta}</td>
                     <td>{item.unidad}</td>
-
                     {editingId === item.id ? (
                       <>
                         <td><input type="number" style={{ width: '70px', padding: '4px' }} value={editValues.mano_de_obra} onChange={e => setEditValues({ ...editValues, mano_de_obra: e.target.value })} /></td>
@@ -552,7 +684,7 @@ const BasePrecios = () => {
                         <td>
                           <div style={{ display: 'flex', gap: '5px' }}>
                             <button className="btn btn-success" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={() => handleSaveEdit(item.id)} disabled={saving}>
-                              {saving ? '...' : <Save size={14} />}
+                              {saving ? '…' : <Save size={14} />}
                             </button>
                             <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={() => setEditingId(null)}>X</button>
                           </div>
