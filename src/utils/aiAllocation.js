@@ -127,7 +127,7 @@ REGLAS PARA ASIGNAR PRECIO (ORDEN DE PRIORIDAD):
 4. Si ninguna fuente tiene dato, estima el precio razonable para Murcia 2026.
 
 REGLAS PARA ASIGNAR OFICIO (lista OFICIOS POSIBLES):
-1. Siempre elige UN gremio de la lista "OFICIOS POSIBLES".
+1. Siempre elige UN Proveedores de la lista "OFICIOS POSIBLES".
 2. Fontanería: bañera, grifo, PVC, tubo, sanitario, desagüe.
 3. Carpintería de Madera: puertas, muebles, tarima, parquet.
 4. Demolición: derribar, tirar, desmontar, demoler.
@@ -154,7 +154,7 @@ OFICIOS POSIBLES: ${oficiosDisponibles}
 Responde ÚNICAMENTE con JSON válido:
 {"asignaciones": {
   "<TAREA ID>": {
-    "oficio": "<gremio de la lista>",
+    "oficio": "<Proveedores de la lista>",
     "precio": <numero sin simbolo €>,
     "unidad": "<unidad elegida>",
     "justificacion": "<Base ADIR / Histórico / CYPE / Estimación — una línea>"

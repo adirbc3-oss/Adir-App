@@ -246,7 +246,7 @@ export function generarPresupuestoPDF(data) {
  * @param {string}  data.proveedorNombre       - Nombre del proveedor
  * @param {string}  [data.proveedorEmail]      - Email del proveedor
  * @param {string}  data.proyectoNombre        - ID / nombre del proyecto
- * @param {string}  data.oficio                - Gremio solicitado
+ * @param {string}  data.oficio                - Proveedores solicitado
  * @param {string}  [data.fecha]               - Fecha de respuesta (ISO)
  * @param {Array}   data.partidas              - [{descripcion, unidad, cantidad, precioOfertado, comentario}]
  * @param {string}  [data.comentariosGenerales] - Anotaciones generales del proveedor
@@ -281,7 +281,7 @@ export function generarPDFOfertaProveedor(data) {
     doc.setFont('helvetica', 'normal');
     doc.text('OFERTA RECIBIDA — ' + oficio.toUpperCase(), 38, 26);
 
-    // Badge gremio
+    // Badge Proveedores
     doc.setFillColor(255, 255, 255);
     doc.setGState(doc.GState({ opacity: 0.15 }));
     doc.roundedRect(W - 56, 8, 50, 20, 3, 3, 'F');

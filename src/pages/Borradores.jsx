@@ -550,7 +550,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         );
 
         if (tareasOficio.length === 0) {
-            return showToast(`No hay partidas asignadas al gremio "${selectedOficio}".`, "warning");
+            return showToast(`No hay partidas asignadas a los Proveedores "${selectedOficio}".`, "warning");
         }
 
         setSendingEmails(true);
@@ -754,10 +754,10 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                                 <Mail size={22} color="var(--primary)" />
-                                <h3 style={{ margin: 0 }}>Licitación de Gremios</h3>
+                                <h3 style={{ margin: 0 }}>Licitación de Proveedores</h3>
                             </div>
                             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px', flex: 1 }}>
-                                Envía solicitudes de presupuesto a tus proveedores de confianza filtrando por gremio y seleccionando destinatarios específicos.
+                                Envía solicitudes de presupuesto a tus proveedores de confianza filtrando por Proveedores y seleccionando destinatarios específicos.
                             </p>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <select 
@@ -768,7 +768,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                     }} 
                                     style={{ width: '100%' }}
                                 >
-                                    <option value="">Seleccionar Gremio</option>
+                                    <option value="">Seleccionar Proveedores</option>
                                     {oficiosAsignados.map(o => <option key={o} value={o}>{o}</option>)}
                                 </select>
 
@@ -835,15 +835,15 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                         const emptyCell = { verticalAlign: 'middle', textAlign: 'center' };
 
                                         if (esCapitulo) {
-                                            // Nivel superior: fondo azul claro de la app, texto primary
-                                            rowStyle = { backgroundColor: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' };
-                                            codStyle = { ...codStyle, fontWeight: 800, color: 'var(--primary)', fontSize: '0.92rem' };
+                                            // Nivel superior: El más oscuro de la jerarquía (punto medio entre bg-secondary y primary-light)
+                                            rowStyle = { backgroundColor: '#dce7f2', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' };
+                                            codStyle = { ...codStyle, fontWeight: 800, color: 'var(--primary)', fontSize: '0.92rem', paddingLeft: '10px' };
                                             descStyle = { ...descStyle, fontWeight: 700, color: 'var(--primary)', fontSize: '0.92rem' };
                                         } else if (esSubcapitulo) {
-                                            // Nivel medio: tono intermedio — más oscuro que bg-secondary, más claro que capítulo
-                                            rowStyle = { backgroundColor: '#dce7f2', borderLeft: '3px solid #7da8cc' };
-                                            codStyle = { ...codStyle, fontWeight: 700, color: '#2a5a8a', fontSize: '0.88rem', paddingLeft: '20px' };
-                                            descStyle = { ...descStyle, fontWeight: 600, color: '#2a5a8a', fontSize: '0.88rem', paddingLeft: '12px' };
+                                            // Nivel medio: Tono más claro (bg-secondary)
+                                            rowStyle = { backgroundColor: 'var(--bg-secondary)' };
+                                            codStyle = { ...codStyle, fontWeight: 700, color: '#2a5a8a', fontSize: '0.88rem', paddingLeft: '10px' };
+                                            descStyle = { ...descStyle, fontWeight: 600, color: '#2a5a8a', fontSize: '0.88rem', paddingLeft: '8px' };
                                         }
 
                                         return (
@@ -929,7 +929,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                         <div className="glass-card" style={{ maxWidth: '450px', width: '90%', padding: '25px' }}>
                             <h3>Editar Datos</h3>
                             <div style={{ marginBottom: '15px' }}>
-                                <label>Cliente:</label>
+                                <label>Proyecto:</label>
                                 <input type="text" value={metadataForm.cliente} onChange={(e) => setMetadataForm({...metadataForm, cliente: e.target.value})} style={{ width: '100%' }} />
                             </div>
                             <div style={{ marginBottom: '15px' }}>
@@ -950,7 +950,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                                 <div>
                                     <h3 style={{ margin: 0 }}>Seleccionar Proveedores</h3>
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Gremio: <strong>{selectedOficio}</strong></span>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Proveedores: <strong>{selectedOficio}</strong></span>
                                 </div>
                                 <button className="btn-close" onClick={() => setShowLicitationModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)' }}><X size={20} /></button>
                             </div>
@@ -973,7 +973,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                     ))
                                 ) : (
                                     <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-light)' }}>
-                                        No hay proveedores registrados para este gremio.
+                                        No hay proveedores registrados para este Proveedores.
                                     </div>
                                 )}
                             </div>
