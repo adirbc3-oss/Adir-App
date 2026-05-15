@@ -56,8 +56,8 @@ export const parseBC3 = (text) => {
 
     // ── Fase 3: DFS iterativo con detección de ciclos ─────────────────────────
     const filas  = [];
-    // Cada entrada del stack: { cod, cantidad, ancestros (Set de códigos padre) }
-    const stack  = roots.map(cod => ({ cod, cantidad: 1, ancestros: new Set() }));
+    // Cada entrada del stack: { cod, cantidad, ancestros (Set de códigos padre), nivel }
+    const stack  = roots.map(cod => ({ cod, cantidad: 1, ancestros: new Set(), nivel: 0 }));
     const LIMITE = 20000; // límite de seguridad para no colgar el navegador
     let contador = 0;
 
@@ -67,7 +67,7 @@ export const parseBC3 = (text) => {
             break;
         }
 
-        const { cod, cantidad, ancestros } = stack.pop();
+        const { cod, cantidad, ancestros, nivel } = stack.pop();
 
         // Ciclo detectado: este código ya es un ancestro de sí mismo
         if (ancestros.has(cod)) continue;
@@ -82,16 +82,21 @@ export const parseBC3 = (text) => {
         const numCap    = hasChildren && !cod.endsWith('#') ? cod + '#' : cod;
         const precioBase = concepto.precio || 0;
         const cant       = cantidad || 1;
-        const total      = hasChildren ? precioBase : precioBase * cant;
+
+        let tipoNivel = 'partida';
+        if (hasChildren) {
+            tipoNivel = (nivel === 0) ? 'capitulo' : 'subcapitulo';
+        }
 
         filas.push({
             Capítulo:              numCap,
             Descripción:           concepto.Descripción || '',
             Unidad:                concepto.Unidad || '',
             Cantidad:              cant,
-            'Precio Total (€)':    total,
+            'Precio Total (€)':    precioBase,
             'Precio Unitario base': precioBase,
-            'Oficio Asignado':     'Sin asignar'
+            'Oficio Asignado':     'Sin asignar',
+            nivel:                 tipoNivel
         });
 
         if (hasChildren) {
@@ -100,7 +105,7 @@ export const parseBC3 = (text) => {
             // Invertir para que salgan en el orden correcto al hacer pop()
             for (let i = myChildren.length - 1; i >= 0; i--) {
                 const child = myChildren[i];
-                stack.push({ cod: child.cod, cantidad: child.cantidad, ancestros: nuevosAncestros });
+                stack.push({ cod: child.cod, cantidad: child.cantidad, ancestros: nuevosAncestros, nivel: nivel + 1 });
             }
         }
     }

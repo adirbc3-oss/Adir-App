@@ -675,7 +675,27 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         finally { setLoadingProject(false); setShowReviewModal(false); }
     };
 
-    const budgetTotal = (partidas || []).reduce((acc, p) => p.Capítulo?.endsWith('#') ? acc : acc + (parseFloat(p['Precio Total (€)'] || 0) * parseFloat(p.Cantidad || 1)), 0);
+    // Clasificar fila: 'capitulo' | 'subcapitulo' | 'partida'
+    const getTipoFila = (p) => {
+        const cap = (p.Capítulo || '').trim();
+        // Capítulos y subcapítulos tienen '#' al final (marca del parser)
+        if (!cap.endsWith('#')) return 'partida';
+        // Distinguir capítulo de subcapítulo: buscamos en el array si existe algún
+        // elemento con '#' que sea padre de este (indica que éste es subcapítulo)
+        // Heurística por posición: si el capítulo anterior también tiene '#', es subcapítulo
+        // Método más fiable: usar el campo 'nivel' si viene de Supabase, o inferir por la
+        // estructura del código limpio
+        const codLimpio = cap.replace(/#$/, '');
+        // Si tiene punto => probablemente subcapítulo (ej: '01.01')
+        // Si no tiene punto => capítulo raíz (ej: '01')
+        if (codLimpio.includes('.')) return 'subcapitulo';
+        return 'capitulo';
+    };
+
+    const budgetTotal = (partidas || []).reduce((acc, p) => {
+        if (getTipoFila(p) !== 'partida') return acc;
+        return acc + (parseFloat(p['Precio Total (€)'] || 0) * parseFloat(p.Cantidad || 1));
+    }, 0);
     const listaOficios = ["Sin asignar", ...[...new Set([...TODOS_LOS_OFICIOS, ...proveedores.map(p => p.Oficio)])].sort()];
     const oficiosAsignados = [...new Set((partidas || []).map(p => p["Oficio Asignado"]).filter(o => o !== "Sin asignar"))];
 
@@ -797,21 +817,46 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                 </thead>
                                 <tbody>
                                     {partidas.map((p, idx) => {
-                                        const esCapitulo = p.Capítulo?.endsWith('#');
+                                        const tipoFila = getTipoFila(p);
+                                        const esCapitulo = tipoFila === 'capitulo';
+                                        const esSubcapitulo = tipoFila === 'subcapitulo';
+                                        const esPartida = tipoFila === 'partida';
                                         const precioIA = parseFloat(p["Precio IA"]) || 0;
                                         const justif = p["Justificacion IA"] || "";
+
+                                        // Estilos diferenciados por nivel
+                                        let rowStyle = { backgroundColor: 'transparent' };
+                                        let codStyle = { fontWeight: 600, color: 'var(--text-muted)', paddingLeft: '8px' };
+                                        if (esCapitulo) {
+                                            rowStyle = { backgroundColor: 'var(--primary)', color: 'white' };
+                                            codStyle = { fontWeight: 800, color: 'white', fontSize: '0.9rem', paddingLeft: '8px' };
+                                        } else if (esSubcapitulo) {
+                                            rowStyle = { backgroundColor: 'rgba(0,45,84,0.06)', borderLeft: '3px solid var(--primary)' };
+                                            codStyle = { fontWeight: 700, color: 'var(--primary)', fontSize: '0.85rem', paddingLeft: '20px' };
+                                        }
+
                                         return (
-                                            <tr key={idx} style={{ backgroundColor: esCapitulo ? 'var(--bg-secondary)' : 'transparent' }}>
-                                                <td style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{p.Capítulo?.replace(/#+/g, '')}</td>
-                                                <td style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>{p.Descripción}</td>
-                                                <td style={{ textAlign: 'center' }}>
-                                                    {!esCapitulo && <input type="number" value={p.Cantidad} onChange={(e) => updateCantidad(idx, e.target.value)} style={{ width: '70px', textAlign: 'center' }} />}
+                                            <tr key={idx} style={rowStyle}>
+                                                <td style={codStyle}>
+                                                    {p.Capítulo?.replace(/#$/, '')}
+                                                </td>
+                                                <td style={{
+                                                    fontSize: esCapitulo ? '0.88rem' : '0.9rem',
+                                                    lineHeight: '1.4',
+                                                    fontWeight: esCapitulo ? 700 : (esSubcapitulo ? 600 : 400),
+                                                    color: esCapitulo ? 'white' : 'inherit',
+                                                    paddingLeft: esSubcapitulo ? '12px' : '8px'
+                                                }}>
+                                                    {p.Descripción}
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    {!esCapitulo && <input type="text" value={p['Unidad IA']} onChange={(e) => updateUnidad(idx, e.target.value)} style={{ width: '55px', textAlign: 'center' }} />}
+                                                    {esPartida && <input type="number" value={p.Cantidad} onChange={(e) => updateCantidad(idx, e.target.value)} style={{ width: '70px', textAlign: 'center' }} />}
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {esPartida && <input type="text" value={p['Unidad IA']} onChange={(e) => updateUnidad(idx, e.target.value)} style={{ width: '55px', textAlign: 'center' }} />}
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
-                                                    {!esCapitulo && (
+                                                    {esPartida && (
                                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
                                                             {p.estado_adjudicacion === 'Adjudicado' && <Trophy size={14} color="#059669" title="Precio adjudicado — solo modificable desde Comparativa" />}
                                                             <input
@@ -836,9 +881,9 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                                     )}
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
-                                                    {!esCapitulo && precioIA > 0 && (
+                                                    {esPartida && precioIA > 0 && (
                                                         <div title={justif || "Sin justificación"} style={{ cursor: justif ? 'help' : 'default' }}>
-                                                            <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                                            <span style={{ fontSize: '0.88rem', color: esCapitulo ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)', fontStyle: 'italic' }}>
                                                                 {precioIA.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                             </span>
                                                             {justif && (
@@ -850,7 +895,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                                     )}
                                                 </td>
                                                 <td>
-                                                    {!esCapitulo && <select value={p["Oficio Asignado"]} onChange={(e) => updateOficio(idx, e.target.value)} style={{ width: '100%' }}>{listaOficios.map(of => <option key={of} value={of}>{of}</option>)}</select>}
+                                                    {esPartida && <select value={p["Oficio Asignado"]} onChange={(e) => updateOficio(idx, e.target.value)} style={{ width: '100%' }}>{listaOficios.map(of => <option key={of} value={of}>{of}</option>)}</select>}
                                                 </td>
                                             </tr>
                                         );

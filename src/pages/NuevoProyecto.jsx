@@ -43,21 +43,55 @@ const NuevoProyecto = () => {
         reader.onload = (e) => {
             try {
                 const text = e.target.result;
-                const partidasFlat = parseBC3(text);
-                const capitulosMap = {};
+                const allItems = parseBC3(text);
+
+                // Solo partidas para conteo y total
+                const soloPartidas = allItems.filter(p => p.nivel === 'partida');
+                // Solo capítulos raíz para la vista previa
+                const soloCapitulos = allItems.filter(p => p.nivel === 'capitulo');
+
+                // Calcular total: precio_unitario × cantidad, solo de partidas
                 let totalEstimado = 0;
-                partidasFlat.forEach(p => {
-                    const cap = p['Capítulo'] || 'Sin capítulo';
-                    if (!capitulosMap[cap]) capitulosMap[cap] = { nombre: cap, count: 0, total: 0 };
-                    capitulosMap[cap].count++;
-                    const pt = Number(p['Precio Total (€)']) || 0;
-                    capitulosMap[cap].total += pt;
-                    totalEstimado += pt;
+                soloPartidas.forEach(p => {
+                    const precio = Number(p['Precio Total (€)']) || 0;
+                    const cant   = Number(p.Cantidad) || 1;
+                    totalEstimado += precio * cant;
                 });
+
+                // Agrupar partidas por su capítulo raíz para la barra de progreso
+                // Buscamos para cada partida cuál es su capítulo raíz
+                // Estrategia simple: el capítulo raíz es el primer ancestro nivel 'capitulo'
+                // Como tenemos la lista plana en orden DFS, cada partida va después de su capítulo
+                const capMap = {};
+                let currentCap = null;
+                allItems.forEach(p => {
+                    if (p.nivel === 'capitulo') {
+                        const capCod = p.Capítulo.replace(/#$/, '');
+                        currentCap = capCod;
+                        if (!capMap[capCod]) capMap[capCod] = { nombre: p.Descripción || capCod, codigo: capCod, count: 0, total: 0 };
+                    } else if (p.nivel === 'partida' && currentCap) {
+                        const precio = (Number(p['Precio Total (€)']) || 0) * (Number(p.Cantidad) || 1);
+                        capMap[currentCap].count++;
+                        capMap[currentCap].total += precio;
+                    }
+                });
+
+                // Ordenar capítulos numéricamente
+                const capitulosOrdenados = Object.values(capMap).sort((a, b) => {
+                    const partsA = a.codigo.split('.').map(x => parseInt(x) || 0);
+                    const partsB = b.codigo.split('.').map(x => parseInt(x) || 0);
+                    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+                        const va = i < partsA.length ? partsA[i] : 0;
+                        const vb = i < partsB.length ? partsB[i] : 0;
+                        if (va !== vb) return va - vb;
+                    }
+                    return 0;
+                });
+
                 setPreview({
-                    partidas: partidasFlat.length,
-                    capitulos: Object.values(capitulosMap).slice(0, 8),
-                    totalCapitulos: Object.keys(capitulosMap).length,
+                    partidas: soloPartidas.length,
+                    capitulos: capitulosOrdenados.slice(0, 8),
+                    totalCapitulos: soloCapitulos.length,
                     totalEstimado
                 });
             } catch (err) {
@@ -76,7 +110,7 @@ const NuevoProyecto = () => {
         reader.onload = async (e) => {
             try {
                 const text = e.target.result;
-                const partidasFlat = parseBC3(text);
+                const allItems = parseBC3(text);
                 const projectName = file.name.replace(/\.bc3$/i, '');
                 let idUnico = projectName;
                 let suffix = 1;
@@ -94,12 +128,16 @@ const NuevoProyecto = () => {
                 if (propError) throw propError;
                 const propuestaId = propData[0].Proyecto;
                 await supabase.from('partidas').delete().eq('propuesta_id', propuestaId);
-                const mappedPartidas = partidasFlat.map((p, index) => ({
-                    id: `${propuestaId}-${index}-${p['Capítulo']}`,
+
+                // Guardar TODOS los items (capítulos, subcapítulos y partidas)
+                // Los capítulos/subcapítulos se detectan por el '#' en el código
+                const mappedPartidas = allItems.map((p, index) => ({
+                    id: `${propuestaId}-${index}-${p['Capítulo'].replace(/[^a-zA-Z0-9._-]/g, '_')}`,
                     propuesta_id: propuestaId,
                     texto_partida: `${p['Capítulo']}::${p['Descripción']}`,
                     oficio_asignado: null,
-                    cantidad: Number(p.Cantidad) || 0,
+                    cantidad: Number(p.Cantidad) || 1,
+                    // precio_base_estimado = precio UNITARIO del ~C
                     precio_base_estimado: Number(p['Precio Total (€)']) || 0
                 }));
                 const { error: partError } = await supabase.from('partidas').insert(mappedPartidas);
@@ -192,7 +230,7 @@ const NuevoProyecto = () => {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '20px' }}>
                             {[
                                 { icon: <Layers size={20} color="#6366f1" />, label: 'Capítulos', value: preview.totalCapitulos, bg: 'rgba(99,102,241,0.08)', color: '#6366f1' },
-                                { icon: <Hash size={20} color="var(--primary)" />, label: 'Partidas', value: preview.partidas, bg: 'rgba(0,45,84,0.08)', color: 'var(--primary)' },
+                                { icon: <Hash size={20} color="var(--primary)" />, label: 'Partidas (hojas)', value: preview.partidas, bg: 'rgba(0,45,84,0.08)', color: 'var(--primary)' },
                                 { icon: <Euro size={20} color="#059669" />, label: 'Total Estimado', value: fmt(preview.totalEstimado), bg: 'rgba(5,150,105,0.08)', color: '#059669' },
                             ].map((stat, i) => (
                                 <div key={i} style={{ background: stat.bg, borderRadius: '12px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -212,13 +250,16 @@ const NuevoProyecto = () => {
                             </div>
                             {preview.capitulos.map((cap, i) => (
                                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', fontSize: '0.85rem' }}>
-                                    <span style={{ background: 'var(--primary)', color: 'white', borderRadius: '4px', padding: '2px 6px', fontSize: '0.7rem', fontWeight: 700, whiteSpace: 'nowrap', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {String(cap.nombre)}
+                                    <span style={{ background: 'var(--primary)', color: 'white', borderRadius: '4px', padding: '2px 6px', fontSize: '0.7rem', fontWeight: 700, whiteSpace: 'nowrap', minWidth: '28px', textAlign: 'center' }}>
+                                        {cap.codigo}
                                     </span>
-                                    <div style={{ flex: 1, height: '4px', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden' }}>
+                                    <span style={{ flex: 1, fontSize: '0.82rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {cap.nombre}
+                                    </span>
+                                    <div style={{ width: '80px', height: '4px', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden', flexShrink: 0 }}>
                                         <div style={{ height: '100%', width: `${Math.min(100, preview.totalEstimado > 0 ? (cap.total / preview.totalEstimado) * 100 : 0)}%`, background: 'linear-gradient(90deg, var(--primary), #4a7fc1)', borderRadius: '2px' }} />
                                     </div>
-                                    <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>{cap.count} partidas</span>
+                                    <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: '0.78rem' }}>{cap.count} part.</span>
                                     <span style={{ fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>{fmt(cap.total)}</span>
                                 </div>
                             ))}
