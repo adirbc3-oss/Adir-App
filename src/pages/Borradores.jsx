@@ -281,15 +281,8 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     finalPartidas = [...partidasNormales, filaExtras, ...partidasSueltas];
                 }
 
-                const sorted = finalPartidas.sort((a, b) => {
-                    // Los sueltos y EXTRAS siempre al final
-                    if (a._synthetic) return 1;
-                    if (b._synthetic) return -1;
-                    const isSueltaA = partidasSueltas.includes(a);
-                    const isSueltaB = partidasSueltas.includes(b);
-                    if (isSueltaA && !isSueltaB) return 1;
-                    if (!isSueltaA && isSueltaB) return -1;
-
+                // Ordenar solo las partidas normales numéricamente
+                const sortFn = (a, b) => {
                     const capA = formatCapitulo(a.Capítulo);
                     const capB = formatCapitulo(b.Capítulo);
                     const isRootA = capA.endsWith('##');
@@ -310,7 +303,25 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     if (capA.endsWith('#') && !capB.endsWith('#')) return -1;
                     if (!capA.endsWith('#') && capB.endsWith('#')) return 1;
                     return 0;
-                });
+                };
+
+                const normalesSorted = [...partidasNormales].sort(sortFn);
+
+                // Resultado final: normales ordenadas → cabecera EXTRAS → sueltas
+                const sorted = partidasSueltas.length > 0
+                    ? [...normalesSorted, {
+                        id: '__extras_header__',
+                        Capítulo: '99_EXTRAS#',
+                        Descripción: 'PARTIDAS ADICIONALES / EXTRAS',
+                        'Oficio Asignado': 'Sin asignar',
+                        'Precio Total (€)': 0,
+                        Cantidad: 0,
+                        'Precio IA': 0,
+                        'Unidad IA': '',
+                        _synthetic: true
+                    }, ...partidasSueltas]
+                    : normalesSorted;
+
                 setPartidas(sorted);
                 fetchRespuestas();
             }
