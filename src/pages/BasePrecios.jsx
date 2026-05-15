@@ -5,10 +5,27 @@ import {
   Search, Save, FileUp, Loader2, Database, TableProperties,
   X, CheckCircle, AlertCircle, Upload, Info, FileText, AlertTriangle
 } from 'lucide-react';
-import { bc3ToBasePrecios } from '../utils/bc3ToBasePrecios';
+import { bc3ToBasePrecios, getRatio, clasificarTipo } from '../utils/bc3ToBasePrecios';
 import { extraerPartidasDePDF } from '../utils/pdfExtractor';
 import { detectarSimilares, detectarDuplicadosInternos } from '../utils/similarityUtils';
-import { getRatio } from '../utils/bc3ToBasePrecios';
+
+// Colores y etiquetas para tipo_partida
+const TIPO_CONFIG = {
+  material:    { label: 'Material',    bg: '#dbeafe', color: '#1d4ed8' },
+  trabajo:     { label: 'Trabajo',     bg: '#dcfce7', color: '#15803d' },
+  auxiliar:    { label: 'Auxiliar',    bg: '#fef9c3', color: '#a16207' },
+  desconocido: { label: '?',           bg: '#f3f4f6', color: '#6b7280' },
+};
+
+function TipoBadge({ tipo }) {
+  const cfg = TIPO_CONFIG[tipo] || TIPO_CONFIG.desconocido;
+  return (
+    <span style={{ background: cfg.bg, color: cfg.color, padding: '2px 8px',
+      borderRadius: '20px', fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+      {cfg.label}
+    </span>
+  );
+}
 
 const PAGE_SIZE    = 50;
 const UPSERT_BATCH = 200;
@@ -497,6 +514,72 @@ function ErrorBanner({ msg }) {
 const th = { padding: '8px 10px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap', fontSize: '0.78rem' };
 const td = { padding: '7px 10px', verticalAlign: 'middle' };
 
+// ── Panel: estimación precio trabajo a partir de precio material ───────────────
+/**
+ * Dado un material con precio conocido, estima cuánto costaría el trabajo
+ * que lo incluye, usando los ratios de desglose por categoría.
+ *
+ * Ejemplo: "Azulejo 60x60 = 12 €/m²" → categoría alicatado (55% mat)
+ *   → precio trabajo ≈ 12 / 0.55 = 21.8 €/m²  (solo por componente material)
+ */
+function PanelEstimacionTrabajo({ item, onClose }) {
+  const ratio = getRatio(item.categoria + ' ' + item.descripcion_corta);
+  const pMat  = parseFloat(item.precio_total) || 0;
+
+  // Precio completo del trabajo si este material representa ratio.mat del total
+  const pTrabajoEstimado = ratio.mat > 0 ? pMat / ratio.mat : null;
+  const pMO  = pTrabajoEstimado ? pTrabajoEstimado * ratio.mo  : null;
+  const pMaq = pTrabajoEstimado ? pTrabajoEstimado * ratio.maq : null;
+
+  return (
+    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+      borderRadius: '12px', padding: '18px 20px', marginBottom: '16px', position: 'relative' }}>
+      <button onClick={onClose} style={{ position: 'absolute', top: '12px', right: '12px',
+        background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+        <X size={16} />
+      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+        <Info size={16} style={{ color: 'var(--primary)' }} />
+        <strong style={{ fontSize: '0.92rem' }}>Estimación cruzada: precio de trabajo</strong>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+          basada en que este material ≈ {Math.round(ratio.mat * 100)}% del coste del trabajo
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px' }}>
+        <MiniStat label="Precio material" value={`${pMat.toFixed(2)} €/${item.unidad || 'ud'}`}
+          color="var(--primary)" sub={`Fuente: ${item.fuente || 'ADIR'} · ${item.fecha_actualizacion || '—'}`} />
+        {pTrabajoEstimado && (
+          <>
+            <MiniStat label="Trabajo completo estimado"
+              value={`${pTrabajoEstimado.toFixed(2)} €/${item.unidad || 'ud'}`}
+              color="#15803d"
+              sub={`Material ${Math.round(ratio.mat*100)}% + MO ${Math.round(ratio.mo*100)}% + Maq ${Math.round(ratio.maq*100)}%`} />
+            <MiniStat label="MO estimada" value={`${pMO.toFixed(2)} €`} color="#7c3aed" />
+            <MiniStat label="Maquinaria estimada" value={`${pMaq.toFixed(2)} €`} color="#b45309" />
+          </>
+        )}
+      </div>
+
+      <p style={{ margin: '12px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+        ⚠️ Estimación orientativa. Busca en la pestaña <strong>Base CYPE Murcia</strong> trabajos de
+        "{item.categoria}" para contrastar con precios reales de ejecución.
+      </p>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, color, sub }) {
+  return (
+    <div style={{ background: 'var(--bg-primary)', borderRadius: '8px', padding: '10px 14px',
+      borderLeft: `3px solid ${color}` }}>
+      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2px' }}>{label}</div>
+      <div style={{ fontWeight: 700, color, fontSize: '1rem' }}>{value}</div>
+      {sub && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>{sub}</div>}
+    </div>
+  );
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 
 const BasePrecios = () => {
@@ -508,6 +591,7 @@ const BasePrecios = () => {
   const [loading,               setLoading]               = useState(false);
   const [searchTerm,            setSearchTerm]            = useState('');
   const [selectedCategory,      setSelectedCategory]      = useState('');
+  const [selectedTipo,          setSelectedTipo]          = useState(''); // '' | 'material' | 'trabajo' | 'auxiliar'
   const [categoriasDisponibles, setCategoriasDisponibles] = useState([]);
   const [page,                  setPage]                  = useState(0);
   const [hasMore,               setHasMore]               = useState(true);
@@ -515,8 +599,9 @@ const BasePrecios = () => {
   const [editingId,             setEditingId]             = useState(null);
   const [editValues,            setEditValues]            = useState({});
   const [saving,                setSaving]                = useState(false);
+  const [selectedItem,          setSelectedItem]          = useState(null); // para panel cruzado
 
-  useEffect(() => { fetchData(true); }, [activeTab, searchTerm, selectedCategory]);
+  useEffect(() => { fetchData(true); }, [activeTab, searchTerm, selectedCategory, selectedTipo]);
   useEffect(() => { cargarCategorias(); setSelectedCategory(''); }, [activeTab]);
 
   const cargarCategorias = async () => {
@@ -537,6 +622,7 @@ const BasePrecios = () => {
         .not('codigo', 'ilike', '%#').order('codigo', { ascending: true });
       if (searchTerm) query = query.or(`codigo.ilike.%${searchTerm}%,descripcion_corta.ilike.%${searchTerm}%`);
       if (selectedCategory) query = query.ilike('categoria', `%${selectedCategory}%`);
+      if (selectedTipo) query = query.eq('tipo_partida', selectedTipo);
       const from = currentPage * PAGE_SIZE;
       const { data: res, error } = await query.range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
@@ -640,14 +726,14 @@ const BasePrecios = () => {
 
         <div style={{ padding: '20px' }}>
           {/* Filtros */}
-          <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative', flex: '2', minWidth: '250px' }}>
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: '2', minWidth: '220px' }}>
               <Search size={18} style={{ position: 'absolute', top: '12px', left: '12px', color: 'var(--text-light)' }} />
               <input type="text" placeholder="Buscar por código o descripción..."
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                 style={{ width: '100%', paddingLeft: '40px' }} />
             </div>
-            <div style={{ flex: '1', minWidth: '200px' }}>
+            <div style={{ flex: '1', minWidth: '180px' }}>
               <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
                 style={{ width: '100%', padding: '10px', borderRadius: '8px',
                   border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
@@ -655,49 +741,86 @@ const BasePrecios = () => {
                 {categoriasDisponibles.map((cat, i) => <option key={i} value={cat}>{cat}</option>)}
               </select>
             </div>
+            {/* Filtro por tipo */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {[['', 'Todos'], ['material', '🧱 Materiales'], ['trabajo', '🔨 Trabajos'], ['auxiliar', '⚙️ Auxiliares']].map(([val, label]) => (
+                <button key={val}
+                  onClick={() => setSelectedTipo(val)}
+                  style={{
+                    padding: '6px 14px', borderRadius: '20px', border: '1px solid var(--border-color)',
+                    fontSize: '0.82rem', fontWeight: selectedTipo === val ? 700 : 400, cursor: 'pointer',
+                    background: selectedTipo === val ? 'var(--primary)' : 'var(--bg-secondary)',
+                    color: selectedTipo === val ? 'white' : 'var(--text-secondary)',
+                    transition: 'all 0.15s',
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Panel cruzado material → trabajo */}
+          {selectedItem && selectedItem.tipo_partida === 'material' && (
+            <PanelEstimacionTrabajo item={selectedItem} onClose={() => setSelectedItem(null)} />
+          )}
 
           {/* Tabla */}
           <div className="table-container">
             <table>
               <thead>
                 <tr>
+                  <th>Tipo</th>
                   <th>Código</th><th>Categoría</th><th>Descripción</th><th>Ud.</th>
                   <th>M.O. (€)</th><th>Mat/Otros (€)</th><th>Maq. (€)</th>
-                  <th>Precio Total (€)</th><th>Acciones</th>
+                  <th>Precio Total (€)</th>
+                  <th>Fuente</th>
+                  <th>Actualizado</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {data.map(item => (
-                  <tr key={item.id}>
-                    <td style={{ fontWeight: 'bold' }}>{item.codigo}</td>
-                    <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.categoria}</td>
-                    <td style={{ maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                  <tr key={item.id}
+                    style={{ cursor: item.tipo_partida === 'material' ? 'pointer' : undefined }}
+                    onClick={item.tipo_partida === 'material' ? () => setSelectedItem(item) : undefined}
+                    title={item.tipo_partida === 'material' ? 'Haz clic para estimar precio de trabajo' : undefined}>
+                    <td><TipoBadge tipo={item.tipo_partida || 'desconocido'} /></td>
+                    <td style={{ fontWeight: 'bold', fontSize: '0.82rem' }}>{item.codigo}</td>
+                    <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', maxWidth: '100px',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                      title={item.categoria}>{item.categoria}</td>
+                    <td style={{ maxWidth: '260px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                       title={item.descripcion_corta}>{item.descripcion_corta}</td>
-                    <td>{item.unidad}</td>
+                    <td style={{ fontSize: '0.82rem' }}>{item.unidad}</td>
                     {editingId === item.id ? (
                       <>
                         <td><input type="number" style={{ width: '70px', padding: '4px' }} value={editValues.mano_de_obra} onChange={e => setEditValues({ ...editValues, mano_de_obra: e.target.value })} /></td>
                         <td><input type="number" style={{ width: '70px', padding: '4px' }} value={editValues.materiales_y_otros} onChange={e => setEditValues({ ...editValues, materiales_y_otros: e.target.value })} /></td>
                         <td><input type="number" style={{ width: '70px', padding: '4px' }} value={editValues.maquinaria} onChange={e => setEditValues({ ...editValues, maquinaria: e.target.value })} /></td>
                         <td><input type="number" style={{ width: '70px', padding: '4px', fontWeight: 'bold' }} value={editValues.precio_total} onChange={e => setEditValues({ ...editValues, precio_total: e.target.value })} /></td>
+                        <td colSpan={2} />
                         <td>
                           <div style={{ display: 'flex', gap: '5px' }}>
-                            <button className="btn btn-success" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={() => handleSaveEdit(item.id)} disabled={saving}>
+                            <button className="btn btn-success" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={e => { e.stopPropagation(); handleSaveEdit(item.id); }} disabled={saving}>
                               {saving ? '…' : <Save size={14} />}
                             </button>
-                            <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={() => setEditingId(null)}>X</button>
+                            <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={e => { e.stopPropagation(); setEditingId(null); }}>X</button>
                           </div>
                         </td>
                       </>
                     ) : (
                       <>
-                        <td>{item.mano_de_obra}</td>
-                        <td>{activeTab === 'adir' ? item.materiales_y_otros : item.materiales}</td>
-                        <td>{item.maquinaria || 0}</td>
+                        <td style={{ fontSize: '0.82rem' }}>{item.mano_de_obra ?? '-'}</td>
+                        <td style={{ fontSize: '0.82rem' }}>{activeTab === 'adir' ? item.materiales_y_otros : item.materiales}</td>
+                        <td style={{ fontSize: '0.82rem' }}>{item.maquinaria || 0}</td>
                         <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{item.precio_total}</td>
+                        <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.fuente || '—'}</td>
+                        <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          {item.fecha_actualizacion ? new Date(item.fecha_actualizacion).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }) : '—'}
+                        </td>
                         <td>
-                          <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={() => handleEditClick(item)}>
+                          <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                            onClick={e => { e.stopPropagation(); handleEditClick(item); }}>
                             Editar
                           </button>
                         </td>

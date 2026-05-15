@@ -4,7 +4,59 @@
  * - Extrae MO/Materiales/Maquinaria de la descomposición (~D) si está disponible.
  * - Si no hay descomposición, estima el desglose según el tipo de trabajo.
  * - Detecta categorías a partir de la jerarquía de capítulos del BC3.
+ * - Clasifica cada partida como 'material', 'trabajo' o 'auxiliar'.
  */
+
+// ── Clasificación tipo_partida ─────────────────────────────────────────────────
+const PALABRAS_TRABAJO = [
+  'instalacion','instalación','montaje','colocacion','colocación','demolicion',
+  'demolición','excavacion','excavación','enfoscado','alicatado','solado',
+  'pintado','tendido','ejecucion','ejecución','suministro e instalacion',
+  'suministro e instalación','encofrado','hormigonado','ferrallado','replanteo',
+  'impermeabilizacion','impermeabilización','aislamiento aplicado',
+];
+const PALABRAS_MATERIAL = [
+  'cemento','arena','grava','mortero seco','yeso en polvo','escayola en polvo',
+  'silicona','adhesivo','cola de','barniz','disolvente','imprimacion','imprimación',
+  'saco de','kg de','litro de',
+];
+const UNIDADES_MATERIAL = new Set([
+  'kg','g','tn','l','lt','ud','u','saco','pack','palet','rollo',
+  'bob','lam','bl','bote','caja','juego','set','pieza','pz',
+]);
+const UNIDADES_TRABAJO = new Set(['m2','m²','m3','m³','ml','h','jorn','pa']);
+
+/**
+ * Clasifica una partida como 'material', 'trabajo', 'auxiliar' o 'desconocido'.
+ */
+export function clasificarTipo({ codigo, descripcion, unidad, mano_de_obra, materiales_y_otros, precio }) {
+  const cod = (codigo || '').toUpperCase();
+  const desc = (descripcion || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const ud = (unidad || '').toLowerCase();
+
+  // Recursos elementales BC3 → auxiliar
+  if (/^(MO|MOO|MANO|MQ|MAQ|MT|MAT|MA\d|AU|AUX)/.test(cod)) return 'auxiliar';
+
+  // Si tiene mano de obra >= 15 % → trabajo
+  if (precio > 0 && mano_de_obra > 0 && (mano_de_obra / precio) >= 0.15) return 'trabajo';
+
+  // Sin MO + unidad de cantidad → material
+  if ((mano_de_obra || 0) === 0 && (materiales_y_otros || 0) > 0 && UNIDADES_MATERIAL.has(ud)) return 'material';
+
+  // Palabras de ejecución → trabajo
+  if (PALABRAS_TRABAJO.some(p => desc.includes(p))) return 'trabajo';
+
+  // Palabras de producto → material
+  if (PALABRAS_MATERIAL.some(p => desc.includes(p))) return 'material';
+
+  // Unidad de trabajo → trabajo
+  if (UNIDADES_TRABAJO.has(ud)) return 'trabajo';
+
+  // Unidad de material → material
+  if (UNIDADES_MATERIAL.has(ud)) return 'material';
+
+  return 'desconocido';
+}
 
 // ── Ratios de desglose estimados por tipo de trabajo ─────────────────────────
 // Fuente: estudios de costes de construcción en España (media del sector).
@@ -232,6 +284,15 @@ export function bc3ToBasePrecios(text) {
       estimado = true;
     }
 
+    const tipo_partida = clasificarTipo({
+      codigo: cod,
+      descripcion: concepto.desc,
+      unidad: concepto.unidad,
+      mano_de_obra: mo,
+      materiales_y_otros: mat,
+      precio,
+    });
+
     filas.push({
       codigo:            cod,
       categoria:         catDesc,
@@ -241,6 +302,9 @@ export function bc3ToBasePrecios(text) {
       mano_de_obra:      mo,
       materiales_y_otros: mat,
       maquinaria:        maq,
+      tipo_partida,
+      fuente:            'BC3',
+      fecha_actualizacion: new Date().toISOString().split('T')[0],
       desglose_estimado: estimado,
     });
   }
