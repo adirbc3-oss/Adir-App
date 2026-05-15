@@ -662,6 +662,7 @@ const BasePrecios = () => {
         .not('codigo', 'ilike', '%#').order('codigo', { ascending: true });
       if (searchTerm) query = query.or(`codigo.ilike.%${searchTerm}%,descripcion_corta.ilike.%${searchTerm}%`);
       if (selectedCategory) query = query.ilike('categoria', `%${selectedCategory}%`);
+      if (selectedTipo) query = query.eq('tipo_partida', selectedTipo);
       const from = currentPage * PAGE_SIZE;
       const { data: res, error } = await query.range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
@@ -782,7 +783,7 @@ const BasePrecios = () => {
             </div>
             {/* Filtro por tipo */}
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {[['', 'Todos'], ['material', '🧱 Materiales'], ['trabajo', '🔨 Trabajos'], ['auxiliar', '⚙️ Auxiliares']].map(([val, label]) => (
+              {[['', 'Todos'], ['material', '🧱 Materiales'], ['trabajo', '🔨 Trabajos'], ['auxiliar', '⚙️ Auxiliares'], ['capitulo', '📁 Capítulos'], ['partida', '📄 Partidas']].map(([val, label]) => (
                 <button key={val}
                   onClick={() => setSelectedTipo(val)}
                   style={{
@@ -812,14 +813,14 @@ const BasePrecios = () => {
                   <th>Código</th><th>Categoría</th><th>Descripción</th><th>Ud.</th>
                   <th>M.O. (€)</th><th>Mat/Otros (€)</th><th>Maq. (€)</th>
                   <th>Precio Total (€)</th>
+                  <th>Fuente</th>
                   <th>Actualizado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {data
-                  .map(item => ({ ...item, _tipo: inferirTipoPartida(item) }))
-                  .filter(item => !selectedTipo || item._tipo === selectedTipo)
+                  .map(item => ({ ...item, _tipo: item.tipo_partida || inferirTipoPartida(item) }))
                   .map(item => (
                   <tr key={item.codigo}
                     style={{ cursor: item._tipo === 'material' ? 'pointer' : undefined }}
@@ -855,8 +856,11 @@ const BasePrecios = () => {
                         <td style={{ fontSize: '0.82rem' }}>{activeTab === 'adir' ? item.materiales_y_otros : item.materiales}</td>
                         <td style={{ fontSize: '0.82rem' }}>{item.maquinaria || 0}</td>
                         <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{item.precio_total}</td>
-                        <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          {item.fecha ? new Date(item.fecha).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }) : '—'}
+                        <td style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{item.fuente || (activeTab === 'adir' ? 'ADIR' : 'CYPE')}</td>
+                        <td style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+                          {(item.fecha_actualizacion || item.fecha)
+                            ? new Date(item.fecha_actualizacion || item.fecha).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })
+                            : '—'}
                         </td>
                         <td>
                           <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }}
