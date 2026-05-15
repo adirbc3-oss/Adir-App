@@ -825,24 +825,25 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                         const justif = p["Justificacion IA"] || "";
 
                                         // Estilos integrados y suaves por nivel
-                                        let rowStyle = { backgroundColor: 'transparent', transition: 'background-color 0.2s ease' };
-                                        let codStyle = { fontWeight: 600, color: 'var(--text-muted)', paddingLeft: '8px' };
-                                        let descStyle = { 
-                                            fontSize: '0.9rem', 
-                                            lineHeight: '1.4', 
-                                            color: 'inherit',
-                                            fontWeight: 400,
-                                            paddingLeft: '8px'
-                                        };
+                                        // Capítulo: --bg-secondary (azul claro), texto --primary
+                                        // Subcapítulo: punto medio — fondo ligeramente coloreado, texto --text-muted más oscuro
+                                        // Partida: fondo transparent, texto normal
+                                        let rowStyle = { backgroundColor: 'transparent' };
+                                        let codStyle = { fontWeight: 500, color: 'var(--text-muted)', paddingLeft: '8px', verticalAlign: 'middle' };
+                                        let descStyle = { fontSize: '0.9rem', lineHeight: '1.4', color: 'var(--text-main)', fontWeight: 400, paddingLeft: '8px', verticalAlign: 'middle' };
+                                        // Celdas vacías en cap/subcap también necesitan verticalAlign para consistencia
+                                        const emptyCell = { verticalAlign: 'middle', textAlign: 'center' };
 
                                         if (esCapitulo) {
-                                            rowStyle = { backgroundColor: 'var(--bg-secondary)', borderBottom: '2px solid var(--border-color)' };
-                                            codStyle = { fontWeight: 800, color: 'var(--primary)', fontSize: '0.95rem', paddingLeft: '10px' };
-                                            descStyle = { ...descStyle, fontWeight: 700, color: 'var(--primary)', fontSize: '0.95rem' };
+                                            // Nivel superior: fondo azul claro de la app, texto primary
+                                            rowStyle = { backgroundColor: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' };
+                                            codStyle = { ...codStyle, fontWeight: 800, color: 'var(--primary)', fontSize: '0.92rem' };
+                                            descStyle = { ...descStyle, fontWeight: 700, color: 'var(--primary)', fontSize: '0.92rem' };
                                         } else if (esSubcapitulo) {
-                                            rowStyle = { backgroundColor: 'rgba(229, 237, 247, 0.4)', borderLeft: '4px solid var(--primary-light)' };
-                                            codStyle = { fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.88rem', paddingLeft: '24px' };
-                                            descStyle = { ...descStyle, fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.88rem', paddingLeft: '16px' };
+                                            // Nivel medio: tono intermedio — más oscuro que bg-secondary, más claro que capítulo
+                                            rowStyle = { backgroundColor: '#dce7f2', borderLeft: '3px solid #7da8cc' };
+                                            codStyle = { ...codStyle, fontWeight: 700, color: '#2a5a8a', fontSize: '0.88rem', paddingLeft: '20px' };
+                                            descStyle = { ...descStyle, fontWeight: 600, color: '#2a5a8a', fontSize: '0.88rem', paddingLeft: '12px' };
                                         }
 
                                         return (
@@ -853,13 +854,13 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                                 <td style={descStyle}>
                                                     {p.Descripción}
                                                 </td>
-                                                <td style={{ textAlign: 'center' }}>
+                                                <td style={{ ...emptyCell }}>
                                                     {esPartida && <input type="number" value={p.Cantidad} onChange={(e) => updateCantidad(idx, e.target.value)} style={{ width: '70px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: '4px' }} />}
                                                 </td>
-                                                <td style={{ textAlign: 'center' }}>
+                                                <td style={{ ...emptyCell }}>
                                                     {esPartida && <input type="text" value={p['Unidad IA']} onChange={(e) => updateUnidad(idx, e.target.value)} style={{ width: '55px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: '4px' }} />}
                                                 </td>
-                                                <td style={{ textAlign: 'right' }}>
+                                                <td style={{ textAlign: 'right', verticalAlign: 'middle' }}>
                                                     {esPartida && (
                                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
                                                             {p.estado_adjudicacion === 'Adjudicado' && <Trophy size={14} color="#059669" title="Precio adjudicado — solo modificable desde Comparativa" />}

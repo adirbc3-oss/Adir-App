@@ -45,64 +45,52 @@ const NuevoProyecto = () => {
                 const text = e.target.result;
                 const allItems = parseBC3(text);
 
-                // Solo partidas para conteo y total
+                // Solo partidas (nodos hoja) para conteo y total
                 const soloPartidas = allItems.filter(p => p.nivel === 'partida');
                 // Capítulos raíz
                 const soloCapitulos = allItems.filter(p => p.nivel === 'capitulo');
 
-                // Calcular total: precio_unitario × cantidad, solo de partidas
+                // Total: suma precio_unitario × cantidad de partidas
                 let totalEstimado = 0;
                 soloPartidas.forEach(p => {
-                    const precio = Number(p['Precio Total (€)']) || 0;
-                    const cant   = Number(p.Cantidad) || 1;
-                    totalEstimado += precio * cant;
+                    totalEstimado += (Number(p['Precio Total (€)']) || 0) * (Number(p.Cantidad) || 1);
                 });
 
-                // Construir jerarquía para la vista previa (Capítulos y Subcapítulos)
-                const previewHierarchy = [];
-                let currentCap = null;
-                let currentSub = null;
-
+                // Agrupar partidas bajo su capítulo raíz (sea directo o a través de subcapítulo)
+                // Recorremos en orden DFS: cuando vemos un 'capitulo' actualizamos currentCap
+                // Las partidas debajo (a cualquier profundidad) se acumulan en ese capítulo
+                const capMap = {};
+                let currentCapCod = null;
                 allItems.forEach(p => {
                     if (p.nivel === 'capitulo') {
-                        const capCod = p.Capítulo.replace(/#$/, '');
-                        currentCap = { 
-                            nombre: p.Descripción || capCod, 
-                            codigo: capCod, 
-                            count: 0, 
-                            total: 0, 
-                            nivel: 'capitulo' 
-                        };
-                        previewHierarchy.push(currentCap);
-                        currentSub = null;
-                    } else if (p.nivel === 'subcapitulo') {
-                        const subCod = p.Capítulo.replace(/#$/, '');
-                        currentSub = { 
-                            nombre: p.Descripción || subCod, 
-                            codigo: subCod, 
-                            count: 0, 
-                            total: 0, 
-                            nivel: 'subcapitulo' 
-                        };
-                        previewHierarchy.push(currentSub);
-                    } else if (p.nivel === 'partida') {
+                        const cod = p.Capítulo.replace(/#$/, '');
+                        currentCapCod = cod;
+                        if (!capMap[cod]) capMap[cod] = { nombre: p.Descripción || cod, codigo: cod, count: 0, total: 0 };
+                    } else if (p.nivel === 'partida' && currentCapCod) {
                         const precio = (Number(p['Precio Total (€)']) || 0) * (Number(p.Cantidad) || 1);
-                        if (currentCap) {
-                            currentCap.count++;
-                            currentCap.total += precio;
-                        }
-                        if (currentSub) {
-                            currentSub.count++;
-                            currentSub.total += precio;
-                        }
+                        capMap[currentCapCod].count++;
+                        capMap[currentCapCod].total += precio;
                     }
+                    // subcapítulos: no hacen nada en la agrupación, sus partidas caen bajo currentCap
+                });
+
+                // Ordenar capítulos numéricamente ascendente
+                const capitulosOrdenados = Object.values(capMap).sort((a, b) => {
+                    const pa = a.codigo.split('.').map(x => parseInt(x) || 0);
+                    const pb = b.codigo.split('.').map(x => parseInt(x) || 0);
+                    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+                        const va = i < pa.length ? pa[i] : 0;
+                        const vb = i < pb.length ? pb[i] : 0;
+                        if (va !== vb) return va - vb;
+                    }
+                    return 0;
                 });
 
                 setPreview({
                     partidas: soloPartidas.length,
-                    hierarchy: previewHierarchy.slice(0, 12), // Mostrar hasta 12 elementos (cap/subcap)
-                    totalHierarchy: previewHierarchy.length,
+                    capitulos: capitulosOrdenados.slice(0, 10),
                     totalCapitulos: soloCapitulos.length,
+                    totalHierarchy: capitulosOrdenados.length,
                     totalEstimado
                 });
             } catch (err) {
@@ -258,51 +246,44 @@ const NuevoProyecto = () => {
                         </div>
                         <div style={{ background: 'var(--bg-secondary)', borderRadius: '10px', padding: '14px' }}>
                             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px' }}>
-                                Vista previa de estructura (Capítulos y Subpartidas)
+                                Distribución por capítulos
                             </div>
-                            {preview.hierarchy.map((item, i) => (
-                                <div key={i} style={{ 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    gap: '10px', 
-                                    marginBottom: '6px', 
-                                    fontSize: '0.85rem',
-                                    paddingLeft: item.nivel === 'subcapitulo' ? '24px' : '0'
-                                }}>
-                                    <span style={{ 
-                                        background: item.nivel === 'subcapitulo' ? 'var(--primary-light)' : 'var(--primary)', 
-                                        color: item.nivel === 'subcapitulo' ? 'var(--primary)' : 'white', 
-                                        borderRadius: '4px', 
-                                        padding: '2px 6px', 
-                                        fontSize: '0.7rem', 
-                                        fontWeight: 700, 
-                                        whiteSpace: 'nowrap', 
-                                        minWidth: '28px', 
-                                        textAlign: 'center' 
+                            {preview.capitulos.map((cap, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                                    <span style={{
+                                        background: 'var(--primary)',
+                                        color: 'white',
+                                        borderRadius: '4px',
+                                        padding: '2px 7px',
+                                        fontSize: '0.7rem',
+                                        fontWeight: 700,
+                                        whiteSpace: 'nowrap',
+                                        minWidth: '32px',
+                                        textAlign: 'center'
                                     }}>
-                                        {item.codigo}
+                                        {cap.codigo}
                                     </span>
-                                    <span style={{ 
-                                        flex: 1, 
-                                        fontSize: '0.82rem', 
-                                        color: item.nivel === 'subcapitulo' ? 'var(--text-muted)' : 'var(--text-main)', 
-                                        fontWeight: item.nivel === 'capitulo' ? 600 : 400,
-                                        overflow: 'hidden', 
-                                        textOverflow: 'ellipsis', 
-                                        whiteSpace: 'nowrap' 
+                                    <span style={{
+                                        flex: 1,
+                                        fontSize: '0.83rem',
+                                        color: 'var(--text-main)',
+                                        fontWeight: 500,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
                                     }}>
-                                        {item.nombre}
+                                        {cap.nombre}
                                     </span>
-                                    <div style={{ width: '80px', height: '4px', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden', flexShrink: 0 }}>
-                                        <div style={{ height: '100%', width: `${Math.min(100, preview.totalEstimado > 0 ? (item.total / preview.totalEstimado) * 100 : 0)}%`, background: 'linear-gradient(90deg, var(--primary), #4a7fc1)', borderRadius: '2px' }} />
+                                    <div style={{ width: '72px', height: '4px', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden', flexShrink: 0 }}>
+                                        <div style={{ height: '100%', width: `${Math.min(100, preview.totalEstimado > 0 ? (cap.total / preview.totalEstimado) * 100 : 0)}%`, background: 'var(--primary)', borderRadius: '2px' }} />
                                     </div>
-                                    <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: '0.78rem', minWidth: '60px', textAlign: 'right' }}>{item.count} part.</span>
-                                    <span style={{ fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', fontSize: '0.8rem', minWidth: '70px', textAlign: 'right' }}>{fmt(item.total)}</span>
+                                    <span style={{ color: 'var(--text-light)', whiteSpace: 'nowrap', fontSize: '0.77rem', minWidth: '55px', textAlign: 'right' }}>{cap.count} part.</span>
+                                    <span style={{ fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', fontSize: '0.8rem', minWidth: '72px', textAlign: 'right' }}>{fmt(cap.total)}</span>
                                 </div>
                             ))}
-                            {preview.totalHierarchy > 12 && (
-                                <p style={{ margin: '8px 0 0', color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic', textAlign: 'center' }}>
-                                    + {preview.totalHierarchy - 12} elementos estructurales adicionales no mostrados en la vista previa.
+                            {preview.totalHierarchy > 10 && (
+                                <p style={{ margin: '8px 0 0', color: 'var(--text-muted)', fontSize: '0.79rem', textAlign: 'center', fontStyle: 'italic' }}>
+                                    + {preview.totalHierarchy - 10} capítulos más…
                                 </p>
                             )}
                         </div>
