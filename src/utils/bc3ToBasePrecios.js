@@ -8,54 +8,106 @@
  */
 
 // ── Clasificación tipo_partida ─────────────────────────────────────────────────
+//
+// JERARQUÍA DE DECISIÓN (orden importa):
+//  1. Prefijos BC3 de código  → mano_de_obra / maquinaria / material / auxiliar
+//  2. Descripción = recurso elemental (oficial, peón, grúa…) → mano_de_obra / maquinaria
+//  3. MO real >= 15 % del precio total  → trabajo
+//  4. Keywords de EJECUCIÓN en descripción → trabajo   ← ANTES que unidades
+//  5. Keywords de PRODUCTO en descripción → material
+//  6. Unidades de trabajo (m2, ml, h…)   → trabajo
+//  7. Unidades inequívocas de material (kg, l, saco…) SIN 'ud'/'u' → material
+//  8. Unidad 'ud'/'u': precio > 100 € → trabajo; resto → material
+//  9. Fallback                            → partida
+
+// Palabras que implican acción/ejecución (normalizado sin tildes)
 const PALABRAS_TRABAJO = [
-  'instalacion','instalación','montaje','colocacion','colocación','demolicion',
-  'demolición','excavacion','excavación','enfoscado','alicatado','solado',
-  'pintado','tendido','ejecucion','ejecución','suministro e instalacion',
-  'suministro e instalación','encofrado','hormigonado','ferrallado','replanteo',
-  'impermeabilizacion','impermeabilización','aislamiento aplicado',
+  'instalac','montaje','colocac','demolicion','excavac','derribo','levantado',
+  'enfoscado','alicatado','solado','pintado','tendido','ejecucion','encofrado',
+  'hormigonado','ferrallado','replanteo','impermeabilizac','aislamiento aplicado',
+  'suministro e instalac','reform','rehabilitac','saneamiento de','urbanizac',
+  'construccion','trasdosado','tabicado','forrado','revoco','guarnecido','enlucido',
+  'chapado','preparacion de','reparacion','tratamiento de','aplicacion de',
+  'puesta en obra','formacion de','desmontaje','reconstruccion','reposicion',
+  'canalizacion','tendido de','recibido de','sellado de','rejuntado',
 ];
+
+// Palabras que implican producto elemental (normalizado sin tildes)
 const PALABRAS_MATERIAL = [
-  'cemento','arena','grava','mortero seco','yeso en polvo','escayola en polvo',
-  'silicona','adhesivo','cola de','barniz','disolvente','imprimacion','imprimación',
-  'saco de','kg de','litro de',
+  'cemento','arena ','grava','mortero seco','yeso en polvo','escayola en polvo',
+  'silicona ','adhesivo ','cola de','barniz ','disolvente','imprimacion',
+  'saco de','kg de','litro de','tablero ','panel ','chapa ','lamina ',
+  'perfil ','tubo de ','cable de ','conductor ','tornillo','perno ',
+  'anclaje ','espuma de','mastic','sellador',
 ];
-const UNIDADES_MATERIAL = new Set([
-  'kg','g','tn','l','lt','ud','u','saco','pack','palet','rollo',
+
+// Unidades INEQUÍVOCAS de material (excluye 'ud'/'u' — son ambiguas)
+const UNIDADES_MATERIAL_PURAS = new Set([
+  'kg','g','tn','l','lt','saco','pack','palet','rollo',
   'bob','lam','bl','bote','caja','juego','set','pieza','pz',
 ]);
+
 const UNIDADES_TRABAJO = new Set(['m2','m²','m3','m³','ml','h','jorn','pa']);
 
+// Prefijos BC3 de mano de obra / maquinaria / materiales elementales
+const RE_MO  = /^(MO[O]?|MANO)/;
+const RE_MAQ = /^(MQ|MAQ)/;
+const RE_MAT = /^(MT|MAT|MA\d|AU|AUX)/;
+
+function norm(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 /**
- * Clasifica una partida como 'material', 'trabajo', 'auxiliar' o 'desconocido'.
+ * Clasifica una partida como:
+ *   'mano_de_obra' | 'maquinaria' | 'material' | 'trabajo' | 'auxiliar' | 'partida'
+ *
+ * El objetivo es distinguir entre:
+ *  - Partidas de trabajo compuesto (instalación cocina, reforma baño) → 'trabajo'
+ *  - Materiales elementales (azulejo 30x30, cemento CEM II) → 'material'
+ *  - Recursos de MO/Maq → 'mano_de_obra' / 'maquinaria'
  */
 export function clasificarTipo({ codigo, descripcion, unidad, mano_de_obra, materiales_y_otros, precio }) {
-  const cod = (codigo || '').toUpperCase();
-  const desc = (descripcion || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const ud = (unidad || '').toLowerCase();
+  const cod  = (codigo || '').toUpperCase();
+  const desc = norm(descripcion);
+  const ud   = norm(unidad).trim();
+  const mo   = parseFloat(mano_de_obra)    || 0;
+  const mat  = parseFloat(materiales_y_otros) || 0;
+  const p    = parseFloat(precio)          || 0;
 
-  // Recursos elementales BC3 → auxiliar
-  if (/^(MO|MOO|MANO|MQ|MAQ|MT|MAT|MA\d|AU|AUX)/.test(cod)) return 'auxiliar';
+  // ── 1. Prefijos de código BC3 ──────────────────────────────────────────────
+  if (RE_MO.test(cod))  return 'mano_de_obra';
+  if (RE_MAQ.test(cod)) return 'maquinaria';
+  if (RE_MAT.test(cod)) return 'material';   // auxiliares → material elemental
 
-  // Si tiene mano de obra >= 15 % → trabajo
-  if (precio > 0 && mano_de_obra > 0 && (mano_de_obra / precio) >= 0.15) return 'trabajo';
+  // ── 2. Recursos elementales por descripción ────────────────────────────────
+  if (/^(oficial|peon|ayudante|operari|capataz|encargado|maestro|albanil|fontanero|electricista|pintor|yesero|solador)\b/.test(desc))
+    return 'mano_de_obra';
+  if (/\b(alquiler (de )?(grua|retroexcavadora|camion|hormigonera|andamio|dumper|bomba de hormigon))\b/.test(desc))
+    return 'maquinaria';
 
-  // Sin MO + unidad de cantidad → material
-  if ((mano_de_obra || 0) === 0 && (materiales_y_otros || 0) > 0 && UNIDADES_MATERIAL.has(ud)) return 'material';
+  // ── 3. Desglose real: MO >= 15 % → trabajo ────────────────────────────────
+  if (p > 0 && mo > 0 && (mo / p) >= 0.15) return 'trabajo';
 
-  // Palabras de ejecución → trabajo
-  if (PALABRAS_TRABAJO.some(p => desc.includes(p))) return 'trabajo';
+  // ── 4. Keywords de ejecución → trabajo  (ANTES de comprobar unidades) ─────
+  if (PALABRAS_TRABAJO.some(kw => desc.includes(kw))) return 'trabajo';
 
-  // Palabras de producto → material
-  if (PALABRAS_MATERIAL.some(p => desc.includes(p))) return 'material';
+  // ── 5. Keywords de producto → material ────────────────────────────────────
+  if (PALABRAS_MATERIAL.some(kw => desc.includes(kw))) return 'material';
 
-  // Unidad de trabajo → trabajo
+  // ── 6. Unidades de trabajo (m2, ml, h…) → trabajo ─────────────────────────
   if (UNIDADES_TRABAJO.has(ud)) return 'trabajo';
 
-  // Unidad de material → material
-  if (UNIDADES_MATERIAL.has(ud)) return 'material';
+  // ── 7. Unidades inequívocas de material (sin 'ud'/'u') → material ──────────
+  if (UNIDADES_MATERIAL_PURAS.has(ud)) return 'material';
 
-  return 'desconocido';
+  // ── 8. Unidad ambigua 'ud'/'u': precio > 100 € → trabajo ──────────────────
+  if (ud === 'ud' || ud === 'u') {
+    return p > 100 ? 'trabajo' : 'material';
+  }
+
+  // ── 9. Fallback ────────────────────────────────────────────────────────────
+  return 'partida';
 }
 
 // ── Ratios de desglose estimados por tipo de trabajo ─────────────────────────

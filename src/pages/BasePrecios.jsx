@@ -9,52 +9,85 @@ import { bc3ToBasePrecios, getRatio, clasificarTipo } from '../utils/bc3ToBasePr
 import { extraerPartidasDePDF } from '../utils/pdfExtractor';
 import { detectarSimilares, detectarDuplicadosInternos } from '../utils/similarityUtils';
 
-// ── Clasificación client-side (sin necesitar columna DB extra) ────────────────
-// Calcula tipo_partida a partir de los datos ya existentes en la tabla.
-const UNIDADES_MAT = new Set(['kg','g','tn','l','lt','ud','u','saco','pack','palet','rollo','bob','lam','bl','bote','caja','juego','set','pieza','pz']);
+// ── Clasificación client-side ──────────────────────────────────────────────────
+// Misma jerarquía que bc3ToBasePrecios.clasificarTipo — se mantienen sincronizadas.
+// 'ud'/'u' NO se usan como indicador temprano de material (son ambiguas).
+const UNIDADES_MAT_PURAS = new Set(['kg','g','tn','l','lt','saco','pack','palet','rollo','bob','lam','bl','bote','caja','juego','set','pieza','pz']);
 const UNIDADES_TRAB = new Set(['m2','m²','m3','m³','ml','h','jorn','pa','m']);
+
+const KWTRAB = [
+  'instalac','montaje','colocac','demolicion','excavac','derribo','levantado',
+  'enfoscado','alicatado','solado','pintado','tendido','ejecucion','encofrado',
+  'hormigonado','ferrallado','replanteo','impermeabilizac','aislamiento aplicado',
+  'suministro e instalac','reform','rehabilitac','saneamiento de','urbanizac',
+  'construccion','trasdosado','tabicado','forrado','revoco','guarnecido','enlucido',
+  'chapado','preparacion de','reparacion','tratamiento de','aplicacion de',
+  'puesta en obra','formacion de','desmontaje','reconstruccion','reposicion',
+  'canalizacion','tendido de','recibido de','sellado de','rejuntado',
+];
+const KWMAT = [
+  'cemento','arena ','grava','mortero seco','yeso en polvo','escayola en polvo',
+  'silicona ','adhesivo ','cola de','barniz ','disolvente','imprimacion',
+  'saco de','kg de','litro de','tablero ','panel ','chapa ','lamina ',
+  'perfil ','tubo de ','cable de ','conductor ','tornillo','perno ','anclaje ',
+];
+
+function normDesc(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
 
 function inferirTipoPartida(item) {
   if (!item) return 'desconocido';
-  if (item.tipo_partida) return item.tipo_partida; // columna DB si existe en el futuro
+  // Columna DB tiene prioridad absoluta
+  if (item.tipo_partida && item.tipo_partida !== 'desconocido') return item.tipo_partida;
   if (item.tipo === 'Capítulo') return 'capitulo';
 
   const cod  = (item.codigo || '').toUpperCase();
-  const desc = ((item.descripcion_corta || '') + ' ' + (item.tags || '')).toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const ud   = (item.unidad || '').toLowerCase().replace('²','2').replace('³','3');
-  const mo   = parseFloat(item.mano_de_obra) || 0;
-  const precio = parseFloat(item.precio_total) || 1;
+  const desc = normDesc((item.descripcion_corta || '') + ' ' + (item.tags || ''));
+  const ud   = normDesc(item.unidad).trim();
+  const mo   = parseFloat(item.mano_de_obra)   || 0;
+  const p    = parseFloat(item.precio_total)   || 0;
 
-  // Recursos elementales BC3
-  if (/^(MO|MOO|MQ|MAQ|MT|MAT|MA\d|AU|AUX)/.test(cod)) return 'auxiliar';
+  // 1. Prefijos BC3
+  if (/^(MO[O]?|MANO)/.test(cod)) return 'mano_de_obra';
+  if (/^(MQ|MAQ)/.test(cod))      return 'maquinaria';
+  if (/^(MT|MAT|MA\d|AU|AUX)/.test(cod)) return 'material';
 
-  // MO significativa → trabajo
-  if (mo > 0 && (mo / precio) >= 0.15) return 'trabajo';
+  // 2. Recursos por descripción
+  if (/^(oficial|peon|ayudante|operari|capataz|encargado|albanil|fontanero|electricista|pintor)\b/.test(desc))
+    return 'mano_de_obra';
 
-  // Sin MO + unidad de cantidad → material
-  if (mo === 0 && UNIDADES_MAT.has(ud)) return 'material';
+  // 3. MO >= 15 % → trabajo
+  if (p > 0 && mo > 0 && (mo / p) >= 0.15) return 'trabajo';
 
-  // Verbos de ejecución → trabajo
-  if (/(instalacion|montaje|colocacion|demolicion|excavacion|enfoscado|solado|alicatado|pintado|encofrado|hormigonado|ferrallado|replanteo)/.test(desc)) return 'trabajo';
+  // 4. Keywords ejecución → trabajo (ANTES de unidades)
+  if (KWTRAB.some(kw => desc.includes(kw))) return 'trabajo';
 
-  // Unidad de trabajo sin MO registrada → trabajo (probable)
+  // 5. Keywords producto → material
+  if (KWMAT.some(kw => desc.includes(kw))) return 'material';
+
+  // 6. Unidades de trabajo → trabajo
   if (UNIDADES_TRAB.has(ud)) return 'trabajo';
 
-  // Palabras de producto → material
-  if (/(cemento|arena|grava|mortero|silicona|adhesivo|barniz|disolvente|saco de)/.test(desc)) return 'material';
+  // 7. Unidades inequívocas de material → material
+  if (UNIDADES_MAT_PURAS.has(ud)) return 'material';
+
+  // 8. Ambigua 'ud'/'u': precio > 100 € → trabajo
+  if (ud === 'ud' || ud === 'u') return p > 100 ? 'trabajo' : 'material';
 
   return 'partida';
 }
 
 // Colores y etiquetas para tipo_partida
 const TIPO_CONFIG = {
-  material:    { label: 'Material',  bg: '#dbeafe', color: '#1d4ed8' },
-  trabajo:     { label: 'Trabajo',   bg: '#dcfce7', color: '#15803d' },
-  auxiliar:    { label: 'Auxiliar',  bg: '#fef9c3', color: '#a16207' },
-  capitulo:    { label: 'Capítulo',  bg: '#f3f4f6', color: '#6b7280' },
-  partida:     { label: 'Partida',   bg: '#f3f4f6', color: '#6b7280' },
-  desconocido: { label: '?',         bg: '#f3f4f6', color: '#6b7280' },
+  material:     { label: 'Material',    bg: '#dbeafe', color: '#1d4ed8' },
+  trabajo:      { label: 'Trabajo',     bg: '#dcfce7', color: '#15803d' },
+  mano_de_obra: { label: 'Mano Obra',   bg: '#fce7f3', color: '#be185d' },
+  maquinaria:   { label: 'Maquinaria',  bg: '#ede9fe', color: '#7c3aed' },
+  auxiliar:     { label: 'Auxiliar',    bg: '#fef9c3', color: '#a16207' },
+  capitulo:     { label: 'Capítulo',    bg: '#f3f4f6', color: '#6b7280' },
+  partida:      { label: 'Partida',     bg: '#f3f4f6', color: '#6b7280' },
+  desconocido:  { label: '?',           bg: '#f3f4f6', color: '#6b7280' },
 };
 
 function TipoBadge({ tipo }) {
