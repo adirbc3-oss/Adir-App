@@ -16,7 +16,8 @@ export const parseBC3 = (text) => {
         if (tag === '~C') {
             const codigo = parts[1]?.trim();
             if (!codigo) continue;
-            const cleanDesc = (d) => (d || '').trim().replace(/\|+$/, '').trim();
+            const unidad = (parts[2] || '').trim();
+            const cleanDesc = (d) => (d || '').replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim();
             const desc = cleanDesc(parts[3]);
             let precio   = parseFloat((parts[4] || '0').replace(',', '.'));
             if (isNaN(precio)) precio = 0;
@@ -42,7 +43,7 @@ export const parseBC3 = (text) => {
 
         } else if (tag === '~T') {
             const codigo = parts[1]?.trim();
-            const texto  = parts.slice(2).join('|').trim().replace(/\|+$/, '').trim();
+            const texto  = parts.slice(2).join(' ').replace(/\s{2,}/g, ' ').trim();
             if (conceptos[codigo] && texto) conceptos[codigo].Descripción = texto;
         }
     }
@@ -110,8 +111,10 @@ export const parseBC3 = (text) => {
 
         // Solo hijos que existen en conceptos
         const myChildren = (childrenMap[cod] || []).filter(c => conceptos[c.cod]);
-        // Un nodo es capítulo/subcapítulo solo si tiene hijos Y no tiene unidad propia (las partidas tienen m2, ud, etc.)
-        const hasChildren = myChildren.length > 0 && !concepto.Unidad;
+        // Si todos los hijos son códigos de recurso (MO/MQ/MAT/AU) son desgloses de precio, no estructura
+        const allResourceChildren = myChildren.length > 0 && myChildren.every(c => /^(MO|MQ|MAT|AU)/i.test(c.cod));
+        // Un nodo es capítulo/subcapítulo solo si tiene hijos estructurales Y no tiene unidad propia
+        const hasChildren = myChildren.length > 0 && !concepto.Unidad && !allResourceChildren;
 
         const numCap    = hasChildren && !cod.endsWith('#') ? cod + '#' : cod;
         const precioBase = concepto.precio || 0;

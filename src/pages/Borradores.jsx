@@ -200,10 +200,10 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             if (partidasData) {
                 const mappedPartidas = partidasData.map(p => {
                     const capCode = p.texto_partida ? p.texto_partida.split('::')[0] : "";
-                    const descClean = p.texto_partida 
-                        ? (p.texto_partida.includes('::') 
-                            ? p.texto_partida.split('::').slice(1).join('::') 
-                            : p.texto_partida).trim().replace(/\|+$/, '').trim() 
+                    const descClean = p.texto_partida
+                        ? (p.texto_partida.includes('::')
+                            ? p.texto_partida.split('::').slice(1).join('::')
+                            : p.texto_partida).replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim()
                         : "";
                     const finalPrice = (p.precio_adjudicado && parseFloat(p.precio_adjudicado) > 0) 
                         ? parseFloat(p.precio_adjudicado) 
