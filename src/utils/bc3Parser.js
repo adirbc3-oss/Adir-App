@@ -16,8 +16,8 @@ export const parseBC3 = (text) => {
         if (tag === '~C') {
             const codigo = parts[1]?.trim();
             if (!codigo) continue;
-            const unidad = parts[2]?.trim() || '';
-            const desc   = parts[3]?.trim() || '';
+            const cleanDesc = (d) => (d || '').trim().replace(/\|+$/, '').trim();
+            const desc = cleanDesc(parts[3]);
             let precio   = parseFloat((parts[4] || '0').replace(',', '.'));
             if (isNaN(precio)) precio = 0;
 
@@ -42,7 +42,7 @@ export const parseBC3 = (text) => {
 
         } else if (tag === '~T') {
             const codigo = parts[1]?.trim();
-            const texto  = parts.slice(2).join('|').trim();
+            const texto  = parts.slice(2).join('|').trim().replace(/\|+$/, '').trim();
             if (conceptos[codigo] && texto) conceptos[codigo].Descripción = texto;
         }
     }
