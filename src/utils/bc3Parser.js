@@ -52,12 +52,45 @@ export const parseBC3 = (text) => {
     for (const cod in childrenMap) {
         for (const c of childrenMap[cod]) isChild.add(c.cod);
     }
-    const roots = Object.keys(conceptos).filter(cod => !isChild.has(cod));
+    
+    let roots = Object.keys(conceptos).filter(cod => !isChild.has(cod));
+
+    // ── Fase 2.1: Limpieza de Títulos y Partidas Sueltas ──────────────────────
+    
+    // 1. Si hay una única raíz con hijos, probablemente sea el título del proyecto (e.g. 25007__REFORM#)
+    // Saltamos ese nivel y promovemos sus hijos para evitar ruido en la interfaz.
+    if (roots.length === 1) {
+        const rootCod = roots[0];
+        const children = (childrenMap[rootCod] || []).filter(c => conceptos[c.cod]);
+        if (children.length > 0) {
+            roots = children.map(c => c.cod);
+        }
+    }
+
+    // 2. Agrupar partidas que no cuelgan de nada (loose items) en un capítulo de EXTRAS
+    // Esto evita que partidas sueltas aparezcan al mismo nivel que los capítulos principales.
+    const loosePartidas = roots.filter(cod => {
+        const hasChildren = (childrenMap[cod] || []).filter(c => conceptos[c.cod]).length > 0;
+        return !hasChildren;
+    });
+
+    if (loosePartidas.length > 0) {
+        // Agrupar partidas sueltas siempre para asegurar que el preview las contabilice bajo un capítulo
+        roots = roots.filter(cod => !loosePartidas.includes(cod));
+        
+        const extrasCod = '99_EXTRAS';
+        conceptos[extrasCod] = { Capítulo: extrasCod, Unidad: '', Descripción: 'PARTIDAS ADICIONALES / EXTRAS', precio: 0 };
+        childrenMap[extrasCod] = loosePartidas.map(cod => ({ cod, cantidad: 1 }));
+        roots.push(extrasCod);
+    }
 
     // ── Fase 3: DFS iterativo con detección de ciclos ─────────────────────────
     const filas  = [];
     // Cada entrada del stack: { cod, cantidad, ancestros (Set de códigos padre), nivel }
-    const stack  = roots.map(cod => ({ cod, cantidad: 1, ancestros: new Set(), nivel: 0 }));
+    const stack = roots
+        .slice()
+        .reverse()
+        .map(cod => ({ cod, cantidad: 1, ancestros: new Set(), nivel: 0 }));
     const LIMITE = 20000; // límite de seguridad para no colgar el navegador
     let contador = 0;
 
