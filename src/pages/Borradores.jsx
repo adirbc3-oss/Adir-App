@@ -824,15 +824,25 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                         const precioIA = parseFloat(p["Precio IA"]) || 0;
                                         const justif = p["Justificacion IA"] || "";
 
-                                        // Estilos diferenciados por nivel
-                                        let rowStyle = { backgroundColor: 'transparent' };
+                                        // Estilos integrados y suaves por nivel
+                                        let rowStyle = { backgroundColor: 'transparent', transition: 'background-color 0.2s ease' };
                                         let codStyle = { fontWeight: 600, color: 'var(--text-muted)', paddingLeft: '8px' };
+                                        let descStyle = { 
+                                            fontSize: '0.9rem', 
+                                            lineHeight: '1.4', 
+                                            color: 'inherit',
+                                            fontWeight: 400,
+                                            paddingLeft: '8px'
+                                        };
+
                                         if (esCapitulo) {
-                                            rowStyle = { backgroundColor: 'var(--primary)', color: 'white' };
-                                            codStyle = { fontWeight: 800, color: 'white', fontSize: '0.9rem', paddingLeft: '8px' };
+                                            rowStyle = { backgroundColor: 'var(--bg-secondary)', borderBottom: '2px solid var(--border-color)' };
+                                            codStyle = { fontWeight: 800, color: 'var(--primary)', fontSize: '0.95rem', paddingLeft: '10px' };
+                                            descStyle = { ...descStyle, fontWeight: 700, color: 'var(--primary)', fontSize: '0.95rem' };
                                         } else if (esSubcapitulo) {
-                                            rowStyle = { backgroundColor: 'rgba(0,45,84,0.06)', borderLeft: '3px solid var(--primary)' };
-                                            codStyle = { fontWeight: 700, color: 'var(--primary)', fontSize: '0.85rem', paddingLeft: '20px' };
+                                            rowStyle = { backgroundColor: 'rgba(229, 237, 247, 0.4)', borderLeft: '4px solid var(--primary-light)' };
+                                            codStyle = { fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.88rem', paddingLeft: '24px' };
+                                            descStyle = { ...descStyle, fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.88rem', paddingLeft: '16px' };
                                         }
 
                                         return (
@@ -840,20 +850,14 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                                 <td style={codStyle}>
                                                     {p.Capítulo?.replace(/#$/, '')}
                                                 </td>
-                                                <td style={{
-                                                    fontSize: esCapitulo ? '0.88rem' : '0.9rem',
-                                                    lineHeight: '1.4',
-                                                    fontWeight: esCapitulo ? 700 : (esSubcapitulo ? 600 : 400),
-                                                    color: esCapitulo ? 'white' : 'inherit',
-                                                    paddingLeft: esSubcapitulo ? '12px' : '8px'
-                                                }}>
+                                                <td style={descStyle}>
                                                     {p.Descripción}
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    {esPartida && <input type="number" value={p.Cantidad} onChange={(e) => updateCantidad(idx, e.target.value)} style={{ width: '70px', textAlign: 'center' }} />}
+                                                    {esPartida && <input type="number" value={p.Cantidad} onChange={(e) => updateCantidad(idx, e.target.value)} style={{ width: '70px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: '4px' }} />}
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    {esPartida && <input type="text" value={p['Unidad IA']} onChange={(e) => updateUnidad(idx, e.target.value)} style={{ width: '55px', textAlign: 'center' }} />}
+                                                    {esPartida && <input type="text" value={p['Unidad IA']} onChange={(e) => updateUnidad(idx, e.target.value)} style={{ width: '55px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: '4px' }} />}
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
                                                     {esPartida && (
@@ -871,7 +875,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                                                     fontWeight: p.estado_adjudicacion === 'Adjudicado' ? 800 : 700,
                                                                     color: p.estado_adjudicacion === 'Adjudicado' ? '#059669' : 'var(--primary)',
                                                                     background: p.estado_adjudicacion === 'Adjudicado' ? '#d1fae5' : 'transparent',
-                                                                    border: p.estado_adjudicacion === 'Adjudicado' ? '1px solid #10b981' : '1px solid transparent',
+                                                                    border: p.estado_adjudicacion === 'Adjudicado' ? '1px solid #10b981' : '1px solid var(--border-color)',
                                                                     borderRadius: '4px',
                                                                     padding: '4px',
                                                                     cursor: p.estado_adjudicacion === 'Adjudicado' ? 'not-allowed' : 'text'
