@@ -110,7 +110,8 @@ export const parseBC3 = (text) => {
 
         // Solo hijos que existen en conceptos
         const myChildren = (childrenMap[cod] || []).filter(c => conceptos[c.cod]);
-        const hasChildren = myChildren.length > 0;
+        // Un nodo es capítulo/subcapítulo solo si tiene hijos Y no tiene unidad propia (las partidas tienen m2, ud, etc.)
+        const hasChildren = myChildren.length > 0 && !concepto.Unidad;
 
         const numCap    = hasChildren && !cod.endsWith('#') ? cod + '#' : cod;
         const precioBase = concepto.precio || 0;
