@@ -51,19 +51,19 @@ export function generarPresupuestoPDF(data) {
 
     // Logo
     try {
-        doc.addImage(logoBase64, 'WEBP', 8, 6, 24, 24);
+        doc.addImage(logoBase64, 'PNG', 8, 6, 48, 24);
     } catch (_) { /* sin logo no bloquea */ }
 
     // Nombre empresa
     doc.setFontSize(20);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.text('ADIR REFORMAS', 38, 18);
+    doc.text('ADIR REFORMAS', 62, 18);
 
     // Subtítulo
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(titulo.toUpperCase(), 38, 26);
+    doc.text(titulo.toUpperCase(), 62, 26);
 
     // Badge firmado (solo si hay firma)
     if (firma_base64) {
@@ -270,16 +270,16 @@ export function generarPDFOfertaProveedor(data) {
     doc.setFillColor(...AZUL);
     doc.rect(0, 0, W, 38, 'F');
 
-    try { doc.addImage(logoBase64, 'WEBP', 8, 6, 24, 24); } catch (_) {}
+    try { doc.addImage(logoBase64, 'PNG', 8, 6, 48, 24); } catch (_) {}
 
     doc.setFontSize(18);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.text('ADIR REFORMAS', 38, 17);
+    doc.text('ADIR REFORMAS', 62, 17);
 
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text('OFERTA RECIBIDA — ' + oficio.toUpperCase(), 38, 26);
+    doc.text('OFERTA RECIBIDA — ' + oficio.toUpperCase(), 62, 26);
 
     // Badge Proveedores
     doc.setFillColor(255, 255, 255);
