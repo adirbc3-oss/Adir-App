@@ -11,6 +11,12 @@ const Portal = () => {
   const [solicitud, setSolicitud] = useState(null);
   const [partidas, setPartidas] = useState([]);
   const [precios, setPrecios] = useState({});
+  const [rawPrecios, setRawPrecios] = useState({});
+
+  const formatDecimal = (val) =>
+    (parseFloat(val) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const parseDecimal = (str) =>
+    parseFloat((str || '0').replace(/\./g, '').replace(',', '.')) || 0;
   const [comentarios, setComentarios] = useState({});
   const [comentariosGenerales, setComentariosGenerales] = useState('');
   const [error, setError] = useState(null);
@@ -144,14 +150,17 @@ const Portal = () => {
                 <td style={{ padding: 10, textAlign: 'right' }}>{p.cantidad || 1}</td>
                 <td style={{ padding: 10, textAlign: 'right' }}>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type="text"
                     required
                     style={{ padding: 8, width: 100, textAlign: 'right', border: '1px solid #ced4da', borderRadius: 4 }}
-                    value={precios[p.id] || ''}
-                    onChange={(e) => handlePriceChange(p.id, e.target.value)}
-                    placeholder="0.00"
+                    value={rawPrecios[p.id] ?? (precios[p.id] ? formatDecimal(precios[p.id]) : '')}
+                    onChange={(e) => setRawPrecios({ ...rawPrecios, [p.id]: e.target.value })}
+                    onBlur={(e) => {
+                      const v = parseDecimal(e.target.value);
+                      handlePriceChange(p.id, v);
+                      setRawPrecios(prev => { const n = { ...prev }; delete n[p.id]; return n; });
+                    }}
+                    placeholder="0,00"
                   />
                 </td>
                 <td style={{ padding: 10 }}>

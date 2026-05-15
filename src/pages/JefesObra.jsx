@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { N8N_BASE_URL } from '../config';
 import { useModal, useToast } from '../utils/useModal';
@@ -26,6 +26,12 @@ const JefesObra = () => {
     
     const [showEditMetadata, setShowEditMetadata] = useState(false);
     const [metadataForm, setMetadataForm] = useState({ cliente: '', cliente_email: '', descripcion: '' });
+    const [rawInputs, setRawInputs] = useState({});
+
+    const formatDecimal = (val) =>
+        (parseFloat(val) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const parseDecimal = (str) =>
+        parseFloat((str || '0').replace(/\./g, '').replace(',', '.')) || 0;
 
     const fetchProyectos = React.useCallback(async () => {
         setLoading(true);
@@ -530,10 +536,15 @@ const JefesObra = () => {
                                                         <td style={{ fontSize: '0.85rem' }}>{p.Descripción}</td>
                                                         <td style={{ textAlign: 'center', fontSize: '0.8rem' }}>
                                                             {isChapter ? '' : (
-                                                                <input 
-                                                                    type="number" step="0.01" 
-                                                                    value={p.Cantidad !== undefined ? p.Cantidad : ''}
-                                                                    onChange={(e) => updateCantidad(idx, e.target.value)}
+                                                                <input
+                                                                    type="text"
+                                                                    value={rawInputs[`cant_${idx}`] ?? formatDecimal(p.Cantidad)}
+                                                                    onChange={(e) => setRawInputs(prev => ({ ...prev, [`cant_${idx}`]: e.target.value }))}
+                                                                    onBlur={(e) => {
+                                                                        const v = parseDecimal(e.target.value);
+                                                                        updateCantidad(idx, v);
+                                                                        setRawInputs(prev => { const n = { ...prev }; delete n[`cant_${idx}`]; return n; });
+                                                                    }}
                                                                     style={{ width: '60px', textAlign: 'center', padding: '4px', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: 'var(--bg-card)' }}
                                                                 />
                                                             )}
@@ -580,11 +591,17 @@ const JefesObra = () => {
                                                         </td>
                                                         <td style={{ textAlign: 'right' }}>
                                                             {isChapter ? '' : (
-                                                                <input 
-                                                                    type="number" step="0.01" 
-                                                                    value={p['Precio Total (€)']}
-                                                                    onChange={(e) => updatePrice(idx, e.target.value)}
+                                                                <input
+                                                                    type="text"
+                                                                    value={rawInputs[`price_${idx}`] ?? formatDecimal(p['Precio Total (€)'])}
+                                                                    onChange={(e) => setRawInputs(prev => ({ ...prev, [`price_${idx}`]: e.target.value }))}
+                                                                    onBlur={(e) => {
+                                                                        const v = parseDecimal(e.target.value);
+                                                                        updatePrice(idx, v);
+                                                                        setRawInputs(prev => { const n = { ...prev }; delete n[`price_${idx}`]; return n; });
+                                                                    }}
                                                                     style={{ width: '90px', textAlign: 'right', padding: '6px', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: 'var(--bg-card)' }}
+                                                                />
                                                                 />
                                                             )}
                                                         </td>

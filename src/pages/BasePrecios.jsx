@@ -671,6 +671,12 @@ const BasePrecios = () => {
   const [showImportModal,       setShowImportModal]       = useState(false);
   const [editingId,             setEditingId]             = useState(null);
   const [editValues,            setEditValues]            = useState({});
+  const [rawEditValues,         setRawEditValues]         = useState({});
+
+  const formatDecimal = (val) =>
+    (parseFloat(val) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const parseDecimal = (str) =>
+    parseFloat((str || '0').replace(/\./g, '').replace(',', '.')) || 0;
   const [saving,                setSaving]                = useState(false);
   const [selectedItem,          setSelectedItem]          = useState(null); // para panel cruzado
 
@@ -869,17 +875,17 @@ const BasePrecios = () => {
                     <td style={{ fontSize: '0.82rem' }}>{item.unidad}</td>
                     {editingId === item.codigo ? (
                       <>
-                        <td><input type="number" style={{ width: '70px', padding: '4px' }} value={editValues.mano_de_obra} onChange={e => setEditValues({ ...editValues, mano_de_obra: e.target.value })} /></td>
-                        <td><input type="number" style={{ width: '70px', padding: '4px' }} value={editValues.materiales_y_otros} onChange={e => setEditValues({ ...editValues, materiales_y_otros: e.target.value })} /></td>
-                        <td><input type="number" style={{ width: '70px', padding: '4px' }} value={editValues.maquinaria} onChange={e => setEditValues({ ...editValues, maquinaria: e.target.value })} /></td>
-                        <td><input type="number" style={{ width: '70px', padding: '4px', fontWeight: 'bold' }} value={editValues.precio_total} onChange={e => setEditValues({ ...editValues, precio_total: e.target.value })} /></td>
+                        <td><input type="text" style={{ width: '70px', padding: '4px' }} value={rawEditValues.mano_de_obra ?? formatDecimal(editValues.mano_de_obra)} onChange={e => setRawEditValues({ ...rawEditValues, mano_de_obra: e.target.value })} onBlur={e => { setEditValues({ ...editValues, mano_de_obra: parseDecimal(e.target.value) }); setRawEditValues(prev => { const n = { ...prev }; delete n.mano_de_obra; return n; }); }} /></td>
+                        <td><input type="text" style={{ width: '70px', padding: '4px' }} value={rawEditValues.materiales_y_otros ?? formatDecimal(editValues.materiales_y_otros)} onChange={e => setRawEditValues({ ...rawEditValues, materiales_y_otros: e.target.value })} onBlur={e => { setEditValues({ ...editValues, materiales_y_otros: parseDecimal(e.target.value) }); setRawEditValues(prev => { const n = { ...prev }; delete n.materiales_y_otros; return n; }); }} /></td>
+                        <td><input type="text" style={{ width: '70px', padding: '4px' }} value={rawEditValues.maquinaria ?? formatDecimal(editValues.maquinaria)} onChange={e => setRawEditValues({ ...rawEditValues, maquinaria: e.target.value })} onBlur={e => { setEditValues({ ...editValues, maquinaria: parseDecimal(e.target.value) }); setRawEditValues(prev => { const n = { ...prev }; delete n.maquinaria; return n; }); }} /></td>
+                        <td><input type="text" style={{ width: '70px', padding: '4px', fontWeight: 'bold' }} value={rawEditValues.precio_total ?? formatDecimal(editValues.precio_total)} onChange={e => setRawEditValues({ ...rawEditValues, precio_total: e.target.value })} onBlur={e => { setEditValues({ ...editValues, precio_total: parseDecimal(e.target.value) }); setRawEditValues(prev => { const n = { ...prev }; delete n.precio_total; return n; }); }} /></td>
                         <td />
                         <td>
                           <div style={{ display: 'flex', gap: '5px' }}>
                             <button className="btn btn-success" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={e => { e.stopPropagation(); handleSaveEdit(item.codigo); }} disabled={saving}>
                               {saving ? '…' : <Save size={14} />}
                             </button>
-                            <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={e => { e.stopPropagation(); setEditingId(null); }}>X</button>
+                            <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={e => { e.stopPropagation(); setEditingId(null); setRawEditValues({}); }}>X</button>
                           </div>
                         </td>
                       </>

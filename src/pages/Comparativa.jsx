@@ -474,7 +474,13 @@ export default function Comparativa({ setSessionCache }) {
   const [modalCompetencia, setModalCompetencia] = useState(null);
   const [competenciaNombre, setCompetenciaNombre] = useState('');
   const [competenciaPrecios, setCompetenciaPrecios] = useState({});
+  const [rawCompetencia, setRawCompetencia] = useState({});
   const [guardandoCompetencia, setGuardandoCompetencia] = useState(false);
+
+  const formatDecimal = (val) =>
+    (parseFloat(val) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const parseDecimal = (str) =>
+    parseFloat((str || '0').replace(/\./g, '').replace(',', '.')) || 0;
 
   // Modal para BC3 Global
   const [modalBC3, setModalBC3] = useState(false);
@@ -1226,11 +1232,16 @@ export default function Comparativa({ setSessionCache }) {
                                       <td style={{ padding: '8px', color: '#374151' }}>{partida.texto_descripcion || partida.texto_partida}</td>
                                       <td style={{ padding: '8px', textAlign: 'center', color: '#6b7280' }}>{partida.cantidad || 1}</td>
                                       <td style={{ padding: '8px', textAlign: 'right' }}>
-                                          <input 
-                                              type="number" 
-                                              placeholder="0.00"
-                                              value={competenciaPrecios[partida.id] || ''}
-                                              onChange={(e) => setCompetenciaPrecios({ ...competenciaPrecios, [partida.id]: e.target.value })}
+                                          <input
+                                              type="text"
+                                              placeholder="0,00"
+                                              value={rawCompetencia[partida.id] ?? (competenciaPrecios[partida.id] ? formatDecimal(competenciaPrecios[partida.id]) : '')}
+                                              onChange={(e) => setRawCompetencia({ ...rawCompetencia, [partida.id]: e.target.value })}
+                                              onBlur={(e) => {
+                                                  const v = parseDecimal(e.target.value);
+                                                  setCompetenciaPrecios({ ...competenciaPrecios, [partida.id]: v });
+                                                  setRawCompetencia(prev => { const n = { ...prev }; delete n[partida.id]; return n; });
+                                              }}
                                               style={{ width: '100px', padding: '6px', textAlign: 'right', borderRadius: '4px', border: '1px solid #c7d5e6' }}
                                           />
                                       </td>
