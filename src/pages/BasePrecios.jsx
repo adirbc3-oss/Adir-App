@@ -9,12 +9,52 @@ import { bc3ToBasePrecios, getRatio, clasificarTipo } from '../utils/bc3ToBasePr
 import { extraerPartidasDePDF } from '../utils/pdfExtractor';
 import { detectarSimilares, detectarDuplicadosInternos } from '../utils/similarityUtils';
 
+// ── Clasificación client-side (sin necesitar columna DB extra) ────────────────
+// Calcula tipo_partida a partir de los datos ya existentes en la tabla.
+const UNIDADES_MAT = new Set(['kg','g','tn','l','lt','ud','u','saco','pack','palet','rollo','bob','lam','bl','bote','caja','juego','set','pieza','pz']);
+const UNIDADES_TRAB = new Set(['m2','m²','m3','m³','ml','h','jorn','pa','m']);
+
+function inferirTipoPartida(item) {
+  if (!item) return 'desconocido';
+  if (item.tipo_partida) return item.tipo_partida; // columna DB si existe en el futuro
+  if (item.tipo === 'Capítulo') return 'capitulo';
+
+  const cod  = (item.codigo || '').toUpperCase();
+  const desc = ((item.descripcion_corta || '') + ' ' + (item.tags || '')).toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const ud   = (item.unidad || '').toLowerCase().replace('²','2').replace('³','3');
+  const mo   = parseFloat(item.mano_de_obra) || 0;
+  const precio = parseFloat(item.precio_total) || 1;
+
+  // Recursos elementales BC3
+  if (/^(MO|MOO|MQ|MAQ|MT|MAT|MA\d|AU|AUX)/.test(cod)) return 'auxiliar';
+
+  // MO significativa → trabajo
+  if (mo > 0 && (mo / precio) >= 0.15) return 'trabajo';
+
+  // Sin MO + unidad de cantidad → material
+  if (mo === 0 && UNIDADES_MAT.has(ud)) return 'material';
+
+  // Verbos de ejecución → trabajo
+  if (/(instalacion|montaje|colocacion|demolicion|excavacion|enfoscado|solado|alicatado|pintado|encofrado|hormigonado|ferrallado|replanteo)/.test(desc)) return 'trabajo';
+
+  // Unidad de trabajo sin MO registrada → trabajo (probable)
+  if (UNIDADES_TRAB.has(ud)) return 'trabajo';
+
+  // Palabras de producto → material
+  if (/(cemento|arena|grava|mortero|silicona|adhesivo|barniz|disolvente|saco de)/.test(desc)) return 'material';
+
+  return 'partida';
+}
+
 // Colores y etiquetas para tipo_partida
 const TIPO_CONFIG = {
-  material:    { label: 'Material',    bg: '#dbeafe', color: '#1d4ed8' },
-  trabajo:     { label: 'Trabajo',     bg: '#dcfce7', color: '#15803d' },
-  auxiliar:    { label: 'Auxiliar',    bg: '#fef9c3', color: '#a16207' },
-  desconocido: { label: '?',           bg: '#f3f4f6', color: '#6b7280' },
+  material:    { label: 'Material',  bg: '#dbeafe', color: '#1d4ed8' },
+  trabajo:     { label: 'Trabajo',   bg: '#dcfce7', color: '#15803d' },
+  auxiliar:    { label: 'Auxiliar',  bg: '#fef9c3', color: '#a16207' },
+  capitulo:    { label: 'Capítulo',  bg: '#f3f4f6', color: '#6b7280' },
+  partida:     { label: 'Partida',   bg: '#f3f4f6', color: '#6b7280' },
+  desconocido: { label: '?',         bg: '#f3f4f6', color: '#6b7280' },
 };
 
 function TipoBadge({ tipo }) {
@@ -591,7 +631,7 @@ const BasePrecios = () => {
   const [loading,               setLoading]               = useState(false);
   const [searchTerm,            setSearchTerm]            = useState('');
   const [selectedCategory,      setSelectedCategory]      = useState('');
-  const [selectedTipo,          setSelectedTipo]          = useState(''); // '' | 'material' | 'trabajo' | 'auxiliar'
+  const [selectedTipo,          setSelectedTipo]          = useState(''); // '' | 'material' | 'trabajo' | 'auxiliar' | 'capitulo'
   const [categoriasDisponibles, setCategoriasDisponibles] = useState([]);
   const [page,                  setPage]                  = useState(0);
   const [hasMore,               setHasMore]               = useState(true);
@@ -622,7 +662,6 @@ const BasePrecios = () => {
         .not('codigo', 'ilike', '%#').order('codigo', { ascending: true });
       if (searchTerm) query = query.or(`codigo.ilike.%${searchTerm}%,descripcion_corta.ilike.%${searchTerm}%`);
       if (selectedCategory) query = query.ilike('categoria', `%${selectedCategory}%`);
-      if (selectedTipo) query = query.eq('tipo_partida', selectedTipo);
       const from = currentPage * PAGE_SIZE;
       const { data: res, error } = await query.range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
@@ -639,16 +678,16 @@ const BasePrecios = () => {
   useEffect(() => { if (page > 0) fetchData(); }, [page]);
 
   const handleEditClick = (item) => {
-    setEditingId(item.id);
+    setEditingId(item.codigo);
     setEditValues({
-      precio_total:      item.precio_total || 0,
-      mano_de_obra:      item.mano_de_obra || 0,
+      precio_total:       item.precio_total || 0,
+      mano_de_obra:       item.mano_de_obra || 0,
       materiales_y_otros: activeTab === 'adir' ? item.materiales_y_otros : item.materiales,
-      maquinaria:        item.maquinaria || 0,
+      maquinaria:         item.maquinaria || 0,
     });
   };
 
-  const handleSaveEdit = async (id) => {
+  const handleSaveEdit = async (codigo) => {
     setSaving(true);
     const table = activeTab === 'adir' ? 'base_precios_adir' : 'PreciosCype';
     const payload = {
@@ -659,17 +698,17 @@ const BasePrecios = () => {
     if (activeTab === 'adir') payload.materiales_y_otros = parseFloat(editValues.materiales_y_otros);
     else payload.materiales = parseFloat(editValues.materiales_y_otros);
     try {
-      const orig = data.find(d => d.id === id);
-      const { error } = await supabase.from(table).update(payload).eq('id', id);
+      const orig = data.find(d => d.codigo === codigo);
+      const { error } = await supabase.from(table).update(payload).eq('codigo', codigo);
       if (error) throw error;
       await supabase.from('historial_cambios').insert({
         origen_cambio: 'Manual', tipo_entidad: activeTab === 'adir' ? 'Base ADIR' : 'Base CYPE',
-        entidad_id: orig.codigo, campo_modificado: 'Precio Total',
-        valor_anterior: String(orig.precio_total || 0), valor_nuevo: String(payload.precio_total),
-        detalles: orig.descripcion_corta,
-      });
+        entidad_id: codigo, campo_modificado: 'Precio Total',
+        valor_anterior: String(orig?.precio_total || 0), valor_nuevo: String(payload.precio_total),
+        detalles: orig?.descripcion_corta,
+      }).catch(() => {}); // historial no bloquea
       showToast('Precio actualizado correctamente.');
-      setData(data.map(d => d.id === id ? { ...d, ...payload } : d));
+      setData(data.map(d => d.codigo === codigo ? { ...d, ...payload } : d));
       setEditingId(null);
     } catch (e) {
       console.error(e);
@@ -773,18 +812,20 @@ const BasePrecios = () => {
                   <th>Código</th><th>Categoría</th><th>Descripción</th><th>Ud.</th>
                   <th>M.O. (€)</th><th>Mat/Otros (€)</th><th>Maq. (€)</th>
                   <th>Precio Total (€)</th>
-                  <th>Fuente</th>
                   <th>Actualizado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {data.map(item => (
-                  <tr key={item.id}
-                    style={{ cursor: item.tipo_partida === 'material' ? 'pointer' : undefined }}
-                    onClick={item.tipo_partida === 'material' ? () => setSelectedItem(item) : undefined}
-                    title={item.tipo_partida === 'material' ? 'Haz clic para estimar precio de trabajo' : undefined}>
-                    <td><TipoBadge tipo={item.tipo_partida || 'desconocido'} /></td>
+                {data
+                  .map(item => ({ ...item, _tipo: inferirTipoPartida(item) }))
+                  .filter(item => !selectedTipo || item._tipo === selectedTipo)
+                  .map(item => (
+                  <tr key={item.codigo}
+                    style={{ cursor: item._tipo === 'material' ? 'pointer' : undefined }}
+                    onClick={item._tipo === 'material' ? () => setSelectedItem(item) : undefined}
+                    title={item._tipo === 'material' ? 'Haz clic para estimar precio de trabajo' : undefined}>
+                    <td><TipoBadge tipo={item._tipo} /></td>
                     <td style={{ fontWeight: 'bold', fontSize: '0.82rem' }}>{item.codigo}</td>
                     <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', maxWidth: '100px',
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
@@ -792,16 +833,16 @@ const BasePrecios = () => {
                     <td style={{ maxWidth: '260px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
                       title={item.descripcion_corta}>{item.descripcion_corta}</td>
                     <td style={{ fontSize: '0.82rem' }}>{item.unidad}</td>
-                    {editingId === item.id ? (
+                    {editingId === item.codigo ? (
                       <>
                         <td><input type="number" style={{ width: '70px', padding: '4px' }} value={editValues.mano_de_obra} onChange={e => setEditValues({ ...editValues, mano_de_obra: e.target.value })} /></td>
                         <td><input type="number" style={{ width: '70px', padding: '4px' }} value={editValues.materiales_y_otros} onChange={e => setEditValues({ ...editValues, materiales_y_otros: e.target.value })} /></td>
                         <td><input type="number" style={{ width: '70px', padding: '4px' }} value={editValues.maquinaria} onChange={e => setEditValues({ ...editValues, maquinaria: e.target.value })} /></td>
                         <td><input type="number" style={{ width: '70px', padding: '4px', fontWeight: 'bold' }} value={editValues.precio_total} onChange={e => setEditValues({ ...editValues, precio_total: e.target.value })} /></td>
-                        <td colSpan={2} />
+                        <td />
                         <td>
                           <div style={{ display: 'flex', gap: '5px' }}>
-                            <button className="btn btn-success" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={e => { e.stopPropagation(); handleSaveEdit(item.id); }} disabled={saving}>
+                            <button className="btn btn-success" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={e => { e.stopPropagation(); handleSaveEdit(item.codigo); }} disabled={saving}>
                               {saving ? '…' : <Save size={14} />}
                             </button>
                             <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={e => { e.stopPropagation(); setEditingId(null); }}>X</button>
@@ -814,9 +855,8 @@ const BasePrecios = () => {
                         <td style={{ fontSize: '0.82rem' }}>{activeTab === 'adir' ? item.materiales_y_otros : item.materiales}</td>
                         <td style={{ fontSize: '0.82rem' }}>{item.maquinaria || 0}</td>
                         <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{item.precio_total}</td>
-                        <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.fuente || '—'}</td>
                         <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          {item.fecha_actualizacion ? new Date(item.fecha_actualizacion).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }) : '—'}
+                          {item.fecha ? new Date(item.fecha).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' }) : '—'}
                         </td>
                         <td>
                           <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }}
