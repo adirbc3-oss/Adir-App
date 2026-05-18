@@ -319,32 +319,94 @@ const PresupuestoCliente = () => {
                 {/* Tabla de partidas */}
                 <div style={styles.card}>
                     <h3 style={styles.sectionTitle}>Detalle del Presupuesto</h3>
-                    <table style={styles.table}>
-                        <thead>
-                            <tr style={{ backgroundColor: '#002D54', color: 'white' }}>
-                                <th style={{ ...styles.th, textAlign: 'left' }}>Descripción</th>
-                                <th style={{ ...styles.th, textAlign: 'right', width: '120px' }}>Importe (€)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {partidas.filter(p => !p.Capítulo?.endsWith('#')).map((p, idx) => (
-                                <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#e5edf7' : 'white', borderBottom: '1px solid #b0b0b0' }}>
-                                    <td style={styles.td}>{cleanText(p.Descripción || p.texto_partida || '-')}</td>
-                                    <td style={{ ...styles.td, textAlign: 'right', fontWeight: '600', color: '#002D54' }}>
-                                        {parseFloat(p['Precio Total (€)'] || 0).toFixed(2)} €
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={styles.table}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#002D54', color: 'white' }}>
+                                    <th style={{ ...styles.th, textAlign: 'left', minWidth: 200 }}>Descripción</th>
+                                    <th style={{ ...styles.th, textAlign: 'center', width: 55 }}>Ud.</th>
+                                    <th style={{ ...styles.th, textAlign: 'center', width: 70 }}>Cant.</th>
+                                    <th style={{ ...styles.th, textAlign: 'right', width: 115 }}>Precio/ud (€)</th>
+                                    <th style={{ ...styles.th, textAlign: 'right', width: 115 }}>Total (€)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(() => {
+                                    let partidaIdx = 0;
+                                    return partidas.map((p, idx) => {
+                                        const cap = p.Capítulo || p.Capitulo || '';
+                                        const isSubcap = cap.endsWith('##');
+                                        const isCap = !isSubcap && cap.endsWith('#');
+
+                                        if (isCap) {
+                                            return (
+                                                <tr key={idx}>
+                                                    <td colSpan={5} style={{
+                                                        padding: '11px 16px', fontWeight: 700,
+                                                        fontSize: '0.9rem', letterSpacing: '0.4px',
+                                                        backgroundColor: '#002D54', color: 'white',
+                                                        textTransform: 'uppercase'
+                                                    }}>
+                                                        {cleanText(p.Descripción || p.texto_partida || 'Capítulo')}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }
+                                        if (isSubcap) {
+                                            return (
+                                                <tr key={idx}>
+                                                    <td colSpan={5} style={{
+                                                        padding: '8px 20px', fontWeight: 600,
+                                                        fontSize: '0.85rem',
+                                                        backgroundColor: '#1e3a8a', color: '#bfdbfe',
+                                                        fontStyle: 'italic'
+                                                    }}>
+                                                        {cleanText(p.Descripción || p.texto_partida || 'Subcapítulo')}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }
+
+                                        const rowBg = (partidaIdx++ % 2 === 0) ? '#e5edf7' : 'white';
+                                        const pUnit = parseFloat(p['Precio Total (€)'] || 0);
+                                        const cant = parseFloat(p.Cantidad) || 1;
+                                        const rowTotal = pUnit * cant;
+                                        const ud = p['Unidad IA'] || p.unidad || 'ud';
+
+                                        return (
+                                            <tr key={idx} style={{ backgroundColor: rowBg, borderBottom: '1px solid #d1dce8' }}>
+                                                <td style={{ ...styles.td, lineHeight: 1.4 }}>
+                                                    {cleanText(p.Descripción || p.texto_partida || '-')}
+                                                </td>
+                                                <td style={{ ...styles.td, textAlign: 'center', color: '#64748b', fontSize: '0.82rem' }}>
+                                                    {ud}
+                                                </td>
+                                                <td style={{ ...styles.td, textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
+                                                    {cant.toLocaleString('es-ES', { maximumFractionDigits: 2 })}
+                                                </td>
+                                                <td style={{ ...styles.td, textAlign: 'right', color: '#64748b', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                                                    {pUnit.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                                                </td>
+                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: '#002D54', whiteSpace: 'nowrap' }}>
+                                                    {rowTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                                                </td>
+                                            </tr>
+                                        );
+                                    });
+                                })()}
+                            </tbody>
+                            <tfoot>
+                                <tr style={{ backgroundColor: '#002D54', color: 'white' }}>
+                                    <td colSpan={4} style={{ ...styles.td, fontWeight: 'bold', fontSize: '1.05rem' }}>
+                                        TOTAL PRESUPUESTO
+                                    </td>
+                                    <td style={{ ...styles.td, textAlign: 'right', fontWeight: 'bold', fontSize: '1.1rem', whiteSpace: 'nowrap' }}>
+                                        {total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
                                     </td>
                                 </tr>
-                            ))}
-                        </tbody>
-                        <tfoot>
-                            <tr style={{ backgroundColor: '#002D54', color: 'white' }}>
-                                <td style={{ ...styles.td, fontWeight: 'bold', fontSize: '1.1rem' }}>TOTAL</td>
-                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                                    {total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                            </tfoot>
+                        </table>
+                    </div>
                     <p style={{ fontSize: '0.78rem', color: '#7a7a77', marginTop: 12 }}>
                         * Presupuesto válido por 30 días desde la fecha de emisión. Precios incluyen materiales y mano de obra salvo indicación contraria.
                     </p>
@@ -424,7 +486,7 @@ const styles = {
     successBox: { background: 'white', padding: 40, borderRadius: 16, textAlign: 'center', maxWidth: 420, border: '1px solid #dcfce7', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' },
     header: { background: 'linear-gradient(135deg, #1e3a8a, #002D54)', color: 'white', padding: '24px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
     logo: { fontSize: '2rem', fontWeight: '900', letterSpacing: 4, color: 'white' },
-    container: { maxWidth: 780, margin: '0 auto', padding: '32px 20px' },
+    container: { maxWidth: 920, margin: '0 auto', padding: '32px 20px' },
     card: { background: 'white', borderRadius: 16, padding: 28, marginBottom: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid #b0b0b0' },
     cardTitle: { margin: '0 0 12px', color: '#1e293b', fontSize: '1.3rem' },
     sectionTitle: { display: 'flex', alignItems: 'center', gap: 8, color: '#1e293b', fontWeight: 700, fontSize: '1.1rem', margin: '0 0 16px' },
