@@ -6,6 +6,13 @@ import { useModal } from '../utils/useModal';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
 import { Download, PenLine, CheckCircle, X, Loader2 } from 'lucide-react';
 
+// Helper para limpiar descripciones en el portal del cliente
+const cleanText = (text) => {
+  if (!text) return "";
+  const str = text.includes('::') ? text.split('::').slice(1).join('::') : text;
+  return str.replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim();
+};
+
 const PresupuestoCliente = () => {
     const location = useLocation();
     const { showAlert, ModalUI } = useModal();
@@ -322,7 +329,7 @@ const PresupuestoCliente = () => {
                         <tbody>
                             {partidas.filter(p => !p.Capítulo?.endsWith('#')).map((p, idx) => (
                                 <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#e5edf7' : 'white', borderBottom: '1px solid #b0b0b0' }}>
-                                    <td style={styles.td}>{p.Descripción || p.texto_partida || '-'}</td>
+                                    <td style={styles.td}>{cleanText(p.Descripción || p.texto_partida || '-')}</td>
                                     <td style={{ ...styles.td, textAlign: 'right', fontWeight: '600', color: '#002D54' }}>
                                         {parseFloat(p['Precio Total (€)'] || 0).toFixed(2)} €
                                     </td>

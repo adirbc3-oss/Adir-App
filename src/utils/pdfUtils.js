@@ -247,7 +247,7 @@ export function generarPresupuestoPDF(data) {
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(...GRIS_MUTED);
-        doc.text('ADIR REFORMAS  |  adirbc3@gmail.com', 14, 290);
+        doc.text('ADIR REFORMAS  —  adirbc3@gmail.com', 14, 290);
         doc.text(`Pág. ${i} / ${pageCount}`, W - 14, 290, { align: 'right' });
     }
 
@@ -451,7 +451,7 @@ export function generarPDFOfertaProveedor(data) {
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(...GRIS_MUTED);
-        doc.text('ADIR REFORMAS  |  Oferta recibida de: ' + proveedorNombre, 14, 290);
+        doc.text('ADIR REFORMAS  —  Oferta recibida de: ' + proveedorNombre, 14, 290);
         doc.text(`Pág. ${i} / ${pageCount}`, W - 14, 290, { align: 'right' });
     }
 
