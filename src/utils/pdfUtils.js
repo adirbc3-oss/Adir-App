@@ -10,6 +10,14 @@ const GRIS_TEXTO  = [80, 80, 80];
 const GRIS_MUTED  = [140, 140, 140];
 const GRIS_FILA   = [248, 249, 252]; // Fila alternada tabla
 
+// Helper para limpiar descripciones en el PDF (eliminar prefijo de capítulo y caracteres de tubería '|')
+const cleanDesc = (text) => {
+    if (!text) return "";
+    const str = text.includes('::') ? text.split('::').slice(1).join('::') : text;
+    return str.replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim();
+};
+
+
 /**
  * Genera un PDF de presupuesto con diseño corporativo ADIR unificado.
  * Usado por: Borradores, PresupuestoCliente (portal), PresupuestosFirmados, Proyectos.
@@ -108,7 +116,7 @@ export function generarPresupuestoPDF(data) {
     (partidas || []).forEach(p => {
         const esCapitulo = p.Capítulo?.endsWith('#') || p.Capitulo?.endsWith('#');
         const cap    = (p.Capítulo || p.Capitulo || '').replace(/#+/g, '').trim();
-        const desc   = (p.Descripción || p.Descripcion || p.texto_partida || '').replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim().substring(0, 120);
+        const desc   = cleanDesc(p.Descripción || p.Descripcion || p.texto_partida || '').substring(0, 120);
         const precio = parseFloat(p['Precio Total (€)'] || p.precio || 0);
         const cant   = parseFloat(p.Cantidad || p.cantidad || 1);
         const unidad = (p['Unidad IA'] || p.unidad || 'ud').trim();
@@ -338,7 +346,7 @@ export function generarPDFOfertaProveedor(data) {
         const cantidad = Number(p.cantidad) || 1;
         const totalLinea = precioUd * cantidad;
         return [
-            { content: p.descripcion || '', styles: { textColor: GRIS_TEXTO } },
+            { content: cleanDesc(p.descripcion), styles: { textColor: GRIS_TEXTO } },
             { content: (p.unidad || 'ud'), styles: { halign: 'center' } },
             { content: cantidad.toLocaleString('es-ES', { maximumFractionDigits: 2 }), styles: { halign: 'center' } },
             { content: precioUd.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right' } },
@@ -397,21 +405,40 @@ export function generarPDFOfertaProveedor(data) {
     let nextY = tableEnd + 28;
 
     if (comentariosGenerales && comentariosGenerales.trim()) {
-        doc.setFillColor(255, 251, 235);
-        doc.setDrawColor(251, 191, 36);
-        doc.setLineWidth(0.4);
-        doc.roundedRect(14, nextY, W - 28, 14 + Math.min(comentariosGenerales.length / 60 * 5, 30), 3, 3, 'FD');
+        const lineas = doc.splitTextToSize(comentariosGenerales, W - 40);
+        const boxHeight = 12 + lineas.length * 5;
 
-        doc.setFontSize(8);
+        // Si no cabe en la página actual (altura máxima utilizable aprox 270mm), saltamos de página
+        if (nextY + boxHeight > 270) {
+            doc.addPage();
+            nextY = 25; // Empezar arriba en la nueva página
+        }
+
+        // Título de la sección
+        doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(146, 64, 14);
-        doc.text('Anotaciones del proveedor:', 20, nextY + 7);
+        doc.setTextColor(...AZUL);
+        doc.text('ANOTACIONES GENERALES', 14, nextY);
+        
+        // Línea decorativa
+        doc.setDrawColor(...AZUL_LIGHT);
+        doc.setLineWidth(0.3);
+        doc.line(14, nextY + 2, W - 14, nextY + 2);
+        
+        nextY += 8;
+
+        // Caja de comentarios (diseño de tarjeta limpia)
+        doc.setFillColor(248, 250, 252); // Fondo gris muy claro suave
+        doc.setDrawColor(226, 232, 240); // Borde gris claro
+        doc.setLineWidth(0.4);
+        doc.roundedRect(14, nextY, W - 28, boxHeight, 3, 3, 'FD');
 
         doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
         doc.setTextColor(...GRIS_TEXTO);
-        const lineas = doc.splitTextToSize(comentariosGenerales, W - 40);
-        doc.text(lineas, 20, nextY + 13);
-        nextY += 20 + lineas.length * 5;
+        doc.text(lineas, 20, nextY + 7);
+        
+        nextY += boxHeight + 10;
     }
 
     // ── 6. PIE DE PÁGINA ───────────────────────────────────────────────────────

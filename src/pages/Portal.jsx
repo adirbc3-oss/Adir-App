@@ -4,6 +4,13 @@ import { supabase } from '../utils/supabaseClient';
 import { N8N_BASE_URL } from '../config';
 import { useToast } from '../utils/useModal';
 
+// Helper para limpiar descripciones en el portal (eliminar prefijo de capítulo y caracteres de tubería '|')
+const cleanText = (text) => {
+  if (!text) return "";
+  const str = text.includes('::') ? text.split('::').slice(1).join('::') : text;
+  return str.replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim();
+};
+
 const Portal = () => {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -145,7 +152,7 @@ const Portal = () => {
           <tbody>
             {partidas.map(p => (
               <tr key={p.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                <td style={{ padding: 10 }}>{p.texto_descripcion || p.texto_partida}</td>
+                <td style={{ padding: 10 }}>{cleanText(p.texto_descripcion || p.texto_partida)}</td>
                 <td style={{ padding: 10, textAlign: 'center' }}>{p.unidad || 'ud'}</td>
                 <td style={{ padding: 10, textAlign: 'right' }}>{p.cantidad || 1}</td>
                 <td style={{ padding: 10, textAlign: 'right' }}>

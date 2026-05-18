@@ -9,8 +9,15 @@ import {
   Inbox, List, X, Euro, Calendar, User, Briefcase, Upload, Loader2, FileText
 } from 'lucide-react';
 import { parseBC3 } from '../utils/bc3Parser';
-import { generarPresupuestoPDF, generarPDFOfertaProveedor, descargarPDF } from '../utils/pdfUtils';
+import { generarPDFOfertaProveedor, descargarPDF } from '../utils/pdfUtils';
 
+
+// Helper para limpiar descripciones (eliminar prefijo de capítulo y caracteres de tubería '|')
+const cleanText = (text) => {
+  if (!text) return "";
+  const str = text.includes('::') ? text.split('::').slice(1).join('::') : text;
+  return str.replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim();
+};
 
 // ─── Vista: FEED GLOBAL de respuestas recibidas ──────────────────────────────
 function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proyectoSel, oficioSel, deleteSolicitud, allPartidas }) {
@@ -26,7 +33,7 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
         );
       }
       const descripcion = part
-        ? (part.texto_descripcion || (part.texto_partida ? part.texto_partida.split('::').slice(1).join('::') : part.id))
+        ? cleanText(part.texto_descripcion || part.texto_partida || part.id)
         : (r.partida_id || 'Partida');
       return {
         descripcion,
@@ -170,7 +177,7 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
                         partida = partidas.find(p => p.propuesta_id === sol.propuesta_id && (p.texto_partida ? p.texto_partida.split('::')[0].replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '') : '') === rCode);
                     }
                     const descr = partida
-                      ? (partida.texto_descripcion || (partida.texto_partida ? partida.texto_partida.split('::').slice(1).join('::') : partida.id))
+                      ? cleanText(partida.texto_descripcion || partida.texto_partida || partida.id)
                       : (r.partida_id || 'Partida');
                     const cant = partida?.cantidad || 1;
                     const precioUd = Number(r.precio_ofertado) || 0;
@@ -371,7 +378,7 @@ function ComparativaAgrupada({
                                             oficio,
                                             fecha: solFeed?.fecha_respuesta || new Date().toISOString(),
                                             partidas: filas.map(f => ({
-                                                descripcion: f.partida.texto_descripcion || (f.partida.texto_partida ? f.partida.texto_partida.split('::').slice(1).join('::') : ''),
+                                                descripcion: cleanText(f.partida.texto_descripcion || f.partida.texto_partida || ''),
                                                 unidad: f.partida.unidad || 'ud',
                                                 cantidad: f.partida.cantidad || 1,
                                                 precioOfertado: f.precios[p.solicitud_id]?.precio || 0,
@@ -418,7 +425,7 @@ function ComparativaAgrupada({
                         {filas.map(({ partida, precios, minProvId }) => (
                           <tr key={partida.id} style={s.tr}>
                             <td style={{ ...s.td, textAlign: 'left' }}>
-                              {partida.texto_descripcion || partida.texto_partida}
+                              {(partida.texto_descripcion || partida.texto_partida || '').replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim()}
                             </td>
                             <td style={{ ...s.td, textAlign: 'center' }}>{partida.unidad || 'ud'}</td>
                             <td style={{ ...s.td, textAlign: 'right' }}>{partida.cantidad || 1}</td>
