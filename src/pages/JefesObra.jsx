@@ -111,8 +111,8 @@ const JefesObra = () => {
             const mapped = (pData || []).map(p => {
                 const capCode = p.texto_partida ? p.texto_partida.split('::')[0] : "";
                 const descClean = p.texto_partida ? (p.texto_partida.includes('::') ? p.texto_partida.split('::').slice(1).join('::') : p.texto_partida).replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim() : "";
-                const finalPrice = (p.precio_adjudicado && parseFloat(p.precio_adjudicado) > 0) 
-                    ? parseFloat(p.precio_adjudicado) 
+                const finalPrice = (p.precio_adjudicado && parseFloat(p.precio_adjudicado) > 0)
+                    ? parseFloat(p.precio_adjudicado)
                     : (p.precio_base_estimado || 0);
 
                 return {
@@ -127,37 +127,83 @@ const JefesObra = () => {
                     valor_anterior_oficio_id: p.proveedor_adjudicado_id || null,
                     aprobado: false,
                     isModified: false,
-                    solicitud_seleccionada_id: null // Para trackear selección manual
+                    solicitud_seleccionada_id: null
                 };
-            }).sort((a, b) => {
+            });
+
+            // ── Normalización: eliminar título raíz y agrupar sueltas en EXTRAS ──
+            // (misma lógica que Borradores)
+            const esTituloRaiz = (cap) => {
+                const base = (cap || '').replace(/#$/, '');
+                if (!cap.endsWith('#')) return false;
+                if (/^\d+(\.\d+)*$/.test(base)) return false;
+                if (/^[A-Z0-9]+$/.test(base) && base.length <= 4) return false;
+                return base.includes('__') || (/[A-Za-z]/.test(base) && base.length > 6);
+            };
+
+            const filteredPartidas = mapped.filter(p => !esTituloRaiz(p.Capítulo));
+
+            const capitulosValidos = new Set(
+                filteredPartidas
+                    .filter(p => (p.Capítulo || '').endsWith('#'))
+                    .map(p => p.Capítulo.replace(/#$/, ''))
+            );
+
+            const esPartidaSuelta = (p) => {
+                const cap = (p.Capítulo || '').trim();
+                if (cap.endsWith('#')) return false;
+                const segmentos = cap.split('.');
+                if (capitulosValidos.has(segmentos[0])) return false;
+                return true;
+            };
+
+            const partidasSueltas = filteredPartidas.filter(esPartidaSuelta);
+            const partidasNormales = filteredPartidas.filter(p => !esPartidaSuelta(p));
+
+            const sortFn = (a, b) => {
                 const capA = formatCapitulo(a.Capítulo);
                 const capB = formatCapitulo(b.Capítulo);
-
                 const isRootA = capA.endsWith('##');
                 const isRootB = capB.endsWith('##');
                 if (isRootA && !isRootB) return -1;
                 if (!isRootA && isRootB) return 1;
-
                 const partsA = capA.split('.').map(x => parseInt(x.replace(/\D/g, '')) || 0);
                 const partsB = capB.split('.').map(x => parseInt(x.replace(/\D/g, '')) || 0);
-
                 const hasNumA = /\d/.test(capA);
                 const hasNumB = /\d/.test(capB);
                 if (!hasNumA && hasNumB) return 1;
                 if (hasNumA && !hasNumB) return -1;
-
                 for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
                     const valA = i < partsA.length ? partsA[i] : -1;
                     const valB = i < partsB.length ? partsB[i] : -1;
                     if (valA !== valB) return valA - valB;
                 }
-                // Si todo empata, la que termine en '#' va primero
                 if (capA.endsWith('#') && !capB.endsWith('#')) return -1;
                 if (!capA.endsWith('#') && capB.endsWith('#')) return 1;
                 return 0;
-            });
-            
-            setPartidas(mapped);
+            };
+
+            const normalesSorted = [...partidasNormales].sort(sortFn);
+
+            const extrasHeader = {
+                id: '__extras_header__',
+                Capítulo: '99_EXTRAS#',
+                Descripción: 'PARTIDAS ADICIONALES / EXTRAS',
+                'Oficio Asignado': 'Sin asignar',
+                'Precio Total (€)': 0,
+                Cantidad: 0,
+                'Unidad IA': '',
+                _synthetic: true,
+                aprobado: false,
+                isModified: false,
+                solicitud_seleccionada_id: null
+            };
+
+            const sorted = partidasSueltas.length > 0
+                ? [...normalesSorted, extrasHeader, ...partidasSueltas]
+                : normalesSorted;
+
+            setPartidas(sorted);
         } catch (err) {
             console.error(err);
             showAlert('Error cargando detalles del proyecto.', { type: 'error', title: 'Error' });
@@ -166,6 +212,16 @@ const JefesObra = () => {
             setLoadingProject(false);
         }
     };
+    // Clasificar fila: 'capitulo' | 'subcapitulo' | 'partida' (igual que Borradores)
+    const getTipoFila = (p) => {
+        const cap = (p.Capítulo || '').trim();
+        if (!cap.endsWith('#')) return 'partida';
+        const codLimpio = cap.replace(/#$/, '');
+        if (codLimpio === '99_EXTRAS') return 'capitulo';
+        if (codLimpio.includes('.')) return 'subcapitulo';
+        return 'capitulo';
+    };
+
     const openEditMetadata = () => {
         setMetadataForm({
             cliente: activeProject.cliente || activeProject.Proyecto.split('_')[0] || '',
@@ -303,7 +359,7 @@ const JefesObra = () => {
         setLoadingProject(true);
         setShowApproveWarning(false);
         try {
-            const updatePromises = partidas.filter(p => p.id).map(p => {
+            const updatePromises = partidas.filter(p => p.id && !p._synthetic).map(p => {
                 const dataToUpdate = {
                     precio_base_estimado: parseFloat(p["Precio Total (€)"]) || 0,
                     precio_adjudicado: parseFloat(p["Precio Total (€)"]) || 0,
@@ -537,20 +593,39 @@ const JefesObra = () => {
                                         </thead>
                                         <tbody>
                                             {partidas.map((p, idx) => {
-                                                const isChapter = p.Capítulo && p.Capítulo.endsWith('#');
-                                                const capClean = isChapter ? p.Capítulo.replace(/#+/g, '') : formatCapitulo(p.Capítulo);
-                                                
+                                                const tipoFila = getTipoFila(p);
+                                                const esCapitulo   = tipoFila === 'capitulo';
+                                                const esSubcap     = tipoFila === 'subcapitulo';
+                                                const esPartida    = tipoFila === 'partida';
+                                                const capClean = (p.Capítulo || '').replace(/#+/g, '');
+
+                                                let rowStyle = { backgroundColor: 'transparent' };
+                                                let codStyle = { fontWeight: 500, color: 'var(--text-muted)', paddingLeft: '8px', verticalAlign: 'middle' };
+                                                let descStyle = { fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: 400, paddingLeft: '8px', verticalAlign: 'middle' };
+
+                                                if (esCapitulo) {
+                                                    rowStyle = { backgroundColor: '#dce7f2', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' };
+                                                    codStyle = { ...codStyle, fontWeight: 800, color: 'var(--primary)', fontSize: '0.92rem', paddingLeft: '10px' };
+                                                    descStyle = { ...descStyle, fontWeight: 700, color: 'var(--primary)', fontSize: '0.92rem' };
+                                                } else if (esSubcap) {
+                                                    rowStyle = { backgroundColor: 'var(--bg-secondary)' };
+                                                    codStyle = { ...codStyle, fontWeight: 700, color: '#2a5a8a', fontSize: '0.88rem', paddingLeft: '10px' };
+                                                    descStyle = { ...descStyle, fontWeight: 600, color: '#2a5a8a', fontSize: '0.88rem' };
+                                                } else if (p.aprobado) {
+                                                    rowStyle = { backgroundColor: 'rgba(22, 163, 74, 0.05)' };
+                                                }
+
                                                 return (
-                                                    <tr key={idx} style={{ backgroundColor: isChapter ? 'var(--bg-secondary)' : (p.aprobado ? 'rgba(22, 163, 74, 0.05)' : 'transparent'), fontWeight: isChapter ? 'bold' : 'normal' }}>
-                                                        <td style={{ textAlign: 'center' }}>
-                                                            {!isChapter && (
+                                                    <tr key={idx} style={rowStyle}>
+                                                        <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                                                            {esPartida && (
                                                                 <input type="checkbox" checked={p.aprobado} onChange={() => toggleAprobado(idx)} style={{ transform: 'scale(1.2)', cursor: 'pointer' }} />
                                                             )}
                                                         </td>
-                                                        <td style={{ color: 'var(--accent-primary)', fontWeight: 'bold' }}>{capClean}</td>
-                                                        <td style={{ fontSize: '0.85rem' }}>{p.Descripción}</td>
-                                                        <td style={{ textAlign: 'center', fontSize: '0.8rem' }}>
-                                                            {isChapter ? '' : (
+                                                        <td style={codStyle}>{capClean}</td>
+                                                        <td style={descStyle}>{p.Descripción}</td>
+                                                        <td style={{ textAlign: 'center', fontSize: '0.8rem', verticalAlign: 'middle' }}>
+                                                            {esPartida && (
                                                                 <input
                                                                     type="text"
                                                                     value={rawInputs[`cant_${idx}`] ?? formatDecimal(p.Cantidad)}
@@ -564,19 +639,19 @@ const JefesObra = () => {
                                                                 />
                                                             )}
                                                         </td>
-                                                        <td style={{ textAlign: 'center', fontSize: '0.8rem' }}>
-                                                            {isChapter ? '' : (
-                                                                <input 
-                                                                    type="text" 
+                                                        <td style={{ textAlign: 'center', fontSize: '0.8rem', verticalAlign: 'middle' }}>
+                                                            {esPartida && (
+                                                                <input
+                                                                    type="text"
                                                                     value={p['Unidad IA'] || ''}
                                                                     onChange={(e) => updateUnidad(idx, e.target.value)}
                                                                     style={{ width: '50px', textAlign: 'center', padding: '4px', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: 'var(--bg-card)' }}
                                                                 />
                                                             )}
                                                         </td>
-                                                        <td style={{ fontSize: '0.8rem' }}>
-                                                            {isChapter ? '' : (
-                                                                <select 
+                                                        <td style={{ fontSize: '0.8rem', verticalAlign: 'middle' }}>
+                                                            {esPartida && (
+                                                                <select
                                                                     style={{ width: '100%', padding: '4px', borderRadius: '4px', fontSize: '0.75rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)' }}
                                                                     onChange={(e) => updateOficio(idx, e.target.value)}
                                                                     value={p["Oficio Asignado"] || ''}
@@ -588,9 +663,9 @@ const JefesObra = () => {
                                                                 </select>
                                                             )}
                                                         </td>
-                                                        <td style={{ fontSize: '0.8rem' }}>
-                                                            {isChapter ? '' : (
-                                                                <select 
+                                                        <td style={{ fontSize: '0.8rem', verticalAlign: 'middle' }}>
+                                                            {esPartida && (
+                                                                <select
                                                                     style={{ width: '100%', padding: '4px', borderRadius: '4px', fontSize: '0.75rem' }}
                                                                     onChange={(e) => updateProveedor(idx, e.target.value)}
                                                                     value={p.solicitud_seleccionada_id || ''}
@@ -604,8 +679,8 @@ const JefesObra = () => {
                                                                 </select>
                                                             )}
                                                         </td>
-                                                        <td style={{ textAlign: 'right' }}>
-                                                            {isChapter ? '' : (
+                                                        <td style={{ textAlign: 'right', verticalAlign: 'middle' }}>
+                                                            {esPartida && (
                                                                 <input
                                                                     type="text"
                                                                     value={rawInputs[`price_${idx}`] ?? formatDecimal(p['Precio Total (€)'])}
@@ -619,8 +694,8 @@ const JefesObra = () => {
                                                                 />
                                                             )}
                                                         </td>
-                                                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
-                                                            {isChapter ? '' : (
+                                                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap', fontSize: '0.85rem', verticalAlign: 'middle' }}>
+                                                            {esPartida && (
                                                                 ((parseFloat(p['Precio Total (€)']) || 0) * (parseFloat(p.Cantidad) || 1))
                                                                     .toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
                                                             )}
