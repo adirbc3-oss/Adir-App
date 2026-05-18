@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { N8N_BASE_URL } from '../config';
 import { useToast } from '../utils/useModal';
+import { generarPDFOfertaProveedor, descargarPDF } from '../utils/pdfUtils';
 
 // Helper para limpiar descripciones en el portal (eliminar prefijo de capítulo y caracteres de tubería '|')
 const cleanText = (text) => {
@@ -123,9 +124,65 @@ const Portal = () => {
     }
   };
 
+  const handleDownloadPDF = () => {
+    try {
+      const doc = generarPDFOfertaProveedor({
+        proveedorNombre: solicitud.proveedor_nombre || solicitud.proveedores?.nombre || 'Proveedor',
+        proveedorEmail: solicitud.proveedor_email || '',
+        proyectoNombre: solicitud.propuestas?.cliente || solicitud.propuesta_id || '',
+        oficio: solicitud.oficio_solicitado || '',
+        fecha: new Date().toISOString(),
+        partidas: partidas.map(p => ({
+          descripcion: p.texto_descripcion || p.texto_partida || '',
+          unidad: p.unidad || 'ud',
+          cantidad: p.cantidad || 1,
+          precioOfertado: parseFloat(precios[p.id] || 0),
+          comentario: comentarios[p.id] || '',
+        })),
+        comentariosGenerales: comentariosGenerales || '',
+      });
+
+      const safeProveedor = (solicitud.proveedor_nombre || 'Proveedor').replace(/\s+/g, '_');
+      const safeOficio = (solicitud.oficio_solicitado || 'Oficio').replace(/\s+/g, '_');
+      descargarPDF(doc, `Oferta_${safeProveedor}_${safeOficio}`);
+    } catch (err) {
+      console.error("[PDF PORTAL] Error:", err);
+      showToast("Error al generar el PDF: " + err.message, "error");
+    }
+  };
+
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Cargando portal seguro...</div>;
   if (error) return <div style={{ padding: 40, textAlign: 'center', color: 'red' }}><h2>Acceso Denegado</h2><p>{error}</p></div>;
-  if (success) return <div style={{ padding: 40, textAlign: 'center', color: 'green' }}><h2>¡Gracias!</h2><p>Precios registrados correctamente. ADIR revisará su propuesta.</p></div>;
+  if (success) return (
+    <div className="glass-card text-center animate-fade-in" style={{ maxWidth: 600, margin: '60px auto', padding: '40px 30px', textAlign: 'center' }}>
+      {ToastUI}
+      <div style={{ fontSize: '4rem', marginBottom: '20px' }}>✅</div>
+      <h2 style={{ color: 'var(--success)', marginBottom: '15px', fontSize: '1.8rem', fontWeight: 700 }}>¡Presupuesto Enviado!</h2>
+      <p style={{ color: 'var(--text-muted)', marginBottom: '30px', fontSize: '1.05rem', lineHeight: '1.6' }}>
+        Tus precios y anotaciones se han registrado correctamente en el sistema de ADIR Reformas.
+      </p>
+      <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <button 
+          onClick={handleDownloadPDF} 
+          style={{ 
+            padding: '12px 24px', 
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', 
+            color: 'white', 
+            border: 'none', 
+            borderRadius: '6px', 
+            cursor: 'pointer', 
+            fontWeight: '600',
+            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)',
+            transition: 'transform 0.2s, box-shadow 0.2s'
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(16, 185, 129, 0.3)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.2)'; }}
+        >
+          📄 Descargar Copia en PDF
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ maxWidth: 800, margin: '40px auto', fontFamily: 'system-ui' }}>
@@ -195,11 +252,45 @@ const Portal = () => {
           />
         </div>
 
-        <div style={{ marginTop: 20, textAlign: 'right' }}>
+        <div style={{ marginTop: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={handleDownloadPDF}
+            style={{
+              padding: '12px 20px',
+              background: '#f1f5f9',
+              color: '#334155',
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+          >
+            📄 Previsualizar PDF
+          </button>
           <button 
             type="submit" 
             disabled={submitting}
-            style={{ padding: '12px 24px', background: '#0d6efd', color: 'white', border: 'none', borderRadius: 4, cursor: submitting ? 'wait' : 'pointer', fontWeight: 'bold' }}>
+            style={{ 
+              padding: '12px 24px', 
+              background: 'linear-gradient(135deg, #002D54 0%, #001a33 100%)', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: 6, 
+              cursor: submitting ? 'wait' : 'pointer', 
+              fontWeight: 'bold',
+              boxShadow: '0 4px 12px rgba(0, 45, 84, 0.2)',
+              transition: 'transform 0.2s, box-shadow 0.2s'
+            }}
+            onMouseEnter={(e) => { if (!submitting) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 45, 84, 0.3)'; } }}
+            onMouseLeave={(e) => { if (!submitting) { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 45, 84, 0.2)'; } }}
+          >
             {submitting ? 'Enviando...' : 'Enviar Presupuesto'}
           </button>
         </div>
