@@ -330,18 +330,19 @@ export function generarPDFOfertaProveedor(data) {
 
     // ── 3. TABLA DE PARTIDAS ───────────────────────────────────────────────────
     const VERDE_CELL = [209, 250, 229];
-    const total = partidas.reduce((s, p) => s + (Number(p.precioOfertado) || 0), 0);
+    // precioOfertado es precio/ud (lo que introdujo el proveedor por unidad)
+    const total = partidas.reduce((s, p) => s + (Number(p.precioOfertado) || 0) * (Number(p.cantidad) || 1), 0);
 
     const filas = partidas.map(p => {
-        const precio = Number(p.precioOfertado) || 0;
+        const precioUd = Number(p.precioOfertado) || 0;
         const cantidad = Number(p.cantidad) || 1;
-        const unitaria = cantidad > 0 ? precio / cantidad : precio;
+        const totalLinea = precioUd * cantidad;
         return [
             { content: p.descripcion || '', styles: { textColor: GRIS_TEXTO } },
             { content: (p.unidad || 'ud'), styles: { halign: 'center' } },
-            { content: cantidad.toString(), styles: { halign: 'center' } },
-            { content: unitaria.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right' } },
-            { content: precio.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right', fontStyle: 'bold', textColor: [5, 150, 105] } },
+            { content: cantidad.toLocaleString('es-ES', { maximumFractionDigits: 2 }), styles: { halign: 'center' } },
+            { content: precioUd.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right' } },
+            { content: totalLinea.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right', fontStyle: 'bold', textColor: [5, 150, 105] } },
             { content: p.comentario || '', styles: { textColor: GRIS_MUTED, fontSize: 7.5 } },
         ];
     });

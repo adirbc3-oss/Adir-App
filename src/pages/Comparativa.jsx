@@ -156,7 +156,9 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
                 <thead>
                   <tr>
                     <th style={{ ...s.feedTh, textAlign: 'left', minWidth: 200 }}>Partida</th>
-                    <th style={s.feedTh}>Precio ofertado (€)</th>
+                    <th style={s.feedTh}>Precio/ud (€)</th>
+                    <th style={s.feedTh}>Cant.</th>
+                    <th style={s.feedTh}>Total línea (€)</th>
                     <th style={{ ...s.feedTh, textAlign: 'left', minWidth: 150 }}>Observaciones</th>
                   </tr>
                 </thead>
@@ -170,13 +172,22 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
                     const descr = partida
                       ? (partida.texto_descripcion || (partida.texto_partida ? partida.texto_partida.split('::').slice(1).join('::') : partida.id))
                       : (r.partida_id || 'Partida');
+                    const cant = partida?.cantidad || 1;
+                    const precioUd = Number(r.precio_ofertado) || 0;
+                    const totalLinea = precioUd * cant;
                     return (
                       <tr key={r.id} style={s.feedTr}>
                         <td style={{ ...s.feedTd, textAlign: 'left', maxWidth: 320 }}>
                           <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{descr}</div>
                         </td>
                         <td style={{ ...s.feedTd, textAlign: 'right', fontWeight: 600, color: '#059669' }}>
-                          {r.precio_ofertado != null ? `${Number(r.precio_ofertado).toFixed(2)} €` : '—'}
+                          {precioUd > 0 ? `${precioUd.toFixed(2)} €` : '—'}
+                        </td>
+                        <td style={{ ...s.feedTd, textAlign: 'center', color: '#6b7280' }}>
+                          {cant}
+                        </td>
+                        <td style={{ ...s.feedTd, textAlign: 'right', fontWeight: 700, color: '#002D54' }}>
+                          {totalLinea > 0 ? `${totalLinea.toFixed(2)} €` : '—'}
                         </td>
                         <td style={{ ...s.feedTd, textAlign: 'left', color: '#6b7280', fontSize: 12 }}>
                           {r.comentarios || '—'}
@@ -188,9 +199,13 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
                 {total > 0 && (
                   <tfoot>
                     <tr style={{ borderTop: '2px solid #c7d5e6', background: '#e5edf7' }}>
-                      <td style={{ ...s.feedTd, fontWeight: 700, textAlign: 'left' }}>TOTAL</td>
+                      <td colSpan={3} style={{ ...s.feedTd, fontWeight: 700, textAlign: 'left' }}>TOTAL</td>
                       <td style={{ ...s.feedTd, textAlign: 'right', fontWeight: 800, fontSize: 15, color: '#002D54' }}>
-                        {total.toFixed(2)} €
+                        {resps.reduce((sum, r) => {
+                          let p2 = partidas.find(p => p.id === r.partida_id);
+                          if (!p2) { const c = (r.partida_id||'').replace(/#/g,'').trim().toLowerCase().replace(/^0+/,''); p2 = partidas.find(p => p.propuesta_id===sol.propuesta_id && (p.texto_partida?p.texto_partida.split('::')[0].replace(/#/g,'').trim().toLowerCase().replace(/^0+/,''):'')===c); }
+                          return sum + (Number(r.precio_ofertado)||0) * (p2?.cantidad||1);
+                        }, 0).toFixed(2)} €
                       </td>
                       <td style={s.feedTd}></td>
                     </tr>
@@ -198,6 +213,16 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
                 )}
               </table>
             </div>
+            {/* Anotaciones generales del proveedor */}
+            {sol.comentarios_generales && sol.comentarios_generales.trim() && (
+              <div style={{ padding: '10px 20px 14px', background: '#fffbeb', borderTop: '1px solid #fde68a', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>📝</span>
+                <div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>Anotaciones generales del proveedor: </span>
+                  <span style={{ fontSize: 12, color: '#78350f' }}>{sol.comentarios_generales}</span>
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
@@ -377,6 +402,14 @@ function ComparativaAgrupada({
                               {p.esLocal && (
                                   <div style={{ fontWeight: 600, fontSize: 10, marginTop: 2, color: '#d97706' }}>[BC3/Manual]</div>
                               )}
+                              {!p.esLocal && (() => {
+                                  const notaGral = allSolicitudes.find(s => s.id === p.solicitud_id)?.comentarios_generales;
+                                  return notaGral ? (
+                                      <div style={{ fontWeight: 400, fontSize: 10, marginTop: 3, color: '#92400e', fontStyle: 'italic', maxWidth: 160, whiteSpace: 'normal', lineHeight: 1.3, textAlign: 'left', background: '#fffbeb', borderRadius: 4, padding: '2px 4px' }}>
+                                          {notaGral}
+                                      </div>
+                                  ) : null;
+                              })()}
                             </th>
                           ))}
                         </tr>
@@ -409,6 +442,11 @@ function ComparativaAgrupada({
                                     ? <span style={{ color: '#c7d5e6' }}>—</span>
                                     : <div>
                                         <div>{resp.precio !== undefined ? `${Number(resp.precio).toFixed(2)} €` : '—'}</div>
+                                        {resp.comentario && (
+                                          <div style={{ fontSize: '0.68rem', color: '#9ca3af', marginTop: 2, fontStyle: 'italic', textAlign: 'left', maxWidth: 140, whiteSpace: 'normal', lineHeight: 1.3 }}>
+                                            {resp.comentario}
+                                          </div>
+                                        )}
                                       </div>
                                   }
                                 </td>
@@ -489,6 +527,7 @@ export default function Comparativa({ setSessionCache }) {
   const [bc3Project, setBc3Project] = useState('');
   const [bc3Name, setBc3Name] = useState('');
   const [bc3Loading, setBc3Loading] = useState(false);
+  const [bc3DragOver, setBc3DragOver] = useState(false);
 
   // Competidores externos (solo en memoria, no se guardan en BD)
   const [competenciasLocales, setCompetenciasLocales] = useState([]);
@@ -865,6 +904,18 @@ export default function Comparativa({ setSessionCache }) {
     if (file) {
       setBc3File(file);
       setBc3FileName(file.name);
+    }
+  };
+
+  const handleBc3Drop = (e) => {
+    e.preventDefault();
+    setBc3DragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.toLowerCase().endsWith('.bc3')) {
+      setBc3File(file);
+      setBc3FileName(file.name);
+    } else if (file) {
+      showToast('Por favor, suelta un archivo .bc3 válido.', 'error');
     }
   };
 
@@ -1287,7 +1338,7 @@ export default function Comparativa({ setSessionCache }) {
                       <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#111827' }}>
                           Añadir BC3 de la Competencia
                       </h3>
-                      <button onClick={() => setModalBC3(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                      <button onClick={() => { setModalBC3(false); setBc3DragOver(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                           <X size={24} color="#6b7280" />
                       </button>
                   </div>
@@ -1317,27 +1368,36 @@ export default function Comparativa({ setSessionCache }) {
 
                   <div style={{ marginBottom: '25px' }}>
                       <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, fontSize: '0.9rem' }}>Archivo BC3:</label>
-                      <label style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                          padding: '20px', border: '2px dashed #c7d5e6', borderRadius: '8px', cursor: 'pointer',
-                          background: '#e5edf7', transition: 'border .2s'
-                      }}>
-                          <Upload size={32} color="#9ca3af" style={{ marginBottom: '10px' }} />
-                          <span style={{ fontSize: '0.9rem', color: '#6b7280', fontWeight: 500 }}>
-                              {bc3FileName || 'Haz clic para seleccionar el archivo .bc3'}
+                      <label
+                          style={{
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                              padding: '24px 20px', borderRadius: '8px', cursor: 'pointer', transition: 'border .2s, background .2s',
+                              border: bc3DragOver ? '2px dashed #8b5cf6' : (bc3File ? '2px solid #059669' : '2px dashed #c7d5e6'),
+                              background: bc3DragOver ? '#f5f3ff' : (bc3File ? '#ecfdf5' : '#e5edf7'),
+                          }}
+                          onDragOver={(e) => { e.preventDefault(); setBc3DragOver(true); }}
+                          onDragLeave={() => setBc3DragOver(false)}
+                          onDrop={handleBc3Drop}
+                      >
+                          <Upload size={32} color={bc3DragOver ? '#8b5cf6' : bc3File ? '#059669' : '#9ca3af'} style={{ marginBottom: '10px' }} />
+                          <span style={{ fontSize: '0.9rem', color: bc3File ? '#059669' : '#6b7280', fontWeight: 500, textAlign: 'center' }}>
+                              {bc3FileName || (bc3DragOver ? 'Suelta el archivo .bc3 aquí' : 'Arrastra el .bc3 aquí o haz clic para buscar')}
                           </span>
-                          <input 
-                              type="file" 
-                              accept=".bc3" 
-                              onChange={handleBc3FileChange} 
+                          {!bc3File && (
+                              <span style={{ fontSize: '0.78rem', color: '#9ca3af', marginTop: 4 }}>Solo archivos .bc3</span>
+                          )}
+                          <input
+                              type="file"
+                              accept=".bc3"
+                              onChange={handleBc3FileChange}
                               style={{ display: 'none' }}
                           />
                       </label>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                      <button 
-                          onClick={() => setModalBC3(false)}
+                      <button
+                          onClick={() => { setModalBC3(false); setBc3DragOver(false); }}
                           style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #c7d5e6', background: 'white', cursor: 'pointer', fontWeight: 600 }}
                       >
                           Cancelar
