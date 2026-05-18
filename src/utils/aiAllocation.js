@@ -201,7 +201,8 @@ ${bloquesContexto.join('\n\n---\n\n')}`;
                     asignacionesFinales[item.cap] = {
                         oficio: info.oficio,
                         precio: info.precio || 0,
-                        unidad: info.unidad || 'ud',
+                        // Preservar unidad existente (BC3/manual). Solo asignar si está vacía.
+                        unidad: item.unidad || info.unidad || 'ud',
                         justificacion: info.justificacion || "S/Ref",
                         needsQuote: (info.precio === 0)
                     };

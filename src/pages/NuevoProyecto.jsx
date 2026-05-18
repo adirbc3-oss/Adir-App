@@ -137,6 +137,7 @@ const NuevoProyecto = () => {
                     texto_partida: `${p['Capítulo']}::${p['Descripción']}`,
                     oficio_asignado: null,
                     cantidad: Number(p.Cantidad) || 1,
+                    unidad: p.Unidad || p.unidad || null,
                     // precio_base_estimado = precio UNITARIO del ~C
                     precio_base_estimado: Number(p['Precio Total (€)']) || 0
                 }));
