@@ -1004,9 +1004,13 @@ export default function Comparativa({ setSessionCache }) {
 
       setCompetenciasLocales(prev => [...prev, newComp]);
       showToast(`✅ BC3 de "${bc3Name}" cargado correctamente.`, 'success');
-      
+
+      // Auto-seleccionar el proyecto y cambiar a la vista global para que se vea inmediatamente
+      const targetProject = bc3Project;
       setModalBC3(false);
       setBc3File(null); setBc3FileName(''); setBc3Name(''); setBc3Project('');
+      setProyectoSel(targetProject);
+      setVista('proyectos');
 
     } catch (e) {
       console.error('[BC3] Error fatal:', e);
@@ -1175,18 +1179,42 @@ export default function Comparativa({ setSessionCache }) {
             />
           )}
           {vista === 'proyectos' && (
-             <ComparativaAgrupada
-               comparativa={comparativa}
-               oficiosAbiertos={oficiosAbiertos}
-               toggleGrupo={toggleGrupo}
-               adjudicaciones={adjudicaciones}
-               adjudicar={adjudicar}
-               adjudicando={adjudicando}
-               estadoBadge={estadoBadge}
-               propuestas={allPropuestas}
-               openModalCompetencia={handleOpenCompetencia}
-               isGlobalView={true}
-             />
+            !proyectoSel ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                <Briefcase size={48} color="var(--accent-primary)" style={{ opacity: 0.4, marginBottom: 16 }} />
+                <h3 style={{ margin: '0 0 8px', color: 'var(--text-primary)' }}>Selecciona un proyecto</h3>
+                <p style={{ margin: '0 0 20px', fontSize: '0.9rem' }}>
+                  Elige un proyecto en el filtro superior y luego sube un BC3 de competencia para comparar.
+                </p>
+                <button onClick={() => setModalBC3(true)} style={{ padding: '10px 20px', borderRadius: 8, background: 'var(--accent-primary)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <Upload size={16} /> Añadir Competencia (BC3)
+                </button>
+              </div>
+            ) : Object.keys(comparativaGlobal).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                <BarChart2 size={48} color="var(--accent-primary)" style={{ opacity: 0.4, marginBottom: 16 }} />
+                <h3 style={{ margin: '0 0 8px', color: 'var(--text-primary)' }}>No hay datos comparables aún</h3>
+                <p style={{ margin: '0 0 20px', fontSize: '0.9rem' }}>
+                  Sube un BC3 de un competidor para ver la comparativa del proyecto <strong>{proyectoSel}</strong>.
+                </p>
+                <button onClick={() => setModalBC3(true)} style={{ padding: '10px 20px', borderRadius: 8, background: '#8b5cf6', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <Upload size={16} /> Añadir Competencia (BC3)
+                </button>
+              </div>
+            ) : (
+              <ComparativaAgrupada
+                comparativa={comparativaGlobal}
+                oficiosAbiertos={oficiosAbiertos}
+                toggleGrupo={toggleGrupo}
+                adjudicaciones={adjudicaciones}
+                adjudicar={adjudicar}
+                adjudicando={adjudicando}
+                estadoBadge={estadoBadge}
+                propuestas={allPropuestas}
+                openModalCompetencia={handleOpenCompetencia}
+                isGlobalView={true}
+              />
+            )
           )}
         </>
       )}
