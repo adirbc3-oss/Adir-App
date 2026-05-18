@@ -465,7 +465,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     return {
                         ...p,
                         "Precio Total (€)": adirMatch.precio,
-                        "Unidad IA": adirMatch.unidad || p["Unidad IA"] || "ud",
+                        // La unidad NO se toca — la asigna la IA o viene del BC3
                         isModified: true,
                         origen_modificacion: 'Base ADIR'
                     };
@@ -478,7 +478,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     return {
                         ...p,
                         "Precio Total (€)": histExact.precio,
-                        "Unidad IA": histExact.unidad || p["Unidad IA"] || "ud",
+                        // La unidad NO se toca — la asigna la IA o viene del BC3
                         isModified: true,
                         origen_modificacion: 'Histórico'
                     };
@@ -491,7 +491,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     return {
                         ...p,
                         "Precio Total (€)": histCode.precio,
-                        "Unidad IA": histCode.unidad || p["Unidad IA"] || "ud",
+                        // La unidad NO se toca — la asigna la IA o viene del BC3
                         isModified: true,
                         origen_modificacion: 'Histórico (código)'
                     };
@@ -528,12 +528,18 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 const info = resultado.asignaciones[p.Capítulo];
                 if (info && info.oficio && info.oficio !== "Sin asignar") {
                     aplicadas++;
+                    // Unidad: solo se asigna si el campo está vacío.
+                    // info.unidad_por_ia indica que Mistral la ha propuesto (campo vacío previo).
+                    const unidadActual = p["Unidad IA"] || "";
+                    const unidadFinal = unidadActual || info.unidad || "";
+                    const unidadPorIA = !unidadActual && !!info.unidad && !!info.unidad_por_ia;
                     return {
                         ...p,
                         "Oficio Asignado": info.oficio,
                         "Precio IA": info.precio || 0,
                         "Justificacion IA": info.justificacion || "",
-                        "Unidad IA": info.unidad || p["Unidad IA"] || "ud",
+                        "Unidad IA": unidadFinal,
+                        unidad_asignada_por_ia: unidadPorIA,
                         isModified: true,
                         origen_modificacion: 'IA'
                         // "Precio Total (€)" NO se toca — es el precio real que edita el usuario
@@ -570,6 +576,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     const updateUnidad = (idx, newVal) => {
         const copy = [...partidas];
         copy[idx]["Unidad IA"] = newVal;
+        copy[idx].unidad_asignada_por_ia = false; // el usuario la edita manualmente → quitar naranja
         copy[idx].isModified = true;
         setPartidas(copy);
         setHasUnsavedChanges(true);
@@ -942,7 +949,25 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                                     />}
                                                 </td>
                                                 <td style={{ ...emptyCell }}>
-                                                    {esPartida && <input type="text" value={p['Unidad IA']} onChange={(e) => updateUnidad(idx, e.target.value)} style={{ width: '55px', textAlign: 'center', border: '1px solid var(--border-color)', borderRadius: '4px' }} />}
+                                                    {esPartida && (
+                                                        <input
+                                                            type="text"
+                                                            value={p['Unidad IA']}
+                                                            onChange={(e) => updateUnidad(idx, e.target.value)}
+                                                            title={p.unidad_asignada_por_ia ? '🤖 Unidad asignada por IA — edita para confirmar' : ''}
+                                                            style={{
+                                                                width: '55px',
+                                                                textAlign: 'center',
+                                                                borderRadius: '4px',
+                                                                border: p.unidad_asignada_por_ia
+                                                                    ? '1.5px solid #f97316'
+                                                                    : '1px solid var(--border-color)',
+                                                                background: p.unidad_asignada_por_ia ? '#fff7ed' : undefined,
+                                                                color: p.unidad_asignada_por_ia ? '#c2410c' : undefined,
+                                                                fontWeight: p.unidad_asignada_por_ia ? '700' : undefined,
+                                                            }}
+                                                        />
+                                                    )}
                                                 </td>
                                                 <td style={{ textAlign: 'right', verticalAlign: 'middle' }}>
                                                     {esPartida && (

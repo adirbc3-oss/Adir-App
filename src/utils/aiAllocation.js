@@ -125,19 +125,21 @@ export const asignarProveedoresIA = async (partidas, proveedores, onProgress) =>
                 getCypeContext(item.desc),
             ]);
 
-            // Unidad: prioridad BC3/manual → histórico → null (la IA no asigna unidades)
-            const unidadFinal = item.unidad || histResult.unidad || null;
+            // Unidad: prioridad BC3/manual → histórico → Mistral la decide si sigue vacía
+            const unidadPrevia = item.unidad || histResult.unidad || null;
+            const tieneUnidadPrevia = !!unidadPrevia;
 
             let combinedContext = "";
             if (adirContext) combinedContext += `\nBASE DE PRECIOS ADIR (PRIORIDAD ALTA):\n${adirContext}`;
             if (histResult.context) combinedContext += `\nDATOS HISTÓRICOS ADJUDICADOS:\n${histResult.context}`;
             combinedContext += `\nDATOS CYPE MURCIA:\n${cypeContext}`;
 
-            const unidadInfo = unidadFinal ? `\nUNIDAD: ${unidadFinal}` : '';
+            const unidadInfo = unidadPrevia ? `\nUNIDAD: ${unidadPrevia}` : '';
 
             return {
                 contextStr: `TAREA ID: ${item.id}\nDESCRIPCIÓN: ${item.desc}${unidadInfo}\n${combinedContext}`,
-                unidad: unidadFinal,
+                unidad: unidadPrevia,
+                tieneUnidadPrevia,
             };
         });
 
@@ -163,11 +165,23 @@ REGLAS PARA ASIGNAR OFICIO (lista OFICIOS POSIBLES):
 
 OFICIOS POSIBLES: ${oficiosDisponibles}
 
+REGLAS PARA ASIGNAR UNIDAD DE MEDIDA:
+- Si la tarea YA tiene campo "UNIDAD:" → devuelve unidad: null (no la toques).
+- Si la tarea NO tiene campo "UNIDAD:" → elige la unidad más apropiada según la descripción:
+  m2 = superficies (pintura, alicatado, solado, falso techo, trasdosado...)
+  ml = longitudes lineales (rodapié, canalón, tira led, conducto...)
+  m3 = volúmenes (excavación, hormigón, relleno...)
+  ud = unidades completas (sanitario, puerta, luminaria, cuadro, split...)
+  pa = partida alzada (instalación completa, medios auxiliares, gestión...)
+  h  = horas de trabajo (trabajos extra, jornadas...)
+  kg = peso (acero, ferralla...)
+
 Responde ÚNICAMENTE con JSON válido:
 {"asignaciones": {
   "<TAREA ID>": {
     "oficio": "<oficio de la lista>",
     "precio": <numero sin simbolo €>,
+    "unidad": "<m2/ml/m3/ud/pa/h/kg o null si ya tenia UNIDAD>",
     "justificacion": "<Base ADIR / Histórico / CYPE / Estimación — una línea>"
   }
 }}
@@ -194,12 +208,19 @@ ${bloquesContexto.map(b => b.contextStr).join('\n\n---\n\n')}`;
             batch.forEach((item, batchIdx) => {
                 const info = lote[item.id];
                 if (info && info.oficio && info.oficio !== "Sin asignar") {
-                    // Unidad: BC3/manual > histórico > null. La IA no asigna unidades.
-                    const unidad = bloquesContexto[batchIdx].unidad || null;
+                    const ctx = bloquesContexto[batchIdx];
+                    // Si ya había unidad previa (BC3/manual/histórico), respetarla siempre.
+                    // Si no había, usar la que propone Mistral (puede ser null si no sabe).
+                    const unidadFinal = ctx.tieneUnidadPrevia
+                        ? ctx.unidad
+                        : (info.unidad && info.unidad !== 'null' ? info.unidad : null);
+                    const unidad_por_ia = !ctx.tieneUnidadPrevia && !!unidadFinal;
+
                     asignacionesFinales[item.cap] = {
                         oficio: info.oficio,
                         precio: info.precio || 0,
-                        unidad,
+                        unidad: unidadFinal,
+                        unidad_por_ia,
                         justificacion: info.justificacion || "S/Ref",
                         needsQuote: (info.precio === 0)
                     };
