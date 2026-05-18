@@ -9,6 +9,20 @@ const VERDE       = [5, 150, 105];   // --success: #059669
 const GRIS_TEXTO  = [80, 80, 80];
 const GRIS_MUTED  = [140, 140, 140];
 const GRIS_FILA   = [248, 249, 252]; // Fila alternada tabla
+// Jerarquía 3 niveles en tabla PDF
+const CAP_FILL    = [220, 231, 242]; // #dce7f2 — fondo capítulo (igual que UI Borradores)
+const SUB_FILL    = [236, 242, 249]; // más claro — fondo subcapítulo
+const SUB_TEXT    = [42, 90, 138];   // #2a5a8a — texto subcapítulo
+
+// Clasificador de fila (capítulo / subcapítulo / partida) — sincronizado con UI
+const getFilaTipoPDF = (p) => {
+    const cap = (p.Capítulo || p.Capitulo || '').trim();
+    if (!cap.endsWith('#')) return 'partida';
+    const limpio = cap.replace(/#$/, '');
+    if (limpio === '99_EXTRAS') return 'capitulo';
+    if (limpio.includes('.')) return 'subcapitulo';
+    return 'capitulo';
+};
 
 // Helper para limpiar descripciones en el PDF (eliminar prefijo de capítulo y caracteres de tubería '|')
 const cleanDesc = (text) => {
@@ -114,7 +128,7 @@ export function generarPresupuestoPDF(data) {
     const filas = [];
     let totalCalculado = 0;
     (partidas || []).forEach(p => {
-        const esCapitulo = p.Capítulo?.endsWith('#') || p.Capitulo?.endsWith('#');
+        const tipo   = getFilaTipoPDF(p);
         const cap    = (p.Capítulo || p.Capitulo || '').replace(/#+/g, '').trim();
         const desc   = cleanDesc(p.Descripción || p.Descripcion || p.texto_partida || '').substring(0, 120);
         const precio = parseFloat(p['Precio Total (€)'] || p.precio || 0);
@@ -122,13 +136,22 @@ export function generarPresupuestoPDF(data) {
         const unidad = (p['Unidad IA'] || p.unidad || 'ud').trim();
         const total  = precio * cant;
 
-        if (esCapitulo) {
+        if (tipo === 'capitulo') {
+            // Capítulo principal — fondo azul oscuro, texto AZUL en negrita (= UI Borradores)
             filas.push([
-                { content: cap, styles: { fontStyle: 'bold', fillColor: [226, 232, 240], textColor: AZUL } },
-                { content: desc, styles: { fontStyle: 'bold', fillColor: [226, 232, 240], textColor: GRIS_TEXTO, colSpan: 4 } },
-                { content: '', styles: { fillColor: [226, 232, 240] } },
+                { content: cap, styles: { fontStyle: 'bold', fillColor: CAP_FILL, textColor: AZUL } },
+                { content: desc, styles: { fontStyle: 'bold', fillColor: CAP_FILL, textColor: AZUL, colSpan: 4 } },
+                { content: '', styles: { fillColor: CAP_FILL } },
+            ]);
+        } else if (tipo === 'subcapitulo') {
+            // Subcapítulo — fondo azul claro, texto azul medio (= var(--bg-secondary) en UI)
+            filas.push([
+                { content: cap, styles: { fontStyle: 'bold', fillColor: SUB_FILL, textColor: SUB_TEXT } },
+                { content: desc, styles: { fontStyle: 'bold', fillColor: SUB_FILL, textColor: SUB_TEXT, colSpan: 4 } },
+                { content: '', styles: { fillColor: SUB_FILL } },
             ]);
         } else {
+            // Partida real — precio/ud × cantidad
             totalCalculado += total;
             filas.push([
                 { content: cap, styles: { halign: 'center' } },

@@ -116,6 +116,15 @@ const Portal = () => {
       });
 
       if (!res.ok) throw new Error("Error de conexión con el sistema.");
+
+      // Guardar comentarios_generales directamente en Supabase (respaldo por si n8n no lo persiste)
+      if (comentariosGenerales && comentariosGenerales.trim()) {
+        await supabase
+          .from('solicitudes')
+          .update({ comentarios_generales: comentariosGenerales.trim() })
+          .eq('id', solicitud.id);
+      }
+
       setSuccess(true);
     } catch (err) {
       showToast(err.message, 'error');
