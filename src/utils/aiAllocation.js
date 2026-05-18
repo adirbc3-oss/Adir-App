@@ -14,24 +14,26 @@ export const TODOS_LOS_OFICIOS = [
 const BATCH_SIZE = 6;
 
 /**
- * Búsqueda en históricos adjudicados.
+ * Búsqueda en históricos adjudicados. Devuelve { context, unidad }.
  */
 const getHistoricalContext = async (descripcion) => {
     try {
-        if (!descripcion || descripcion.length < 5) return "";
-        const cleanDesc = descripcion.substring(0, 20); // Buscar por el inicio de la descripción
+        if (!descripcion || descripcion.length < 5) return { context: "", unidad: null };
+        const cleanDesc = descripcion.substring(0, 20);
         const { data } = await supabase
             .from('partidas')
-            .select('texto_partida, precio_adjudicado')
+            .select('texto_partida, precio_adjudicado, unidad')
             .ilike('texto_partida', `%${cleanDesc}%`)
             .gt('precio_adjudicado', 0)
             .limit(2);
 
-        if (!data || data.length === 0) return "";
-        return data.map(r => 
+        if (!data || data.length === 0) return { context: "", unidad: null };
+        const unidad = data.find(r => r.unidad)?.unidad || null;
+        const context = data.map(r =>
             `- [HISTÓRICO REAL]: ${r.texto_partida} (Adjudicado por ${r.precio_adjudicado}€)`
         ).join('\n');
-    } catch (e) { return ""; }
+        return { context, unidad };
+    } catch (e) { return { context: "", unidad: null }; }
 };
 
 /**
@@ -117,20 +119,28 @@ export const asignarProveedoresIA = async (partidas, proveedores, onProgress) =>
         const batch = itemsParaIA.slice(i, i + BATCH_SIZE);
         
         const contextPromises = batch.map(async (item) => {
-            const adirContext = await getAdirContext(item.desc);
-            const histContext = await getHistoricalContext(item.desc);
-            const cypeContext = await getCypeContext(item.desc);
+            const [adirContext, histResult, cypeContext] = await Promise.all([
+                getAdirContext(item.desc),
+                getHistoricalContext(item.desc),
+                getCypeContext(item.desc),
+            ]);
+
+            // Unidad: prioridad BC3/manual → histórico → null (la IA no asigna unidades)
+            const unidadFinal = item.unidad || histResult.unidad || null;
 
             let combinedContext = "";
             if (adirContext) combinedContext += `\nBASE DE PRECIOS ADIR (PRIORIDAD ALTA):\n${adirContext}`;
-            if (histContext) combinedContext += `\nDATOS HISTÓRICOS ADJUDICADOS:\n${histContext}`;
+            if (histResult.context) combinedContext += `\nDATOS HISTÓRICOS ADJUDICADOS:\n${histResult.context}`;
             combinedContext += `\nDATOS CYPE MURCIA:\n${cypeContext}`;
 
-            const unidadActual = item.unidad ? `\nUNIDAD ACTUAL: ${item.unidad}` : '\nUNIDAD ACTUAL: (sin asignar — asignar la más apropiada)';
+            const unidadInfo = unidadFinal ? `\nUNIDAD: ${unidadFinal}` : '';
 
-            return `TAREA ID: ${item.id}\nDESCRIPCIÓN: ${item.desc}${unidadActual}\n${combinedContext}`;
+            return {
+                contextStr: `TAREA ID: ${item.id}\nDESCRIPCIÓN: ${item.desc}${unidadInfo}\n${combinedContext}`,
+                unidad: unidadFinal,
+            };
         });
-        
+
         const bloquesContexto = await Promise.all(contextPromises);
 
         const prompt = `Eres Auditor de Costos de Construcción 2026. Valora estas TAREAS de obra.
@@ -142,7 +152,7 @@ REGLAS PARA ASIGNAR PRECIO (ORDEN DE PRIORIDAD):
 4. Si ninguna fuente tiene dato, estima el precio razonable para Murcia 2026.
 
 REGLAS PARA ASIGNAR OFICIO (lista OFICIOS POSIBLES):
-1. Siempre elige UN Proveedores de la lista "OFICIOS POSIBLES".
+1. Siempre elige UN oficio de la lista "OFICIOS POSIBLES".
 2. Fontanería: bañera, grifo, PVC, tubo, sanitario, desagüe.
 3. Carpintería de Madera: puertas, muebles, tarima, parquet.
 4. Demolición: derribar, tirar, desmontar, demoler.
@@ -151,33 +161,19 @@ REGLAS PARA ASIGNAR OFICIO (lista OFICIOS POSIBLES):
 7. Solados y Alicatados: suelo, pavimento, cerámica, porcelánico, gres.
 8. Pintura: pintar, pintura, imprimación, barniz.
 
-REGLAS PARA ASIGNAR UNIDAD:
-- Si la partida ya tiene UNIDAD ACTUAL asignada, mantenla sin cambiarla.
-- Si UNIDAD ACTUAL está "(sin asignar)", elige la más apropiada:
-  * "ud": trabajos completos (instalar cocina, sanitario, puerta, ventana, aparato), cuando son unidades contables
-  * "m2": superficies (pintura, alicatado, solado, falso techo, impermeabilización, enfoscado)
-  * "ml": lineales (rodapiés, tubería, perfil, canaleta, zócalo, bajante)
-  * "m3": volúmenes (excavación, relleno, hormigón, movimiento de tierras)
-  * "kg": peso (acero, ferralla, escombros en tonelaje pequeño)
-  * "t": toneladas (escombros, áridos en grande)
-  * "h": horas (asistencia técnica, mano de obra genérica)
-  * "pa": partida alzada (presupuesto global sin medición exacta)
-  * "mes": trabajos continuados por mes (limpieza periódica, vigilancia)
-
 OFICIOS POSIBLES: ${oficiosDisponibles}
 
 Responde ÚNICAMENTE con JSON válido:
 {"asignaciones": {
   "<TAREA ID>": {
-    "oficio": "<Proveedores de la lista>",
+    "oficio": "<oficio de la lista>",
     "precio": <numero sin simbolo €>,
-    "unidad": "<unidad elegida>",
     "justificacion": "<Base ADIR / Histórico / CYPE / Estimación — una línea>"
   }
 }}
 
 PAQUETE DE EVALUACIÓN:
-${bloquesContexto.join('\n\n---\n\n')}`;
+${bloquesContexto.map(b => b.contextStr).join('\n\n---\n\n')}`;
 
         const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
             method: 'POST',
@@ -195,14 +191,15 @@ ${bloquesContexto.join('\n\n---\n\n')}`;
             const content = JSON.parse(data.choices?.[0]?.message?.content || '{}');
             const lote = content.asignaciones || {};
             
-            batch.forEach(item => {
-                const info = lote[item.id]; // Usar ID único en lugar de la descripción evita fallos tipográficos de Mistral
+            batch.forEach((item, batchIdx) => {
+                const info = lote[item.id];
                 if (info && info.oficio && info.oficio !== "Sin asignar") {
+                    // Unidad: BC3/manual > histórico > null. La IA no asigna unidades.
+                    const unidad = bloquesContexto[batchIdx].unidad || null;
                     asignacionesFinales[item.cap] = {
                         oficio: info.oficio,
                         precio: info.precio || 0,
-                        // Preservar unidad existente (BC3/manual). Solo asignar si está vacía.
-                        unidad: item.unidad || info.unidad || 'ud',
+                        unidad,
                         justificacion: info.justificacion || "S/Ref",
                         needsQuote: (info.precio === 0)
                     };
