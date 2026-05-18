@@ -73,10 +73,12 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
       })
       .filter(({ resps }) => resps.length > 0)
       .sort((a, b) => {
-        // Ordenar por la solicitud más reciente (fecha_envio como fallback)
-        const dateA = a.sol.fecha_envio || '';
-        const dateB = b.sol.fecha_envio || '';
-        return dateB.localeCompare(dateA);
+        // Ordenar por fecha de RESPUESTA más reciente (created_at de respuestas), más reciente arriba
+        const fechaRespA = a.resps.reduce((max, r) => (r.created_at > max ? r.created_at : max), '');
+        const fechaRespB = b.resps.reduce((max, r) => (r.created_at > max ? r.created_at : max), '');
+        if (fechaRespA && fechaRespB) return fechaRespB.localeCompare(fechaRespA);
+        // Fallback: fecha_envio de la solicitud
+        return (b.sol.fecha_envio || '').localeCompare(a.sol.fecha_envio || '');
       });
   }, [solicitudes, respuestas, proyectoSel, oficioSel]);
 

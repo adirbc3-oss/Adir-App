@@ -117,7 +117,23 @@ const Portal = () => {
 
       if (!res.ok) throw new Error("Error de conexión con el sistema.");
 
-      // Guardar comentarios_generales directamente en Supabase (respaldo por si n8n no lo persiste)
+      // ── Guardar directamente en Supabase lo que n8n puede no persistir ────────
+
+      // 1. Comentarios por partida → actualizar cada fila de respuestas
+      //    (n8n guarda precio_ofertado pero a veces omite el campo comentarios)
+      const partidsConComentario = partidas.filter(p => comentarios[p.id] && comentarios[p.id].trim());
+      if (partidsConComentario.length > 0) {
+        await Promise.all(
+          partidsConComentario.map(p =>
+            supabase.from('respuestas')
+              .update({ comentarios: comentarios[p.id].trim() })
+              .eq('solicitud_id', solicitud.id)
+              .eq('partida_id', p.id)
+          )
+        );
+      }
+
+      // 2. Anotaciones generales → solicitudes.comentarios_generales
       if (comentariosGenerales && comentariosGenerales.trim()) {
         await supabase
           .from('solicitudes')
