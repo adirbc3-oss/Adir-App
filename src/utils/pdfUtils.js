@@ -104,33 +104,38 @@ export function generarPresupuestoPDF(data) {
 
     // ── 3. TABLA DE PARTIDAS ───────────────────────────────────────────────────
     const filas = [];
+    let totalCalculado = 0;
     (partidas || []).forEach(p => {
         const esCapitulo = p.Capítulo?.endsWith('#') || p.Capitulo?.endsWith('#');
         const cap    = (p.Capítulo || p.Capitulo || '').replace(/#+/g, '').trim();
-        const desc   = (p.Descripción || p.Descripcion || p.texto_partida || '').substring(0, 100);
+        const desc   = (p.Descripción || p.Descripcion || p.texto_partida || '').replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim().substring(0, 120);
         const precio = parseFloat(p['Precio Total (€)'] || p.precio || 0);
         const cant   = parseFloat(p.Cantidad || p.cantidad || 1);
-        const unidad = p['Unidad IA'] || p.unidad || 'ud';
+        const unidad = (p['Unidad IA'] || p.unidad || 'ud').trim();
+        const total  = precio * cant;
 
         if (esCapitulo) {
             filas.push([
                 { content: cap, styles: { fontStyle: 'bold', fillColor: [226, 232, 240], textColor: AZUL } },
-                { content: desc, styles: { fontStyle: 'bold', fillColor: [226, 232, 240], textColor: GRIS_TEXTO, colSpan: 2 } },
+                { content: desc, styles: { fontStyle: 'bold', fillColor: [226, 232, 240], textColor: GRIS_TEXTO, colSpan: 4 } },
                 { content: '', styles: { fillColor: [226, 232, 240] } },
             ]);
         } else {
+            totalCalculado += total;
             filas.push([
                 { content: cap, styles: { halign: 'center' } },
                 desc,
-                { content: cant + ' ' + unidad, styles: { halign: 'center' } },
+                { content: cant.toLocaleString('es-ES', { maximumFractionDigits: 2 }), styles: { halign: 'center' } },
+                { content: unidad, styles: { halign: 'center' } },
                 { content: precio.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right', fontStyle: precio > 0 ? 'normal' : 'italic', textColor: precio > 0 ? GRIS_TEXTO : GRIS_MUTED } },
+                { content: total.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right', fontStyle: 'bold', textColor: total > 0 ? AZUL : GRIS_MUTED } },
             ]);
         }
     });
 
     autoTable(doc, {
         startY: 75,
-        head: [['Cap.', 'Descripción de la Partida', 'Cantidad', 'Precio (€)']],
+        head: [['Cap.', 'Descripción', 'Cant.', 'Ud.', 'Precio/ud (€)', 'Total (€)']],
         body: filas,
         theme: 'plain',
         headStyles: {
@@ -148,16 +153,19 @@ export function generarPresupuestoPDF(data) {
         },
         alternateRowStyles: { fillColor: GRIS_FILA },
         columnStyles: {
-            0: { cellWidth: 18, halign: 'center' },
-            2: { cellWidth: 22, halign: 'center' },
-            3: { cellWidth: 32, halign: 'right' },
+            0: { cellWidth: 14, halign: 'center' },
+            2: { cellWidth: 16, halign: 'center' },
+            3: { cellWidth: 12, halign: 'center' },
+            4: { cellWidth: 28, halign: 'right' },
+            5: { cellWidth: 28, halign: 'right' },
         },
         margin: { left: 14, right: 14 },
     });
 
     // ── 4. TOTAL ───────────────────────────────────────────────────────────────
     const tableEnd = (doc.lastAutoTable?.finalY || 80) + 8;
-    const totalStr = parseFloat(precio_total || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €';
+    const totalFinal = totalCalculado > 0 ? totalCalculado : parseFloat(precio_total || 0);
+    const totalStr = totalFinal.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €';
 
     doc.setFillColor(...AZUL_LIGHT);
     doc.roundedRect(W - 90, tableEnd - 2, 76, 18, 3, 3, 'F');

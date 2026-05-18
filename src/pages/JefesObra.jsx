@@ -110,7 +110,7 @@ const JefesObra = () => {
             
             const mapped = (pData || []).map(p => {
                 const capCode = p.texto_partida ? p.texto_partida.split('::')[0] : "";
-                const descClean = p.texto_partida ? (p.texto_partida.includes('::') ? p.texto_partida.split('::').slice(1).join('::') : p.texto_partida) : "";
+                const descClean = p.texto_partida ? (p.texto_partida.includes('::') ? p.texto_partida.split('::').slice(1).join('::') : p.texto_partida).replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim() : "";
                 const finalPrice = (p.precio_adjudicado && parseFloat(p.precio_adjudicado) > 0) 
                     ? parseFloat(p.precio_adjudicado) 
                     : (p.precio_base_estimado || 0);
@@ -357,7 +357,7 @@ const JefesObra = () => {
             const token = crypto.randomUUID();
             const precioTotal = partidas
                 .filter(p => !p.Capítulo?.endsWith('#'))
-                .reduce((acc, p) => acc + (parseFloat(p['Precio Total (€)']) || 0), 0);
+                .reduce((acc, p) => acc + (parseFloat(p['Precio Total (€)']) || 0) * (parseFloat(p.Cantidad) || 1), 0);
 
             await supabase.from('presupuestos_cliente').insert({
                 token,
@@ -373,22 +373,36 @@ const JefesObra = () => {
 
             // Construir tabla HTML del presupuesto para incluirla en el email
             const partidasEmail = partidas.filter(p => !p.Capítulo?.endsWith('#'));
-            const filasHtml = partidasEmail.map((p, i) => `
+            const filasHtml = partidasEmail.map((p, i) => {
+                const pUnit = parseFloat(p['Precio Total (€)'] || 0);
+                const cant  = parseFloat(p.Cantidad) || 1;
+                const total = pUnit * cant;
+                const ud    = p['Unidad IA'] || p.unidad || 'ud';
+                return `
                 <tr style="background:${i % 2 === 0 ? '#e5edf7' : '#ffffff'};">
                     <td style="padding:10px 14px;font-size:13px;color:#334155;border-bottom:1px solid #c7d5e6;">
                         ${(p.Descripción || p.texto_partida || '-').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
                     </td>
-                    <td style="padding:10px 14px;font-size:13px;text-align:right;font-weight:600;color:#002D54;border-bottom:1px solid #c7d5e6;white-space:nowrap;">
-                        ${parseFloat(p['Precio Total (€)'] || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                    <td style="padding:10px 14px;font-size:12px;text-align:center;color:#64748b;border-bottom:1px solid #c7d5e6;white-space:nowrap;">
+                        ${cant.toLocaleString('es-ES', { maximumFractionDigits: 2 })} ${ud}
                     </td>
-                </tr>`).join('');
+                    <td style="padding:10px 14px;font-size:12px;text-align:right;color:#64748b;border-bottom:1px solid #c7d5e6;white-space:nowrap;">
+                        ${pUnit.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                    </td>
+                    <td style="padding:10px 14px;font-size:13px;text-align:right;font-weight:600;color:#002D54;border-bottom:1px solid #c7d5e6;white-space:nowrap;">
+                        ${total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                    </td>
+                </tr>`;
+            }).join('');
 
             const htmlPresupuesto = `
                 <table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;margin:16px 0;">
                     <thead>
                         <tr style="background:#002D54;color:white;">
                             <th style="padding:11px 14px;text-align:left;font-size:13px;">Descripción</th>
-                            <th style="padding:11px 14px;text-align:right;font-size:13px;width:130px;">Importe (€)</th>
+                            <th style="padding:11px 14px;text-align:center;font-size:12px;width:100px;">Cantidad</th>
+                            <th style="padding:11px 14px;text-align:right;font-size:12px;width:110px;">Precio/ud (€)</th>
+                            <th style="padding:11px 14px;text-align:right;font-size:13px;width:120px;">Total (€)</th>
                         </tr>
                     </thead>
                     <tbody>${filasHtml}</tbody>
@@ -488,7 +502,7 @@ const JefesObra = () => {
                                 <span style={{ fontWeight: 800, fontSize: '1.4rem', color: 'var(--primary)' }}>
                                     {partidas
                                         .filter(p => !p.Capítulo?.endsWith('#'))
-                                        .reduce((acc, p) => acc + (parseFloat(p['Precio Total (€)']) || 0), 0)
+                                        .reduce((acc, p) => acc + (parseFloat(p['Precio Total (€)']) || 0) * (parseFloat(p.Cantidad) || 1), 0)
                                         .toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                                 </span>
                             </div>
@@ -503,21 +517,22 @@ const JefesObra = () => {
                                         <thead>
                                             <tr>
                                                 <th style={{ width: '50px', textAlign: 'center' }}>
-                                                    <input 
-                                                        type="checkbox" 
-                                                        onChange={toggleAllAprobado} 
+                                                    <input
+                                                        type="checkbox"
+                                                        onChange={toggleAllAprobado}
                                                         checked={partidas.filter(p => !(p.Capítulo && p.Capítulo.endsWith('#'))).length > 0 && partidas.filter(p => !(p.Capítulo && p.Capítulo.endsWith('#'))).every(p => p.aprobado)}
-                                                        style={{ transform: 'scale(1.2)', cursor: 'pointer' }} 
+                                                        style={{ transform: 'scale(1.2)', cursor: 'pointer' }}
                                                         title="Marcar / Desmarcar todas"
                                                     />
                                                 </th>
                                                 <th>Capítulo</th>
                                                 <th>Descripción</th>
                                                 <th style={{ width: '60px', textAlign: 'center' }}>Cant.</th>
-                                                <th style={{ width: '70px', textAlign: 'center' }}>Ud.</th>
-                                                <th style={{ width: '130px' }}>Oficio</th>
+                                                <th style={{ width: '55px', textAlign: 'center' }}>Ud.</th>
+                                                <th style={{ width: '120px' }}>Oficio</th>
                                                 <th>Proveedor / Oferta</th>
-                                                <th style={{ textAlign: 'right' }}>Coste Final (€)</th>
+                                                <th style={{ width: '100px', textAlign: 'right' }}>Precio/ud (€)</th>
+                                                <th style={{ width: '100px', textAlign: 'right' }}>Total (€)</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -600,9 +615,14 @@ const JefesObra = () => {
                                                                         updatePrice(idx, v);
                                                                         setRawInputs(prev => { const n = { ...prev }; delete n[`price_${idx}`]; return n; });
                                                                     }}
-                                                                    style={{ width: '90px', textAlign: 'right', padding: '6px', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: 'var(--bg-card)' }}
+                                                                    style={{ width: '88px', textAlign: 'right', padding: '6px', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: 'var(--bg-card)' }}
                                                                 />
-                                                                />
+                                                            )}
+                                                        </td>
+                                                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                                                            {isChapter ? '' : (
+                                                                ((parseFloat(p['Precio Total (€)']) || 0) * (parseFloat(p.Cantidad) || 1))
+                                                                    .toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
                                                             )}
                                                         </td>
                                                     </tr>

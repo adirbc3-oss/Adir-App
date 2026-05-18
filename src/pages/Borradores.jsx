@@ -734,7 +734,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         try {
             const precioTotal = (partidas || [])
                 .filter(p => !p.Capítulo?.endsWith('#'))
-                .reduce((acc, p) => acc + (parseFloat(p['Precio Total (€)'] || 0)), 0);
+                .reduce((acc, p) => acc + (parseFloat(p['Precio Total (€)'] || 0) * (parseFloat(p.Cantidad) || 1)), 0);
 
             const doc = generarPresupuestoPDF({
                 cliente:      activeProject.cliente || activeProject.Proyecto,
@@ -896,10 +896,11 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                     <tr>
                                         <th style={{ width: '80px' }}>Cap.</th>
                                         <th>Descripción de la Partida</th>
-                                        <th style={{ width: '90px', textAlign: 'center' }}>Cant.</th>
-                                        <th style={{ width: '70px', textAlign: 'center' }}>Ud.</th>
-                                        <th style={{ width: '130px', textAlign: 'right' }}>Precio Real (€)</th>
-                                        <th style={{ width: '130px', textAlign: 'right' }}>Est. IA (€)</th>
+                                        <th style={{ width: '80px', textAlign: 'center' }}>Cant.</th>
+                                        <th style={{ width: '60px', textAlign: 'center' }}>Ud.</th>
+                                        <th style={{ width: '120px', textAlign: 'right' }}>Precio/ud (€)</th>
+                                        <th style={{ width: '120px', textAlign: 'right' }}>Total (€)</th>
+                                        <th style={{ width: '110px', textAlign: 'right' }}>Est. IA (€)</th>
                                         <th style={{ width: '190px' }}>Oficio Asignado</th>
                                     </tr>
                                 </thead>
@@ -990,6 +991,12 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                                                 }}
                                                             />
                                                         </div>
+                                                    )}
+                                                </td>
+                                                <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap', fontSize: '0.88rem', verticalAlign: 'middle' }}>
+                                                    {esPartida && (
+                                                        ((parseFloat(p['Precio Total (€)']) || 0) * (parseFloat(p.Cantidad) || 1))
+                                                            .toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
                                                     )}
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
