@@ -185,7 +185,6 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     Email: p.email, Telefono: p.telefono
                 })));
             });
-            fetchRespuestas(project.Proyecto);
             return;
         }
 
@@ -333,7 +332,6 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     : normalesSorted;
 
                 setPartidas(sorted);
-                fetchRespuestas();
             }
         } catch (error) {
             console.error("Error cargando proyecto", error);
@@ -344,19 +342,6 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             setHasUnsavedChanges(false);
         }
     };
-
-    const fetchRespuestas = React.useCallback(async () => {
-        if (!activeProject || (partidas || []).length === 0) return;
-        try {
-            const { data: respuestasPartidas, error } = await supabase
-                .from('respuestas')
-                .select('*')
-                .in('partida_id', partidas.map(p => p.id));
-            if (error) throw error;
-        } catch (err) {
-            console.error("Error fetching responses:", err);
-        }
-    }, [activeProject, partidas]);
 
     const saveAssignments = async () => {
         setSaving(true);

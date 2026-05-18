@@ -99,6 +99,8 @@ const BandejaEntrada = () => {
         const finalTitle = editTitles[proyectoId] || "Sin Título";
         const finalCliente = editClientes[proyectoId] || '';
         const finalEmail = editEmails[proyectoId] || '';
+        // Si el usuario rellenó "Cliente / Empresa", tiene prioridad sobre el título del proyecto
+        const nombreParaGuardar = finalCliente.trim() || finalTitle;
 
         setActionLoading(prev => ({ ...prev, [proyectoId]: true }));
         try {
@@ -106,14 +108,14 @@ const BandejaEntrada = () => {
                 .from('propuestas')
                 .update({
                     estado: 'Borrador',
-                    cliente: finalTitle,
+                    cliente: nombreParaGuardar,
                     direccion: finalEmail
                 })
                 .eq('Proyecto', proyectoId);
 
             if (error) throw error;
 
-            showToast(`✅ Proyecto "${finalTitle}" aceptado.`);
+            showToast(`✅ Proyecto "${nombreParaGuardar}" aceptado.`);
             setPendientes(prev => prev.filter(p => p.Proyecto !== proyectoId));
         } catch (error) {
             console.error("Error aceptando el proyecto:", error);

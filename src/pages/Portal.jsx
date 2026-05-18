@@ -119,16 +119,23 @@ const Portal = () => {
 
       // ── Guardar directamente en Supabase lo que n8n puede no persistir ────────
 
-      // 1. Comentarios por partida → actualizar cada fila de respuestas
-      //    (n8n guarda precio_ofertado pero a veces omite el campo comentarios)
+      // 1. Comentarios por partida → upsert en respuestas
+      //    Usamos upsert (no update) porque n8n es asíncrono y puede que aún
+      //    no haya creado las filas cuando llegamos aquí. Si ya existen, las
+      //    actualiza; si no, las crea con el comentario ya incluido.
       const partidsConComentario = partidas.filter(p => comentarios[p.id] && comentarios[p.id].trim());
       if (partidsConComentario.length > 0) {
         await Promise.all(
           partidsConComentario.map(p =>
             supabase.from('respuestas')
-              .update({ comentarios: comentarios[p.id].trim() })
-              .eq('solicitud_id', solicitud.id)
-              .eq('partida_id', p.id)
+              .upsert(
+                {
+                  solicitud_id: solicitud.id,
+                  partida_id: p.id,
+                  comentarios: comentarios[p.id].trim()
+                },
+                { onConflict: 'solicitud_id,partida_id', ignoreDuplicates: false }
+              )
           )
         );
       }

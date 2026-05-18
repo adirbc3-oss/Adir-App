@@ -69,14 +69,36 @@ const Proveedores = () => {
     const handleDelete = async (index) => {
         const prov = proveedores[index];
         showConfirm(
-            `¿Seguro que quieres eliminar a ${prov.Nombre}? Esta acción no se puede deshacer.`,
+            `¿Seguro que quieres eliminar a ${prov.Nombre}? Se borrarán también sus solicitudes y respuestas asociadas. Esta acción no se puede deshacer.`,
             async () => {
-                if (prov.id) {
+                if (!prov.id) {
+                    setProveedores(prev => prev.filter((_, i) => i !== index));
+                    return;
+                }
+                try {
+                    // 1. Buscar solicitudes de este proveedor
+                    const { data: sols } = await supabase
+                        .from('solicitudes')
+                        .select('id')
+                        .eq('proveedor_id', prov.id);
+
+                    if (sols && sols.length > 0) {
+                        const solIds = sols.map(s => s.id);
+                        // 2. Borrar respuestas de esas solicitudes
+                        await supabase.from('respuestas').delete().in('solicitud_id', solIds);
+                        // 3. Borrar las solicitudes
+                        await supabase.from('solicitudes').delete().in('id', solIds);
+                    }
+
+                    // 4. Borrar el proveedor
                     const { error } = await supabase.from('proveedores').delete().eq('id', prov.id);
                     if (error) { showToast('Error al borrar: ' + error.message, 'error'); return; }
+
+                    setProveedores(prev => prev.filter((_, i) => i !== index));
+                    showToast('Proveedor y datos asociados eliminados.', 'warning');
+                } catch (err) {
+                    showToast('Error en el borrado: ' + err.message, 'error');
                 }
-                setProveedores(prev => prev.filter((_, i) => i !== index));
-                showToast('Proveedor eliminado.', 'warning');
             },
             { title: 'Eliminar Proveedor', type: 'danger', confirmLabel: 'Sí, eliminar' }
         );
