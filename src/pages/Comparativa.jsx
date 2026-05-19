@@ -306,7 +306,7 @@ function ComparativaAgrupada({
               </div>
             </div>
 
-            {oficiosAbiertos[key] && (
+            {(isGlobalView ? oficiosAbiertos[key] !== false : oficiosAbiertos[key]) && (
               <div>
                 {!isGlobalView && (
                     <div style={s.adjudicarBar}>
@@ -691,57 +691,69 @@ export default function Comparativa({ setSessionCache }) {
   }, [allSolicitudes, allPartidas, allRespuestas, proyectoSel, oficioSel]);
 
   // --- 3b. Lógica de Comparativa Global (Proyectos vs Competencia) ---
+  // UN solo grupo "Proyecto Completo" con TODAS las partidas (sin depender de oficio_asignado)
   const comparativaGlobal = useMemo(() => {
     try {
       if (!proyectoSel) return {};
-      
-      const oficiosDelProyecto = [...new Set(allPartidas.filter(p => p.propuesta_id === proyectoSel).map(p => p.oficio_asignado || p.oficio_necesario).filter(Boolean))];
+
+      // Todas las partidas del proyecto (excluir cabeceras de capítulo)
+      const lineasPartidas = allPartidas.filter(p => {
+        if (p.propuesta_id !== proyectoSel) return false;
+        const cod = p.codigo || (p.texto_partida ? p.texto_partida.split('::')[0] : '') || '';
+        return !cod.trim().endsWith('#'); // excluir capítulos/subcapítulos
+      });
+
+      if (!lineasPartidas.length) return {};
+
+      // Proveedores: solicitudes reales con respuestas (cualquier oficio) + BC3 locales
+      const provMap = new Map();
+      allSolicitudes
+        .filter(s => s.propuesta_id === proyectoSel && allRespuestas.some(r => r.solicitud_id === s.id))
+        .forEach(s => {
+          if (!provMap.has(s.id))
+            provMap.set(s.id, { solicitud_id: s.id, nombre: s.proveedor_nombre || s.proveedor_email || 'Proveedor', esLocal: false });
+        });
+      competenciasLocales.filter(c => c.proyecto === proyectoSel).forEach(comp => {
+        provMap.set(comp.id, { solicitud_id: comp.id, nombre: '(COMP) ' + comp.nombre, esLocal: true, precios: comp.precios });
+      });
+
+      const proveedores = [...provMap.values()];
+      if (!proveedores.length) return {};
+
       const respsMap = {};
       allRespuestas.forEach(r => { if (r.solicitud_id && r.partida_id) respsMap[`${r.solicitud_id}__${r.partida_id}`] = r; });
 
-      const result = {};
-      oficiosDelProyecto.forEach(oficio => {
-        const key = `${oficio}__${proyectoSel}`;
-        const partidasGrupo = allPartidas.filter(p => p.propuesta_id === proyectoSel && (normalize(p.oficio_asignado) === normalize(oficio) || normalize(p.oficio_necesario) === normalize(oficio)));
-        
-        // Proveedores reales (solo si tienen respuestas)
-        const proveedores = allSolicitudes
-          .filter(s => s.propuesta_id === proyectoSel && normalize(s.oficio_solicitado) === normalize(oficio))
-          .filter(s => allRespuestas.some(r => r.solicitud_id === s.id))
-          .map(s => ({ solicitud_id: s.id, nombre: s.proveedor_nombre || 'Prov.', esLocal: false }));
-        
-        // Competencias externas
-        competenciasLocales.filter(c => c.proyecto === proyectoSel).forEach(comp => {
-          proveedores.push({ solicitud_id: comp.id, nombre: '(COMP) ' + comp.nombre, esLocal: true, precios: comp.precios });
-        });
-
-        if (!proveedores.length) return;
-
-        const filas = partidasGrupo.map(p => {
-          const precios = {};
-          for (const prov of proveedores) {
-            if (prov.esLocal) {
+      const filas = lineasPartidas.map(p => {
+        const precios = {};
+        let minPrecio = Infinity, minProvId = null;
+        for (const prov of proveedores) {
+          if (prov.esLocal) {
+            const pCode = normalizeCode(p.codigo || (p.texto_partida ? p.texto_partida.split('::')[0] : ''));
+            const precio = prov.precios[pCode];
+            precios[prov.solicitud_id] = precio !== undefined ? { precio } : null;
+          } else {
+            let resp = respsMap[`${prov.solicitud_id}__${p.id}`];
+            if (!resp) {
               const pCode = normalizeCode(p.codigo || (p.texto_partida ? p.texto_partida.split('::')[0] : ''));
-              precios[prov.solicitud_id] = prov.precios[pCode] ? { precio: prov.precios[pCode] } : null;
-            } else {
-              // Match inteligente para proveedores externos
-              let resp = respsMap[`${prov.solicitud_id}__${p.id}`];
-              if (!resp) {
-                  const pCode = normalizeCode(p.codigo || (p.texto_partida ? p.texto_partida.split('::')[0] : ''));
-                  resp = allRespuestas.find(r => r.solicitud_id === prov.solicitud_id && normalizeCode(r.partida_id) === pCode);
-              }
-              precios[prov.solicitud_id] = resp ? { precio: resp.precio_ofertado } : null;
+              resp = allRespuestas.find(r => r.solicitud_id === prov.solicitud_id && normalizeCode(r.partida_id) === pCode);
             }
+            precios[prov.solicitud_id] = resp ? { precio: resp.precio_ofertado } : null;
           }
-          return { partida: p, precios };
-        });
-
-        const totales = {};
-        proveedores.forEach(prov => { totales[prov.solicitud_id] = filas.reduce((sum, f) => sum + (f.precios[prov.solicitud_id]?.precio || 0), 0); });
-        result[key] = { oficio, proyecto: proyectoSel, proveedores, filas, totales, presupuestoBase: filas.reduce((sum, f) => sum + ((f.partida.precio_base_estimado || 0) * (f.partida.cantidad || 1)), 0) };
+          const pr = precios[prov.solicitud_id]?.precio;
+          if (pr !== undefined && pr < minPrecio) { minPrecio = pr; minProvId = prov.solicitud_id; }
+        }
+        return { partida: p, precios, minProvId };
       });
-      return result;
-    } catch (e) { console.error("Error comparativaGlobal:", e); return {}; }
+
+      const totales = {};
+      proveedores.forEach(prov => {
+        totales[prov.solicitud_id] = filas.reduce((sum, { precios }) => sum + (precios[prov.solicitud_id]?.precio || 0), 0);
+      });
+
+      const presupuestoBase = lineasPartidas.reduce((sum, p) => sum + ((p.precio_base_estimado || 0) * (p.cantidad || 1)), 0);
+      const key = `global__${proyectoSel}`;
+      return { [key]: { oficio: 'Proyecto Completo', proyecto: proyectoSel, proveedores, filas, totales, presupuestoBase } };
+    } catch (e) { console.error('Error comparativaGlobal:', e); return {}; }
   }, [allSolicitudes, allPartidas, allRespuestas, proyectoSel, competenciasLocales]);
 
   const comparativa = vista === 'proyectos' ? comparativaGlobal : comparativaOficios;
