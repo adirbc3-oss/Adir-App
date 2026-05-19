@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { Loader2, Mailbox, CheckCircle, Trash2, Clock, Bell, Archive, Mail, User } from 'lucide-react';
+import { Loader2, Mailbox, CheckCircle, Trash2, Clock, Bell, Archive, Mail, User, UploadCloud, FileText } from 'lucide-react';
 import { useToast } from '../utils/useModal';
+import { parseBC3 } from '../utils/bc3Parser';
 
 const isEmailFormat = (str) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str || '');
 
@@ -170,6 +171,69 @@ const BandejaEntrada = () => {
         }
     };
 
+    const fileInputRef = useRef(null);
+    const [bc3Uploading, setBc3Uploading] = useState(false);
+    const [bc3DragOver, setBc3DragOver] = useState(false);
+
+    const procesarBC3Manual = async (file) => {
+        if (!file || !file.name.toLowerCase().endsWith('.bc3')) {
+            showToast('Selecciona un archivo .bc3 válido.', 'error');
+            return;
+        }
+        setBc3Uploading(true);
+        try {
+            const text = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+                reader.readAsText(file, 'ISO-8859-1');
+            });
+
+            const allItems = parseBC3(text);
+            const projectName = file.name.replace(/\.bc3$/i, '');
+
+            // Evitar colisiones de ID
+            let idUnico = projectName;
+            let suffix = 1;
+            while (true) {
+                const { data: existing } = await supabase.from('propuestas').select('Proyecto').eq('Proyecto', idUnico).maybeSingle();
+                if (!existing) break;
+                idUnico = `${projectName}_${suffix++}`;
+            }
+
+            // Crear propuesta con estado Pendiente (igual que n8n)
+            const { error: propError } = await supabase.from('propuestas').insert([{
+                Proyecto: idUnico,
+                cliente: projectName,
+                estado: 'Pendiente',
+                fecha_recepcion: new Date().toISOString().split('T')[0]
+            }]);
+            if (propError) throw propError;
+
+            // Insertar partidas
+            const mappedPartidas = allItems.map((p, index) => ({
+                id: `${idUnico}-${index}-${p['Capítulo'].replace(/[^a-zA-Z0-9._-]/g, '_')}`,
+                propuesta_id: idUnico,
+                texto_partida: `${p['Capítulo']}::${p['Descripción']}`,
+                oficio_asignado: null,
+                cantidad: Number(p.Cantidad) || 1,
+                unidad: p.Unidad || p.unidad || null,
+                precio_base_estimado: Number(p['Precio Total (€)']) || 0
+            }));
+            const { error: partError } = await supabase.from('partidas').insert(mappedPartidas);
+            if (partError) throw partError;
+
+            showToast(`✅ "${projectName}" añadido a la bandeja de entrada.`, 'success');
+            await fetchPendientes();
+        } catch (err) {
+            console.error('[BC3 manual]', err);
+            showToast('Error al procesar el BC3: ' + err.message, 'error');
+        } finally {
+            setBc3Uploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
     return (
         <div className="animate-fade-in" style={{ padding: '0 20px 40px', maxWidth: '1200px', margin: '0 auto' }}>
             {ToastUI}
@@ -180,7 +244,37 @@ const BandejaEntrada = () => {
                 </h1>
                 <p style={{ color: 'var(--text-secondary)' }}>
                     Buzón inteligente que intercepta correos y ficheros BC3 configurados mediante n8n.
+                    También puedes subir un BC3 manualmente si el correo automático falla.
                 </p>
+            </div>
+
+            {/* Subida manual de BC3 */}
+            <div
+                onDragOver={e => { e.preventDefault(); setBc3DragOver(true); }}
+                onDragLeave={() => setBc3DragOver(false)}
+                onDrop={e => { e.preventDefault(); setBc3DragOver(false); const f = e.dataTransfer.files[0]; if (f) procesarBC3Manual(f); }}
+                onClick={() => !bc3Uploading && fileInputRef.current?.click()}
+                style={{
+                    border: `2px dashed ${bc3DragOver ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                    borderRadius: 12, padding: '20px 24px', marginBottom: 32, cursor: bc3Uploading ? 'wait' : 'pointer',
+                    background: bc3DragOver ? 'rgba(0,45,84,0.04)' : 'var(--bg-card)',
+                    display: 'flex', alignItems: 'center', gap: 16, transition: 'all 0.2s'
+                }}
+            >
+                <input ref={fileInputRef} type="file" accept=".bc3" style={{ display: 'none' }}
+                    onChange={e => { const f = e.target.files[0]; if (f) procesarBC3Manual(f); }} />
+                {bc3Uploading
+                    ? <Loader2 size={28} className="loader-spinner" color="var(--accent-primary)" />
+                    : <UploadCloud size={28} color="var(--accent-primary)" />
+                }
+                <div>
+                    <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.95rem' }}>
+                        {bc3Uploading ? 'Procesando BC3...' : 'Subir BC3 manualmente'}
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                        Arrastra un .bc3 aquí o haz clic · Se añadirá a pendientes para revisión
+                    </div>
+                </div>
             </div>
 
 

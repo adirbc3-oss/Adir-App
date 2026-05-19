@@ -162,6 +162,69 @@ const Proyectos = () => {
         }
     };
 
+    const generarBC3 = (presupuesto) => {
+        const allItems = presupuesto.partidas || [];
+        const projectId = (presupuesto.propuesta_id || 'PROYECTO').replace(/[|\\]/g, '_');
+        const projectName = (presupuesto.cliente_nombre || 'Proyecto').replace(/[|\\]/g, ' ');
+        const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
+
+        const allCodes = new Set(allItems.map(p => p.Capítulo || '').filter(Boolean));
+
+        const findParent = (code) => {
+            const base = code.replace(/#$/, '');
+            const parts = base.split('.');
+            for (let i = parts.length - 1; i >= 1; i--) {
+                const candidate = parts.slice(0, i).join('.') + '#';
+                if (allCodes.has(candidate)) return candidate;
+            }
+            return projectId;
+        };
+
+        const lines = [];
+        lines.push(`~V|FIEBDC-3/95|${fecha}||`);
+        lines.push(`~C|${projectId}||${projectName}|0||`);
+
+        allItems.forEach(p => {
+            const code = p.Capítulo || '';
+            if (!code) return;
+            const desc = (p.Descripción || p.texto_partida || '').replace(/\|/g, ' ').replace(/::.*/,'').trim();
+            const isStructural = code.endsWith('#');
+            const precio = isStructural ? 0 : (parseFloat(p['Precio Total (€)'] || p.precio_base_estimado || 0) || 0);
+            const unidad = isStructural ? '' : (p['Unidad IA'] || p.Unidad || p.unidad || 'ud');
+            lines.push(`~C|${code}|${unidad}|${desc}|${precio.toFixed(2)}||`);
+        });
+
+        const childrenOf = new Map([[projectId, []]]);
+        allItems.forEach(p => {
+            const code = p.Capítulo || '';
+            if (!code) return;
+            const cant = parseFloat(p.Cantidad || p.cantidad) || 1;
+            const parent = findParent(code);
+            if (!childrenOf.has(parent)) childrenOf.set(parent, []);
+            childrenOf.get(parent).push({ code, cant });
+            if (code.endsWith('#') && !childrenOf.has(code)) childrenOf.set(code, []);
+        });
+
+        childrenOf.forEach((children, parent) => {
+            if (!children.length) return;
+            const str = children.map(c => `${c.code}\\${c.cant.toFixed(2)}\\1`).join('\\');
+            lines.push(`~D|${parent}|${str}\\|`);
+        });
+
+        return lines.join('\r\n');
+    };
+
+    const downloadBC3 = (presupuesto) => {
+        const content = generarBC3(presupuesto);
+        const blob = new Blob([content], { type: 'text/plain;charset=windows-1252' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${presupuesto.propuesta_id || 'Proyecto'}_Firmado.bc3`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     const downloadSignedPDF = (p) => {
         const doc = generarPresupuestoPDF({
             cliente:      p.cliente_nombre || 'Sin especificar',
@@ -307,6 +370,11 @@ const Proyectos = () => {
                                                     {presupuesto?.estado === 'firmado' && (
                                                         <button className="btn btn-primary btn-sm" onClick={() => downloadSignedPDF(presupuesto)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                                             <Download size={13} /> PDF Firmado
+                                                        </button>
+                                                    )}
+                                                    {presupuesto?.estado === 'firmado' && (
+                                                        <button className="btn btn-secondary btn-sm" onClick={() => downloadBC3(presupuesto)} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                                            <Download size={13} /> BC3
                                                         </button>
                                                     )}
                                                     {filtro === 'En Curso' ? (
