@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { N8N_BASE_URL } from '../config';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
-import { FileCheck, Download, Clock, X, CheckCircle, Search, Loader2, Eye } from 'lucide-react';
+import {  FileCheck, Download, Clock, X, CheckCircle, Search, Loader2, Eye , FileSignature } from 'lucide-react';
 
 const PresupuestosFirmados = () => {
     const [presupuestos, setPresupuestos] = useState([]);
@@ -83,7 +83,7 @@ const PresupuestosFirmados = () => {
                         <FileCheck size={28} color="#16a34a" />
                     </div>
                     <div>
-                        <h1>Presupuestos y Contratos</h1>
+                        <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><FileSignature size={32} color="var(--primary)" /> Presupuestos y Contratos</h1>
                         <p>Seguimiento de presupuestos enviados a clientes, firmas y rechazos.</p>
                     </div>
                     <button onClick={fetchPresupuestos} className="btn btn-secondary" style={{ marginLeft: 'auto' }}>

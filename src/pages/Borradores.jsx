@@ -883,7 +883,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                             <button className="btn btn-secondary" onClick={() => setActiveProject(null)} style={{ padding: '8px', borderRadius: '50%' }}><ArrowLeft size={18} /></button>
                             <div>
                                 <h1 style={{ margin: 0, fontSize: '1.4rem' }}>
-                                    {activeProject.cliente || activeProject.Proyecto.split('_')[0]}
+                                    {activeProject.cliente ? `${activeProject.Proyecto.split('_')[0]} - ${activeProject.cliente}` : activeProject.Proyecto.split('_')[0]}
                                     <button className="btn btn-secondary btn-sm" onClick={openEditMetadata} style={{ marginLeft: '10px' }}>✏️ Editar Datos</button>
                                 </h1>
                                 {activeProject.direccion && <span style={{ fontSize: '0.8rem' }}>📧 {activeProject.direccion}</span>}
@@ -1247,7 +1247,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
                     <div>
-                        <h1 style={{ margin: 0 }}>Borradores</h1>
+                        <h1 style={{ margin: 0 }} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Files size={32} color="var(--primary)" /> Borradores</h1>
                         <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Gestiona tus licitaciones y presupuestos en curso.</p>
                     </div>
                 </div>

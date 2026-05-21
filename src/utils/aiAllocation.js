@@ -1,22 +1,13 @@
 import { supabase } from './supabaseClient';
 
 export const TODOS_LOS_OFICIOS = [
-    "Albañilería y Demolición",
-    "Estructuras y Cimentaciones",
-    "Movimiento de Tierras",
-    "Cubiertas y Tejados",
-    "Impermeabilización y Aislamientos",
-    "Fontanería y Saneamiento",
+    "Albañilería",
+    "Fontanería",
     "Electricidad",
-    "Climatización (HVAC)",
-    "Carpintería de Madera",
-    "Carpintería Metálica/Aluminio",
-    "Solados y Alicatados",
-    "Yesos y Escayolas",
     "Pintura",
-    "Cristalería",
-    "Falsos Techos",
-    "Instalaciones Especiales",
+    "Carpintería de Madera",
+    "Carpintería Metálica",
+    "Climatización",
 ];
 
 const BATCH_SIZE = 6;

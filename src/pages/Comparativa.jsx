@@ -1086,7 +1086,7 @@ export default function Comparativa({ setSessionCache }) {
       <div style={s.header}>
         <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
         <div style={{ flex: 1 }}>
-          <h1 style={s.title}>Comparativa de Presupuestos</h1>
+          <h1 style={s.title} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><BarChart2 size={32} color="var(--primary)" /> Comparativa de Presupuestos</h1>
           <p style={s.subtitle}>
             {loading ? 'Cargando...' : `${totalRespuestas} respuesta(s) recibida(s) · ${totalGrupos} grupo(s) comparables`}
           </p>
@@ -1207,6 +1207,9 @@ export default function Comparativa({ setSessionCache }) {
               <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
                 <BarChart2 size={48} color="var(--accent-primary)" style={{ opacity: 0.4, marginBottom: 16 }} />
                 <h3 style={{ margin: '0 0 8px', color: 'var(--text-primary)' }}>No hay datos comparables aún</h3>
+                <h3 style={{ margin: '0 0 4px', fontSize: '1.4rem' }}>
+                    {proyectoData?.cliente ? `${proyectoId.split('_')[0]} - ${proyectoData.cliente}` : proyectoId.split('_')[0]}
+                </h3>
                 <p style={{ margin: '0 0 20px', fontSize: '0.9rem' }}>
                   Sube un BC3 de un competidor para ver la comparativa del proyecto <strong>{proyectoSel}</strong>.
                 </p>

@@ -153,7 +153,7 @@ const Proveedores = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
-                    <h1 style={{ margin: 0 }}>Gestión de Proveedores</h1>
+                    <h1 style={{ margin: 0 }} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Users size={32} color="var(--primary)" /> Gestión de Proveedores</h1>
                 </div>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <button className="btn btn-secondary" onClick={fetchProveedores} disabled={loading}>

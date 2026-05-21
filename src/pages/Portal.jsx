@@ -1,3 +1,4 @@
+import { Globe } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
@@ -221,7 +222,7 @@ const Portal = () => {
       
       {ToastUI}
 
-      <h1>Portal del Proveedor - ADIR</h1>
+      <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Globe size={32} color="var(--primary)" /> Portal del Proveedor - ADIR</h1>
       <div style={{ padding: 20, background: '#f8f9fa', borderRadius: 8, marginBottom: 20 }}>
         <h3>Hola, {solicitud.proveedor_nombre || solicitud.proveedores?.nombre || "Proveedor"}</h3>
         <p>Por favor, indica tu precio por cada partida solicitada para <strong>{solicitud.oficio_solicitado}</strong>.</p>

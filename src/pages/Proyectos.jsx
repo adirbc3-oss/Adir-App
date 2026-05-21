@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
-import { 
+import {  
     Loader2, RefreshCw, FolderOpen, CheckCircle, Clock,
     Download, FileCheck, Eye, X, AlertCircle, AlertTriangle, TrendingUp
-} from 'lucide-react';
+, Files } from 'lucide-react';
 
 // ─── Modal Genérico ───
 const Modal = ({ icon, iconBg, title, children, footer }) => (
@@ -275,7 +275,7 @@ const Proyectos = () => {
             )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h1>Proyectos Activos e Histórico</h1>
+                <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Files size={32} color="var(--primary)" /> Proyectos Activos e Histórico</h1>
                 <button className="btn btn-secondary" onClick={fetchProyectos} disabled={loading}>
                     <RefreshCw size={16} className={loading ? 'loader-spinner' : ''} />
                 </button>

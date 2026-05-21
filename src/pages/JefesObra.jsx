@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { N8N_BASE_URL } from '../config';
 import { useModal, useToast } from '../utils/useModal';
@@ -531,8 +531,8 @@ const JefesObra = () => {
                                     <ArrowLeft size={18} />
                                 </button>
                                 <div>
-                                    <h1 style={{ margin: 0, fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        {activeProject.cliente || activeProject.Proyecto.split('_')[0]}
+                                    <h1 style={{ margin: 0, fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '10px' }} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><HardHat size={32} color="var(--primary)" /> 
+                                        {activeProject.cliente ? `${activeProject.Proyecto.split('_')[0]} - ${activeProject.cliente}` : activeProject.Proyecto.split('_')[0]}
                                         <button className="btn btn-secondary btn-sm" onClick={openEditMetadata} title="Editar Datos del Proyecto" style={{ padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600 }}>
                                             ✏️ Editar Datos
                                         </button>

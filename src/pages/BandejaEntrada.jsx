@@ -173,7 +173,7 @@ const BandejaEntrada = () => {
         <div className="animate-fade-in" style={{ padding: '0 20px 40px', maxWidth: '1200px', margin: '0 auto' }}>
             {ToastUI}
             <div className="section-header" style={{ marginBottom: '30px' }}>
-                <h1 style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <h1 style={{ display: 'flex', alignItems: 'center', gap: '14px' }} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Mailbox size={32} color="var(--primary)" /> 
                     <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
                     Bandeja de Recepción Automática
                 </h1>
@@ -263,7 +263,7 @@ const BandejaEntrada = () => {
                                 <input
                                     type="text"
                                     className="input"
-                                    style={{ marginBottom: '10px', backgroundColor: 'rgba(255,255,255,0.5)', border: '1px solid var(--border-color)' }}
+                                    style={{ marginBottom: '10px', backgroundColor: 'white', border: '1px solid var(--border-color)' }}
                                     value={editClientes[p.Proyecto] || ""}
                                     onChange={(e) => setEditClientes(prev => ({ ...prev, [p.Proyecto]: e.target.value }))}
                                     placeholder="Nombre del cliente..."
