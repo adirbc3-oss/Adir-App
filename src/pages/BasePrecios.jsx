@@ -5,6 +5,7 @@ import {
   Search, Save, FileUp, Loader2, Database, TableProperties,
   X, CheckCircle, AlertCircle, Upload, Info, FileText, AlertTriangle
 } from 'lucide-react';
+import logoAdir from '../assets/adir_logo.png';
 import { bc3ToBasePrecios, getRatio, clasificarTipo } from '../utils/bc3ToBasePrecios';
 import { extraerPartidasDePDF } from '../utils/pdfExtractor';
 import { detectarSimilares, detectarDuplicadosInternos } from '../utils/similarityUtils';
@@ -771,9 +772,12 @@ const BasePrecios = () => {
       {/* Header */}
       <div className="glass-card" style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-          <div>
-            <h1>Bases de Precios</h1>
-            <p>Visualiza y modifica las bases de precios oficiales.</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
+            <div>
+              <h1 style={{ margin: 0 }}>Bases de Precios</h1>
+              <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Visualiza y modifica las bases de precios oficiales.</p>
+            </div>
           </div>
           {activeTab === 'adir' && (
             <button className="btn btn-secondary" onClick={() => setShowImportModal(true)}>

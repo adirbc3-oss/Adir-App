@@ -8,6 +8,7 @@ import {
   AlertCircle, Trophy, Download, TrendingDown, TrendingUp, RefreshCw,
   Inbox, List, X, Euro, Calendar, User, Briefcase, Upload, Loader2, FileText
 } from 'lucide-react';
+import logoAdir from '../assets/adir_logo.png';
 import { parseBC3 } from '../utils/bc3Parser';
 import { generarPDFOfertaProveedor, descargarPDF } from '../utils/pdfUtils';
 
@@ -811,23 +812,23 @@ export default function Comparativa({ setSessionCache }) {
       const hasError = results.find(r => r.error);
       if (hasError) throw hasError.error;
 
-      // Notificar vía n8n (Fase 6)
-      try {
-        const { data: provExt } = await supabase
-          .from('proveedores').select('email, nombre_empresa').eq('id', prov.proveedor_id).single();
-        if (provExt?.email) {
-          fetch(`${N8N_BASE_URL}/webhook/fase6-adjudicacion`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              proveedor_email: provExt.email,
-              proveedor_nombre: provExt.nombre_empresa,
-              proyecto_nombre: proyecto,
-              oficio
-            })
-          }).catch(err => console.warn('Email n8n fallido:', err));
-        }
-      } catch (emailErr) { console.warn('Error notificacion:', emailErr); }
+      // Notificar vía n8n (Fase 6) — webhook pendiente de crear en n8n
+      // try {
+      //   const { data: provExt } = await supabase
+      //     .from('proveedores').select('email, nombre_empresa').eq('id', prov.proveedor_id).single();
+      //   if (provExt?.email) {
+      //     fetch(`${N8N_BASE_URL}/webhook/fase6-adjudicacion`, {
+      //       method: 'POST',
+      //       headers: { 'Content-Type': 'application/json' },
+      //       body: JSON.stringify({
+      //         proveedor_email: provExt.email,
+      //         proveedor_nombre: provExt.nombre_empresa,
+      //         proyecto_nombre: proyecto,
+      //         oficio
+      //       })
+      //     }).catch(() => {});
+      //   }
+      // } catch (emailErr) { /* silencioso */ }
 
       setAdjudicaciones(prev => ({ ...prev, [grupoKey]: prov.proveedor_id }));
       // Invalidar sessionCache de Borradores para este proyecto, para que al abrir
@@ -1083,7 +1084,7 @@ export default function Comparativa({ setSessionCache }) {
       {ToastUI}
       {/* CABECERA */}
       <div style={s.header}>
-        <div style={s.headerIcon}><BarChart2 size={24} color="var(--accent-primary)" /></div>
+        <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
         <div style={{ flex: 1 }}>
           <h1 style={s.title}>Comparativa de Presupuestos</h1>
           <p style={s.subtitle}>

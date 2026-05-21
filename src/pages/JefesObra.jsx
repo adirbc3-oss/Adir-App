@@ -2,10 +2,11 @@
 import { supabase } from '../utils/supabaseClient';
 import { N8N_BASE_URL } from '../config';
 import { useModal, useToast } from '../utils/useModal';
-import { 
-  Loader2, RefreshCw, HardHat, FileText, ArrowLeft, CheckCircle, 
-  X, AlertCircle, Trophy, User, Calendar, Briefcase 
+import {
+  Loader2, RefreshCw, HardHat, FileText, ArrowLeft, CheckCircle,
+  X, AlertCircle, Trophy, User, Calendar, Briefcase
 } from 'lucide-react';
+import logoAdir from '../assets/adir_logo.png';
 import { TODOS_LOS_OFICIOS } from '../utils/aiAllocation';
 
 const JefesObra = () => {
@@ -23,6 +24,7 @@ const JefesObra = () => {
     const [loadingProject, setLoadingProject] = useState(false);
     const [showDenyModal, setShowDenyModal] = useState(false);
     const [showApproveWarning, setShowApproveWarning] = useState(false);
+    const [modoVista, setModoVista] = useState('desglose');
     
     const [showEditMetadata, setShowEditMetadata] = useState(false);
     const [metadataForm, setMetadataForm] = useState({ cliente: '', cliente_email: '', descripcion: '' });
@@ -486,7 +488,17 @@ const JefesObra = () => {
                     proyecto: activeProject.Proyecto,
                     precio_total: precioTotal,
                     portal_url: portalUrl,
-                    html_presupuesto: htmlPresupuestoSafe
+                    html_presupuesto: htmlPresupuestoSafe,
+                    modo_vista: modoVista,
+                    partidas: partidas
+                        .filter(p => !p.Capítulo?.endsWith('#'))
+                        .map(p => ({
+                            texto_partida: (p.Capítulo || 'S/C') + '::' + (p.Descripción || p.texto_partida || 'Sin descripcion'),
+                            precio_adjudicado: parseFloat(p['Precio Total (€)']) || 0,
+                            precio_base_estimado: parseFloat(p['Precio Total (€)']) || 0,
+                            cantidad: parseFloat(p.Cantidad) || 1,
+                            unidad: p['Unidad IA'] || p.unidad || 'ud'
+                        }))
                 })
             }).catch(e => console.warn('n8n no disponible, email no enviado:', e));
 
@@ -528,11 +540,21 @@ const JefesObra = () => {
                                     <span className="badge badge-blue">Revisión de Jefe de Obra</span>
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <button 
-                                    className="btn btn-secondary" 
-                                    onClick={() => setShowDenyModal(true)} 
-                                    disabled={loadingProject} 
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                <select
+                                    value={modoVista}
+                                    onChange={e => setModoVista(e.target.value)}
+                                    disabled={loadingProject}
+                                    title="Selecciona cómo verá el cliente el presupuesto en el email"
+                                    style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', fontSize: '0.82rem', backgroundColor: 'var(--bg-primary)', cursor: 'pointer' }}
+                                >
+                                    <option value="desglose">Email: Desglose completo</option>
+                                    <option value="capitulos">Email: Solo capítulos</option>
+                                </select>
+                                <button
+                                    className="btn btn-secondary"
+                                    onClick={() => setShowDenyModal(true)}
+                                    disabled={loadingProject}
                                     style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}
                                 >
                                     Denegar y Devolver
@@ -713,7 +735,10 @@ const JefesObra = () => {
                     /* ─── VISTA LISTADO DE PROYECTOS ─── */
                     <>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h1>Panel de Jefes de Obra</h1>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
+                                <h1 style={{ margin: 0 }}>Panel de Jefes de Obra</h1>
+                            </div>
                             <button className="btn btn-secondary" onClick={fetchProyectos} disabled={loading}>
                                 <RefreshCw size={16} className={loading ? 'loader-spinner' : ''} />
                             </button>

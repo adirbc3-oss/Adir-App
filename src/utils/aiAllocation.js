@@ -1,14 +1,22 @@
 import { supabase } from './supabaseClient';
 
 export const TODOS_LOS_OFICIOS = [
-    "Albañilería", "Estructuras de Hormigón", "Estructuras Metálicas",
-    "Movimiento de Tierras", "Cimentaciones", "Cubiertas y Tejados",
-    "Impermeabilización", "Aislamientos", "Fontanería", "Electricidad",
-    "Climatización (HVAC)", "Carpintería de Madera", "Carpintería Metálica/Aluminio",
-    "Cristalería", "Pintura", "Yesos y Escayolas", "Solados y Alicatados",
-    "Falsos Techos", "Ascensores y Elevación", "Cerrajería", "Jardinería y Exteriores",
-    "Limpieza de Obra", "Gestión de Residuos", "Seguridad y Salud", "Demolición", 
-    "Saneamiento", "Instalaciones especiales", "Obra civil", "Topografía"
+    "Albañilería y Demolición",
+    "Estructuras y Cimentaciones",
+    "Movimiento de Tierras",
+    "Cubiertas y Tejados",
+    "Impermeabilización y Aislamientos",
+    "Fontanería y Saneamiento",
+    "Electricidad",
+    "Climatización (HVAC)",
+    "Carpintería de Madera",
+    "Carpintería Metálica/Aluminio",
+    "Solados y Alicatados",
+    "Yesos y Escayolas",
+    "Pintura",
+    "Cristalería",
+    "Falsos Techos",
+    "Instalaciones Especiales",
 ];
 
 const BATCH_SIZE = 6;
@@ -82,6 +90,18 @@ const getAdirContext = async (descripcion) => {
 };
 
 export const asignarProveedoresIA = async (partidas, proveedores, onProgress) => {
+    // Cargar oficios activos de Supabase proveedores (solo los que existen en la BD)
+    let oficiosDisponibles;
+    try {
+        const { data: provData } = await supabase.from('proveedores').select('oficio_principal');
+        const oficiosActivos = provData && provData.length > 0
+            ? [...new Set(provData.map(p => p.oficio_principal).filter(Boolean))].sort()
+            : TODOS_LOS_OFICIOS;
+        oficiosDisponibles = oficiosActivos.join(', ');
+    } catch (_) {
+        oficiosDisponibles = TODOS_LOS_OFICIOS.join(', ');
+    }
+
     // Fast path: localStorage cache
     let apiKey = localStorage.getItem('mistral_api_key');
     if (!apiKey || apiKey.length < 10) {
@@ -111,7 +131,6 @@ export const asignarProveedoresIA = async (partidas, proveedores, onProgress) =>
 
     if (itemsParaIA.length === 0) return { asignaciones: {}, sinProveedor: [] };
 
-    const oficiosDisponibles = TODOS_LOS_OFICIOS.join(', ');
     const asignacionesFinales = {};
     const oficiosConPro = new Set(proveedores.map(prov => prov.Oficio));
 

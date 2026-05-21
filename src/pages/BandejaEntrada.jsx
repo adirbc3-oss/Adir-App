@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { Loader2, Mailbox, CheckCircle, Trash2, Clock, Bell, Archive, Mail, User } from 'lucide-react';
+import logoAdir from '../assets/adir_logo.png';
 import { useToast } from '../utils/useModal';
 
 const isEmailFormat = (str) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str || '');
@@ -99,8 +100,6 @@ const BandejaEntrada = () => {
         const finalTitle = editTitles[proyectoId] || "Sin Título";
         const finalCliente = editClientes[proyectoId] || '';
         const finalEmail = editEmails[proyectoId] || '';
-        // Si el usuario rellenó "Cliente / Empresa", tiene prioridad sobre el título del proyecto
-        const nombreParaGuardar = finalCliente.trim() || finalTitle;
 
         setActionLoading(prev => ({ ...prev, [proyectoId]: true }));
         try {
@@ -108,14 +107,14 @@ const BandejaEntrada = () => {
                 .from('propuestas')
                 .update({
                     estado: 'Borrador',
-                    cliente: nombreParaGuardar,
+                    cliente: finalCliente.trim() || null,
                     direccion: finalEmail
                 })
                 .eq('Proyecto', proyectoId);
 
             if (error) throw error;
 
-            showToast(`✅ Proyecto "${nombreParaGuardar}" aceptado.`);
+            showToast(`✅ Proyecto "${finalTitle}" aceptado.`);
             setPendientes(prev => prev.filter(p => p.Proyecto !== proyectoId));
         } catch (error) {
             console.error("Error aceptando el proyecto:", error);
@@ -174,8 +173,8 @@ const BandejaEntrada = () => {
         <div className="animate-fade-in" style={{ padding: '0 20px 40px', maxWidth: '1200px', margin: '0 auto' }}>
             {ToastUI}
             <div className="section-header" style={{ marginBottom: '30px' }}>
-                <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Mailbox size={32} color="var(--accent-primary)" />
+                <h1 style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
                     Bandeja de Recepción Automática
                 </h1>
                 <p style={{ color: 'var(--text-secondary)' }}>

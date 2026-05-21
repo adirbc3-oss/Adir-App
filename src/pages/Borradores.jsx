@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { N8N_BASE_URL } from '../config';
 import { supabase } from '../utils/supabaseClient';
 import { useModal, useToast } from '../utils/useModal';
-import { Loader2, Bot, ArrowLeft, ArrowRight, Hash, Save, Trash2, Send, RefreshCw, Mail, Search, FileDown, ClipboardCheck, Folder, Calendar, User, Users, CheckSquare, Square, Check, X, Trophy } from 'lucide-react';
+import { Loader2, Bot, ArrowLeft, ArrowRight, Hash, Save, Trash2, Send, RefreshCw, Mail, Search, FileDown, ClipboardCheck, Folder, Calendar, User, Users, CheckSquare, Square, Check, X, Trophy, Paperclip, HardHat, Files } from 'lucide-react';
+import logoAdir from '../assets/adir_logo.png';
 import { asignarProveedoresIA, TODOS_LOS_OFICIOS } from '../utils/aiAllocation';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
 
@@ -43,6 +44,9 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
 
     const [showLicitationModal, setShowLicitationModal] = useState(false);
     const [rawInputs, setRawInputs] = useState({});
+    const [anexoFile, setAnexoFile] = useState(null);
+    const [anexoFileName, setAnexoFileName] = useState('');
+    const [uploadingAnexo, setUploadingAnexo] = useState(false);
 
     const formatDecimal = (val) =>
         (parseFloat(val) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -617,6 +621,63 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
 
     const handleRequestQuotes = async () => {
         // Guardar cambios antes de enviar para que el precio esté actualizado en BD
+    const handleAnexoChange = (e) => {
+        const f = e.target.files[0];
+        if (f) { setAnexoFile(f); setAnexoFileName(f.name); }
+    };
+
+    const buildSolicitudEmailHTML = (provNombre, oficio, clienteNombre, tareas, portalUrl, anexoUrl) => {
+        const filasHtml = tareas.map(t => `
+            <tr>
+                <td style="padding:10px 14px;font-size:13px;color:#334155;border-bottom:1px solid #e2e8f0;line-height:1.4;">${(t.descripcion || '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
+                <td style="padding:10px 14px;font-size:12px;text-align:center;color:#64748b;border-bottom:1px solid #e2e8f0;white-space:nowrap;">${t.cantidad} ${t.unidad}</td>
+                <td style="padding:10px 14px;font-size:12px;text-align:right;color:#64748b;border-bottom:1px solid #e2e8f0;white-space:nowrap;">${t.precio_estimado > 0 ? t.precio_estimado.toFixed(2) + ' €' : '—'}</td>
+            </tr>`).join('');
+        return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:Arial,sans-serif;background:#f1f5f9;margin:0;padding:20px 0;">
+<div style="max-width:620px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+  <div style="background:#002D54;padding:28px 32px;text-align:center;">
+    <h1 style="color:white;margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">ADIR Reformas</h1>
+    <p style="color:rgba(255,255,255,0.65);margin:6px 0 0;font-size:13px;">Gestión Profesional de Proyectos</p>
+  </div>
+  <div style="padding:32px;">
+    <p style="font-size:15px;color:#334155;margin:0 0 8px;">Estimado/a <strong>${provNombre}</strong>,</p>
+    <p style="font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.6;">
+      Le enviamos esta solicitud de presupuesto para el proyecto <strong>${clienteNombre}</strong> en el área de <strong>${oficio}</strong>.
+      Por favor, acceda al formulario para introducir sus precios.
+    </p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+      <thead>
+        <tr style="background:#002D54;color:white;">
+          <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:700;">Descripción</th>
+          <th style="padding:10px 14px;text-align:center;font-size:12px;font-weight:700;width:80px;">Cant.</th>
+          <th style="padding:10px 14px;text-align:right;font-size:12px;font-weight:700;width:100px;">Referencia</th>
+        </tr>
+      </thead>
+      <tbody>${filasHtml}</tbody>
+    </table>
+    ${anexoUrl ? `<div style="padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin-bottom:20px;">
+      <p style="margin:0;font-size:13px;color:#1d4ed8;">📎 <strong>Documentación adjunta:</strong>
+        <a href="${anexoUrl}" style="color:#1d4ed8;font-weight:600;" target="_blank">Descargar documento</a>
+      </p>
+    </div>` : ''}
+    <div style="text-align:center;margin:28px 0 20px;">
+      <a href="${portalUrl}" style="display:inline-block;padding:16px 36px;background:#002D54;color:white;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;letter-spacing:0.2px;">
+        → Acceder al Formulario de Precios
+      </a>
+    </div>
+    <p style="font-size:11px;color:#94a3b8;text-align:center;margin:0;">
+      Si el botón no funciona, copie este enlace en su navegador:<br>
+      <a href="${portalUrl}" style="color:#002D54;word-break:break-all;">${portalUrl}</a>
+    </p>
+  </div>
+  <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;text-align:center;">
+    <p style="margin:0;font-size:11px;color:#94a3b8;">ADIR Reformas · Gestión Profesional de Obras y Reformas · adirbc3@gmail.com</p>
+  </div>
+</div>
+</body></html>`;
+    };
+
         if (hasUnsavedChanges) {
             const saved = await saveAssignments();
             if (!saved) {
@@ -641,6 +702,29 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         let errores = 0;
         let saltados = 0;
 
+        // Subir anexo si existe
+        let anexo_url = null;
+        if (anexoFile) {
+            setUploadingAnexo(true);
+            try {
+                const ext = anexoFile.name.split('.').pop();
+                const fileName = `${activeProject.Proyecto}_${Date.now()}.${ext}`;
+                const { error: upErr } = await supabase.storage
+                    .from('anexos')
+                    .upload(fileName, anexoFile, { contentType: anexoFile.type, upsert: true });
+                if (!upErr) {
+                    const { data: urlData } = supabase.storage.from('anexos').getPublicUrl(fileName);
+                    anexo_url = urlData?.publicUrl || null;
+                } else {
+                    showToast('Aviso: no se pudo subir el anexo (¿existe el bucket "anexos" en Supabase?). El email se enviará sin adjunto.', 'warning');
+                }
+            } catch (e) {
+                console.warn('Error subiendo anexo:', e);
+            } finally {
+                setUploadingAnexo(false);
+            }
+        }
+
         try {
             // Deduplication: skip providers with a PENDING (non-responded) solicitud
             // for this same project+oficio. If they already responded, allow re-requesting.
@@ -663,21 +747,29 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     saltados++;
                     continue;
                 }
+                const token = crypto.randomUUID();
+                const portalUrl = `${N8N_BASE_URL}/webhook/portal-proveedor?token=${token}`;
+                const tareas = tareasOficio.map(t => ({
+                    cap: t.Capítulo,
+                    descripcion: t.Descripción || t.texto_partida || '',
+                    unidad: t['Unidad IA'] || 'ud',
+                    cantidad: parseFloat(t.Cantidad) || 1,
+                    precio_estimado: parseFloat(t['Precio Total (€)']) || parseFloat(t.precio_base_estimado) || 0
+                }));
+                const clienteNombre = activeProject.cliente || activeProject.Proyecto.replace(/_\d+$/, '').replace(/_/g, ' ');
+                const htmlEmail = buildSolicitudEmailHTML(prov.Nombre, selectedOficio, clienteNombre, tareas, portalUrl, anexo_url);
                 const payload = {
                     propuesta_id: activeProject.Proyecto,
-                    cliente_nombre: activeProject.cliente || activeProject.Proyecto,
+                    cliente_nombre: clienteNombre,
                     proveedor_id: String(prov.id),
                     proveedor_nombre: prov.Nombre,
                     proveedor_email: prov.Email,
                     oficio_solicitado: selectedOficio,
-                    token: crypto.randomUUID(),
-                    tareas: tareasOficio.map(t => ({
-                        cap: t.Capítulo,
-                        descripcion: t.Descripción || t.texto_partida || '',
-                        unidad: t['Unidad IA'] || 'ud',
-                        cantidad: parseFloat(t.Cantidad) || 1,
-                        precio_estimado: parseFloat(t['Precio Total (€)']) || parseFloat(t.precio_base_estimado) || 0
-                    }))
+                    token,
+                    portal_url: portalUrl,
+                    anexo_url: anexo_url || '',
+                    html_email: htmlEmail,
+                    tareas,
                 };
 
                 try {
@@ -707,6 +799,8 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             }
             setSelectedOficio("");
             setSelectedProviders({});
+            setAnexoFile(null);
+            setAnexoFileName('');
         } catch (err) {
             showToast("Error inesperado: " + err.message, "error");
         } finally {
@@ -1036,8 +1130,8 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 </div>
 
                 {showReviewModal && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <div className="glass-card" style={{ maxWidth: '400px', width: '90%' }}>
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,45,84,0.6)', backdropFilter: 'blur(6px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <div style={{ maxWidth: '400px', width: '90%', background: 'white', borderRadius: 20, padding: 32, boxShadow: '0 32px 80px rgba(0,45,84,0.18)', border: '1px solid #c7d5e6' }}>
                             <h3>Asignar Jefe de Obra</h3>
                             <input type="text" value={jefeInput} onChange={(e) => setJefeInput(e.target.value)} style={{ width: '100%', marginBottom: '20px', padding: '10px' }} />
                             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
@@ -1049,8 +1143,8 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 )}
 
                 {showEditMetadata && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <div className="glass-card" style={{ maxWidth: '450px', width: '90%', padding: '25px' }}>
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,45,84,0.6)', backdropFilter: 'blur(6px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <div style={{ maxWidth: '450px', width: '90%', background: 'white', borderRadius: 20, padding: 32, boxShadow: '0 32px 80px rgba(0,45,84,0.18)', border: '1px solid #c7d5e6' }}>
                             <h3>Editar Datos</h3>
                             <div style={{ marginBottom: '15px' }}>
                                 <label>Proyecto:</label>
@@ -1069,52 +1163,74 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 )}
 
                 {showLicitationModal && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <div className="glass-card animate-fade-in" style={{ maxWidth: '500px', width: '90%', padding: '24px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,45,84,0.6)', backdropFilter: 'blur(6px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                        <div style={{ maxWidth: 520, width: '100%', background: 'white', borderRadius: 20, padding: 32, boxShadow: '0 32px 80px rgba(0,45,84,0.18)', border: '1px solid #c7d5e6', animation: 'fadeIn 0.2s ease' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                                 <div>
-                                    <h3 style={{ margin: 0 }}>Seleccionar Proveedores</h3>
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Proveedores: <strong>{selectedOficio}</strong></span>
+                                    <h3 style={{ margin: 0, color: '#002D54' }}>Solicitar Presupuesto</h3>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Oficio: <strong>{selectedOficio}</strong></span>
                                 </div>
-                                <button className="btn-close" onClick={() => setShowLicitationModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)' }}><X size={20} /></button>
+                                <button onClick={() => { setShowLicitationModal(false); setAnexoFile(null); setAnexoFileName(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)', padding: 4 }}><X size={22} /></button>
                             </div>
 
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>DISPONIBLES</span>
-                                <div style={{ display: 'flex', gap: '12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Proveedores disponibles</span>
+                                <div style={{ display: 'flex', gap: 12 }}>
                                     <button onClick={selectAllProvidersOficio} style={{ fontSize: '0.75rem', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Todos</button>
                                     <button onClick={deselectAllProvidersOficio} style={{ fontSize: '0.75rem', color: 'var(--text-light)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Ninguno</button>
                                 </div>
                             </div>
 
-                            <div className="providers-list" style={{ maxHeight: '300px', marginBottom: '24px', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '4px' }}>
+                            <div style={{ maxHeight: 240, overflowY: 'auto', marginBottom: 20, border: '1px solid var(--border-color)', borderRadius: 10, background: '#f8fafc' }}>
                                 {proveedores.filter(p => p.Oficio === selectedOficio).length > 0 ? (
                                     proveedores.filter(p => p.Oficio === selectedOficio).map(p => (
-                                        <div key={p.id} className="provider-item" onClick={() => toggleProvider(p.Nombre)} style={{ padding: '12px', borderBottom: '1px solid var(--bg-secondary)' }}>
-                                            {selectedProviders[p.Nombre] ? <CheckSquare size={18} color="var(--primary)" /> : <Square size={18} color="var(--border-color)" />}
-                                            <span style={{ fontSize: '0.95rem' }}>{p.Nombre}</span>
+                                        <div key={p.id} onClick={() => toggleProvider(p.Nombre)} style={{ padding: '12px 16px', borderBottom: '1px solid #e5edf7', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, background: selectedProviders[p.Nombre] ? '#e5edf7' : 'transparent', transition: 'background 0.15s' }}>
+                                            {selectedProviders[p.Nombre] ? <CheckSquare size={18} color="var(--primary)" /> : <Square size={18} color="#c7d5e6" />}
+                                            <span style={{ fontSize: '0.95rem', fontWeight: selectedProviders[p.Nombre] ? 600 : 400 }}>{p.Nombre}</span>
+                                            {p.Email && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>{p.Email}</span>}
                                         </div>
                                     ))
                                 ) : (
                                     <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-light)' }}>
-                                        No hay proveedores registrados para este Proveedores.
+                                        No hay proveedores registrados para este oficio.
                                     </div>
                                 )}
                             </div>
 
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowLicitationModal(false)}>Cancelar</button>
-                                <button 
-                                    className="btn btn-primary" 
+                            {/* Adjuntar Anexo */}
+                            <div style={{ marginBottom: 20 }}>
+                                <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Anexo / Documentación (opcional)
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: '1.5px dashed var(--border-color)', borderRadius: 10, cursor: 'pointer', background: '#f8fafc', transition: 'all 0.2s' }}>
+                                    <Paperclip size={16} color="var(--primary)" />
+                                    <span style={{ fontSize: '0.85rem', color: anexoFileName ? '#002D54' : 'var(--text-muted)', fontWeight: anexoFileName ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {anexoFileName || 'Seleccionar PDF, imagen o documento...'}
+                                    </span>
+                                    <input type="file" style={{ display: 'none' }} onChange={handleAnexoChange} accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx" />
+                                </label>
+                                {anexoFile && (
+                                    <button onClick={() => { setAnexoFile(null); setAnexoFileName(''); }} style={{ marginTop: 4, fontSize: '0.75rem', color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                                        × Quitar archivo
+                                    </button>
+                                )}
+                                {anexoFile && (
+                                    <p style={{ margin: '4px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                        El proveedor podrá descargarlo desde el formulario de precios.
+                                    </p>
+                                )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 12 }}>
+                                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setShowLicitationModal(false); setAnexoFile(null); setAnexoFileName(''); }}>Cancelar</button>
+                                <button
+                                    className="btn btn-primary"
                                     style={{ flex: 2 }}
-                                    onClick={async () => {
-                                        await handleRequestQuotes();
-                                        setShowLicitationModal(false);
-                                    }} 
-                                    disabled={sendingEmails || Object.values(selectedProviders).filter(Boolean).length === 0}
+                                    onClick={async () => { await handleRequestQuotes(); setShowLicitationModal(false); }}
+                                    disabled={sendingEmails || uploadingAnexo || Object.values(selectedProviders).filter(Boolean).length === 0}
                                 >
-                                    {sendingEmails ? <Loader2 className="loader-spinner" /> : <Send size={16} />} 
-                                    {sendingEmails ? 'Enviando...' : `Enviar a ${Object.values(selectedProviders).filter(Boolean).length} seleccionados`}
+                                    {(sendingEmails || uploadingAnexo) ? <Loader2 className="loader-spinner" size={16} /> : <Send size={16} />}
+                                    {uploadingAnexo ? 'Subiendo anexo...' : sendingEmails ? 'Enviando...' : `Enviar a ${Object.values(selectedProviders).filter(Boolean).length} seleccionados`}
                                 </button>
                             </div>
                         </div>
@@ -1128,9 +1244,12 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         <div className="animate-fade-in">
             {ModalUI} {ToastUI}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <div>
-                    <h1>Borradores</h1>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Gestiona tus licitaciones y presupuestos en curso.</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
+                    <div>
+                        <h1 style={{ margin: 0 }}>Borradores</h1>
+                        <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Gestiona tus licitaciones y presupuestos en curso.</p>
+                    </div>
                 </div>
                 <button className="btn btn-secondary" onClick={() => fetchProyectos(true)} style={{ padding: '10px' }}><RefreshCw size={18} /></button>
             </div>
@@ -1181,8 +1300,8 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             )}
 
             {projectToDelete && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <div className="glass-card animate-fade-in" style={{ maxWidth: '400px', width: '90%', textAlign: 'center', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' }}>
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,45,84,0.6)', backdropFilter: 'blur(6px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <div style={{ maxWidth: '400px', width: '90%', textAlign: 'center', background: 'white', borderRadius: 20, padding: 32, boxShadow: '0 32px 80px rgba(0,45,84,0.18)', border: '1px solid #c7d5e6' }}>
                         <div style={{ background: 'rgba(220, 38, 38, 0.1)', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
                             <Trash2 size={30} color="var(--danger)" />
                         </div>

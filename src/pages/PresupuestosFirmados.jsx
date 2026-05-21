@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { N8N_BASE_URL } from '../config';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
 import { FileCheck, Download, Clock, X, CheckCircle, Search, Loader2, Eye } from 'lucide-react';
 
@@ -29,6 +30,10 @@ const PresupuestosFirmados = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const downloadBC3 = (p) => {
+        window.open(`${N8N_BASE_URL}/webhook/descargar-bc3?propuesta_id=${encodeURIComponent(p.propuesta_id)}`, '_blank');
     };
 
     const downloadSignedPDF = (p) => {
@@ -179,6 +184,11 @@ const PresupuestosFirmados = () => {
                                             {p.estado === 'firmado' && (
                                                 <button onClick={() => downloadSignedPDF(p)} className="btn btn-primary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                                     <Download size={13} /> PDF Firmado
+                                                </button>
+                                            )}
+                                            {p.estado === 'firmado' && (
+                                                <button onClick={() => downloadBC3(p)} className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                                    <Download size={13} /> BC3
                                                 </button>
                                             )}
                                         </div>
