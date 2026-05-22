@@ -678,6 +678,9 @@ const JefesObra = () => {
                                                                     value={p["Oficio Asignado"] || ''}
                                                                 >
                                                                     <option value="Sin asignar">Sin asignar</option>
+                                                                    {p["Oficio Asignado"] && p["Oficio Asignado"] !== "Sin asignar" && !TODOS_LOS_OFICIOS.includes(p["Oficio Asignado"]) && (
+                                                                        <option value={p["Oficio Asignado"]}>{p["Oficio Asignado"]}</option>
+                                                                    )}
                                                                     {TODOS_LOS_OFICIOS.map(of => (
                                                                         <option key={of} value={of}>{of}</option>
                                                                     ))}

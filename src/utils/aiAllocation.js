@@ -2,12 +2,13 @@ import { supabase } from './supabaseClient';
 
 export const TODOS_LOS_OFICIOS = [
     "Albañilería",
-    "Fontanería",
-    "Electricidad",
-    "Pintura",
-    "Carpintería de Madera",
-    "Carpintería Metálica",
+    "Carpintero",
     "Climatización",
+    "Cristalería",
+    "Electricista",
+    "Fontanería",
+    "Movimiento de Tierras",
+    "Pintor",
 ];
 
 const BATCH_SIZE = 6;
@@ -81,14 +82,15 @@ const getAdirContext = async (descripcion) => {
 };
 
 export const asignarProveedoresIA = async (partidas, proveedores, onProgress) => {
-    // Cargar oficios activos de Supabase proveedores (solo los que existen en la BD)
     let oficiosDisponibles;
     try {
         const { data: provData } = await supabase.from('proveedores').select('oficio_principal');
         const oficiosActivos = provData && provData.length > 0
-            ? [...new Set(provData.map(p => p.oficio_principal).filter(Boolean))].sort()
-            : TODOS_LOS_OFICIOS;
-        oficiosDisponibles = oficiosActivos.join(', ');
+            ? provData.map(p => p.oficio_principal).filter(Boolean)
+            : [];
+        // Combinar oficios estándar con los que ya existan en la DB para darle a la IA todas las opciones
+        const oficiosUnicos = [...new Set([...TODOS_LOS_OFICIOS, ...oficiosActivos])].sort();
+        oficiosDisponibles = oficiosUnicos.join(', ');
     } catch (_) {
         oficiosDisponibles = TODOS_LOS_OFICIOS.join(', ');
     }
