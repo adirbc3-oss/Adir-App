@@ -434,7 +434,7 @@ const JefesObra = () => {
             const solUpdates = [];
             partidas.forEach(p => {
                 if (p.solicitud_seleccionada_id) {
-                    solUpdates.push(supabase.from('solicitudes').update({ estado: 'Adjudicada' }).eq('id', p.solicitud_seleccionada_id));
+                    solUpdates.push(supabase.from('solicitudes').update({ estado_solicitud: 'Adjudicada' }).eq('id', p.solicitud_seleccionada_id));
                 }
             });
             if (solUpdates.length > 0) await Promise.all(solUpdates);

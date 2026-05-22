@@ -284,7 +284,11 @@ const PresupuestoCliente = () => {
         </div>
     );
 
-    const partidas = presupuesto.partidas || [];
+    // Solo mostrar capítulos y subcapítulos (los que terminan en '#') — las partidas individuales no se muestran al cliente
+    const partidas = (presupuesto.partidas || []).filter(p => {
+        const cap = (p.Capítulo || p.Capitulo || '').trim();
+        return cap.endsWith('#');
+    });
     const total = parseFloat(presupuesto.precio_total || 0);
 
     return (
@@ -316,88 +320,72 @@ const PresupuestoCliente = () => {
                     </button>
                 </div>
 
-                {/* Tabla de partidas */}
+                {/* Tabla de capítulos (solo capítulos y subcapítulos — vista cliente) */}
                 <div style={styles.card}>
-                    <h3 style={styles.sectionTitle}>Detalle del Presupuesto</h3>
+                    <h3 style={styles.sectionTitle}>Resumen del Presupuesto</h3>
                     <div style={{ overflowX: 'auto' }}>
                         <table style={styles.table}>
                             <thead>
                                 <tr style={{ backgroundColor: '#002D54', color: 'white' }}>
-                                    <th style={{ ...styles.th, textAlign: 'left', minWidth: 200 }}>Descripción</th>
-                                    <th style={{ ...styles.th, textAlign: 'center', width: 55 }}>Ud.</th>
-                                    <th style={{ ...styles.th, textAlign: 'center', width: 70 }}>Cant.</th>
-                                    <th style={{ ...styles.th, textAlign: 'right', width: 115 }}>Precio/ud (€)</th>
-                                    <th style={{ ...styles.th, textAlign: 'right', width: 115 }}>Total (€)</th>
+                                    <th style={{ ...styles.th, textAlign: 'left' }}>Capítulo / Descripción</th>
+                                    <th style={{ ...styles.th, textAlign: 'right', width: 150 }}>Total (€)</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {(() => {
-                                    let partidaIdx = 0;
-                                    return partidas.map((p, idx) => {
-                                        const cap = p.Capítulo || p.Capitulo || '';
-                                        const isSubcap = cap.endsWith('##');
-                                        const isCap = !isSubcap && cap.endsWith('#');
+                                {partidas.map((p, idx) => {
+                                    const cap = (p.Capítulo || p.Capitulo || '').trim();
+                                    const limpio = cap.replace(/#$/, '');
+                                    const isSubcap = limpio.includes('.');
+                                    const totalCap = parseFloat(p.precio_total_capitulo || 0);
+                                    const desc = cleanText(p.Descripción || p.texto_partida || '-');
 
-                                        if (isCap) {
-                                            return (
-                                                <tr key={idx}>
-                                                    <td colSpan={5} style={{
-                                                        padding: '11px 16px', fontWeight: 700,
-                                                        fontSize: '0.9rem', letterSpacing: '0.4px',
-                                                        backgroundColor: '#002D54', color: 'white',
-                                                        textTransform: 'uppercase'
-                                                    }}>
-                                                        {cleanText(p.Descripción || p.texto_partida || 'Capítulo')}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        }
-                                        if (isSubcap) {
-                                            return (
-                                                <tr key={idx}>
-                                                    <td colSpan={5} style={{
-                                                        padding: '8px 20px', fontWeight: 600,
-                                                        fontSize: '0.85rem',
-                                                        backgroundColor: '#1e3a8a', color: '#bfdbfe',
-                                                        fontStyle: 'italic'
-                                                    }}>
-                                                        {cleanText(p.Descripción || p.texto_partida || 'Subcapítulo')}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        }
-
-                                        const rowBg = (partidaIdx++ % 2 === 0) ? '#e5edf7' : 'white';
-                                        const pUnit = parseFloat(p['Precio Total (€)'] || 0);
-                                        const cant = parseFloat(p.Cantidad) || 1;
-                                        const rowTotal = pUnit * cant;
-                                        const ud = p['Unidad IA'] || p.unidad || 'ud';
-
+                                    if (!isSubcap) {
                                         return (
-                                            <tr key={idx} style={{ backgroundColor: rowBg, borderBottom: '1px solid #d1dce8' }}>
-                                                <td style={{ ...styles.td, lineHeight: 1.4 }}>
-                                                    {cleanText(p.Descripción || p.texto_partida || '-')}
+                                            <tr key={idx}>
+                                                <td style={{
+                                                    padding: '11px 16px', fontWeight: 700,
+                                                    fontSize: '0.9rem', letterSpacing: '0.4px',
+                                                    backgroundColor: '#002D54', color: 'white',
+                                                    textTransform: 'uppercase'
+                                                }}>
+                                                    {desc}
                                                 </td>
-                                                <td style={{ ...styles.td, textAlign: 'center', color: '#64748b', fontSize: '0.82rem' }}>
-                                                    {ud}
-                                                </td>
-                                                <td style={{ ...styles.td, textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
-                                                    {cant.toLocaleString('es-ES', { maximumFractionDigits: 2 })}
-                                                </td>
-                                                <td style={{ ...styles.td, textAlign: 'right', color: '#64748b', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
-                                                    {pUnit.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-                                                </td>
-                                                <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: '#002D54', whiteSpace: 'nowrap' }}>
-                                                    {rowTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                                                <td style={{
+                                                    padding: '11px 16px', fontWeight: 700,
+                                                    fontSize: '0.9rem', textAlign: 'right',
+                                                    backgroundColor: '#002D54', color: 'white',
+                                                    whiteSpace: 'nowrap'
+                                                }}>
+                                                    {totalCap.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                                                 </td>
                                             </tr>
                                         );
-                                    });
-                                })()}
+                                    }
+                                    return (
+                                        <tr key={idx}>
+                                            <td style={{
+                                                padding: '8px 28px', fontWeight: 600,
+                                                fontSize: '0.85rem',
+                                                backgroundColor: '#1e3a8a', color: '#bfdbfe',
+                                                fontStyle: 'italic'
+                                            }}>
+                                                {desc}
+                                            </td>
+                                            <td style={{
+                                                padding: '8px 16px', fontWeight: 600,
+                                                fontSize: '0.85rem', textAlign: 'right',
+                                                backgroundColor: '#1e3a8a', color: '#bfdbfe',
+                                                whiteSpace: 'nowrap', fontStyle: 'italic'
+                                            }}>
+                                                {totalCap.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                             <tfoot>
                                 <tr style={{ backgroundColor: '#002D54', color: 'white' }}>
-                                    <td colSpan={4} style={{ ...styles.td, fontWeight: 'bold', fontSize: '1.05rem' }}>
+                                    <td style={{ ...styles.td, fontWeight: 'bold', fontSize: '1.05rem' }}>
                                         TOTAL PRESUPUESTO
                                     </td>
                                     <td style={{ ...styles.td, textAlign: 'right', fontWeight: 'bold', fontSize: '1.1rem', whiteSpace: 'nowrap' }}>
