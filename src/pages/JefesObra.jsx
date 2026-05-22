@@ -6,7 +6,6 @@ import {
   Loader2, RefreshCw, HardHat, FileText, ArrowLeft, CheckCircle,
   X, AlertCircle, Trophy, User, Calendar, Briefcase
 } from 'lucide-react';
-import logoAdir from '../assets/adir_logo.png';
 import { TODOS_LOS_OFICIOS } from '../utils/aiAllocation';
 
 const JefesObra = () => {
@@ -531,7 +530,7 @@ const JefesObra = () => {
                                     <ArrowLeft size={18} />
                                 </button>
                                 <div>
-                                    <h1 style={{ margin: 0, fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '10px' }} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><HardHat size={32} color="var(--primary)" /> 
+                                    <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><HardHat size={32} color="var(--primary)" /> 
                                         {activeProject.cliente ? `${activeProject.Proyecto.split('_')[0]} - ${activeProject.cliente}` : activeProject.Proyecto.split('_')[0]}
                                         <button className="btn btn-secondary btn-sm" onClick={openEditMetadata} title="Editar Datos del Proyecto" style={{ padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600 }}>
                                             ✏️ Editar Datos
@@ -735,9 +734,7 @@ const JefesObra = () => {
                     /* ─── VISTA LISTADO DE PROYECTOS ─── */
                     <>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                                <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
-                                <h1 style={{ margin: 0 }}>Panel de Jefes de Obra</h1>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>                                <h1 style={{ margin: 0 }}>Panel de Jefes de Obra</h1>
                             </div>
                             <button className="btn btn-secondary" onClick={fetchProyectos} disabled={loading}>
                                 <RefreshCw size={16} className={loading ? 'loader-spinner' : ''} />

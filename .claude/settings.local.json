@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__n8n-mcp__get_workflow_details",
+      "mcp__n8n-mcp__get_sdk_reference",
+      "mcp__n8n-mcp__update_workflow",
+      "mcp__2e67fd6f-3182-4ec3-938d-3446a5df9cd9__search_workflows",
+      "mcp__2e67fd6f-3182-4ec3-938d-3446a5df9cd9__get_workflow_details",
+      "mcp__2e67fd6f-3182-4ec3-938d-3446a5df9cd9__get_sdk_reference",
+      "PowerShell($response = Invoke-WebRequest -Uri \"https://n8n-production-f7f7.up.railway.app/api/v1/workflows/aDXEWUlp9l6GkHON\" -Method GET -ErrorAction SilentlyContinue; $response.StatusCode)",
+      "mcp__Claude_in_Chrome__list_connected_browsers",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('C:/Users/ocanovas/Desktop/Cheques 2026/ADIR/Codigo/n8n-reformas/n8n_completo.json'\\)\\); print\\(list\\(d.keys\\(\\)\\)[:20]\\)\")",
+      "Bash(xargs grep -l \"n8n\")",
+      "Bash(python3 -c ' *)",
+      "Bash(xargs grep -l \"n8n\\\\|2e67fd6f\")",
+      "mcp__d9b2b0ba-7604-4962-83de-47cff13e94b4__list_projects",
+      "mcp__d9b2b0ba-7604-4962-83de-47cff13e94b4__execute_sql",
+      "mcp__2e67fd6f-3182-4ec3-938d-3446a5df9cd9__validate_workflow",
+      "mcp__n8n-mcp__validate_workflow",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(reg query *)"
+    ]
+  }
+}

@@ -4,7 +4,6 @@ import { N8N_BASE_URL } from '../config';
 import { supabase } from '../utils/supabaseClient';
 import { useModal, useToast } from '../utils/useModal';
 import { Loader2, Bot, ArrowLeft, ArrowRight, Hash, Save, Trash2, Send, RefreshCw, Mail, Search, FileDown, ClipboardCheck, Folder, Calendar, User, Users, CheckSquare, Square, Check, X, Trophy, Paperclip, HardHat, Files } from 'lucide-react';
-import logoAdir from '../assets/adir_logo.png';
 import { asignarProveedoresIA, TODOS_LOS_OFICIOS } from '../utils/aiAllocation';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
 
@@ -619,8 +618,6 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         setSelectedProviders(newState);
     };
 
-    const handleRequestQuotes = async () => {
-        // Guardar cambios antes de enviar para que el precio esté actualizado en BD
     const handleAnexoChange = (e) => {
         const f = e.target.files[0];
         if (f) { setAnexoFile(f); setAnexoFileName(f.name); }
@@ -678,6 +675,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
 </body></html>`;
     };
 
+    const handleRequestQuotes = async () => {
         if (hasUnsavedChanges) {
             const saved = await saveAssignments();
             if (!saved) {
@@ -1244,10 +1242,8 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         <div className="animate-fade-in">
             {ModalUI} {ToastUI}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
-                    <div>
-                        <h1 style={{ margin: 0 }} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Files size={32} color="var(--primary)" /> Borradores</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>                    <div>
+                        <h1 style={{ margin: 0 }}>Borradores</h1>
                         <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Gestiona tus licitaciones y presupuestos en curso.</p>
                     </div>
                 </div>

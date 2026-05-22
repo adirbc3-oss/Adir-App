@@ -8,7 +8,6 @@ import {
   AlertCircle, Trophy, Download, TrendingDown, TrendingUp, RefreshCw,
   Inbox, List, X, Euro, Calendar, User, Briefcase, Upload, Loader2, FileText
 } from 'lucide-react';
-import logoAdir from '../assets/adir_logo.png';
 import { parseBC3 } from '../utils/bc3Parser';
 import { generarPDFOfertaProveedor, descargarPDF } from '../utils/pdfUtils';
 
@@ -1083,10 +1082,8 @@ export default function Comparativa({ setSessionCache }) {
       {ModalUI}
       {ToastUI}
       {/* CABECERA */}
-      <div style={s.header}>
-        <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
-        <div style={{ flex: 1 }}>
-          <h1 style={s.title} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><BarChart2 size={32} color="var(--primary)" /> Comparativa de Presupuestos</h1>
+      <div style={s.header}>        <div style={{ flex: 1 }}>
+          <h1 style={{ ...s.title,  display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px'  }}><BarChart2 size={32} color="var(--primary)" /> Comparativa de Presupuestos</h1>
           <p style={s.subtitle}>
             {loading ? 'Cargando...' : `${totalRespuestas} respuesta(s) recibida(s) · ${totalGrupos} grupo(s) comparables`}
           </p>

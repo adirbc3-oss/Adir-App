@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { Loader2, Mailbox, CheckCircle, Trash2, Clock, Bell, Archive, Mail, User } from 'lucide-react';
-import logoAdir from '../assets/adir_logo.png';
 import { useToast } from '../utils/useModal';
 
 const isEmailFormat = (str) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str || '');
@@ -173,9 +172,7 @@ const BandejaEntrada = () => {
         <div className="animate-fade-in" style={{ padding: '0 20px 40px', maxWidth: '1200px', margin: '0 auto' }}>
             {ToastUI}
             <div className="section-header" style={{ marginBottom: '30px' }}>
-                <h1 style={{ display: 'flex', alignItems: 'center', gap: '14px' }} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Mailbox size={32} color="var(--primary)" /> 
-                    <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
-                    Bandeja de Recepción Automática
+                <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Mailbox size={32} color="var(--primary)" />                    Bandeja de Recepción Automática
                 </h1>
                 <p style={{ color: 'var(--text-secondary)' }}>
                     Buzón inteligente que intercepta correos con ficheros BC3 configurados mediante n8n.

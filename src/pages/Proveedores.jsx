@@ -3,7 +3,6 @@ import { supabase } from '../utils/supabaseClient';
 import { TODOS_LOS_OFICIOS } from '../utils/aiAllocation';
 import { useModal, useToast } from '../utils/useModal';
 import { UserPlus, Trash2, Loader2, RefreshCw, Search, Users } from 'lucide-react';
-import logoAdir from '../assets/adir_logo.png';
 
 const Proveedores = () => {
     const { showConfirm, ModalUI } = useModal();
@@ -151,9 +150,7 @@ const Proveedores = () => {
         <div className="animate-fade-in">
             {ModalUI}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
-                    <h1 style={{ margin: 0 }} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Users size={32} color="var(--primary)" /> Gestión de Proveedores</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>                    <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Users size={32} color="var(--primary)" /> Gestión de Proveedores</h1>
                 </div>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <button className="btn btn-secondary" onClick={fetchProveedores} disabled={loading}>

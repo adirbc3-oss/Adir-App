@@ -170,7 +170,7 @@ const Dashboard = () => {
             {/* ── Cabecera ── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
                 <div>
-                    <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><LayoutDashboard size={32} color="var(--primary)" /> Panel de Control</h1>
+                    <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><LayoutDashboard size={32} color="var(--primary)" /> Panel de Control</h1>
                     <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                         Resumen en tiempo real de todos los proyectos ADIR
                         {ultimaActualizacion && (

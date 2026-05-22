@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { History, Search, Filter, Loader2, ArrowRight, Download, Bot, User, Clock, BookOpen } from 'lucide-react';
-import logoAdir from '../assets/adir_logo.png';
 
 const Historial = () => {
     const [logs, setLogs] = useState([]);
@@ -135,10 +134,8 @@ const Historial = () => {
         <div className="animate-fade-in" style={{ paddingBottom: '40px' }}>
             <div className="glass-card" style={{ marginBottom: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                        <img src={logoAdir} alt="ADIR" style={{ height: 40, objectFit: 'contain' }} />
-                        <div>
-                            <h1 style={{ margin: 0 }} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><History size={32} color="var(--primary)" /> Historial de Cambios</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>                        <div>
+                            <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><History size={32} color="var(--primary)" /> Historial de Cambios</h1>
                             <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Registro de auditoría de todas las modificaciones de precios y asignaciones.</p>
                         </div>
                     </div>
