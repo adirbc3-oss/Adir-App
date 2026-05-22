@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { History, Search, Filter, Loader2, ArrowRight, Download, Bot, User, Clock, BookOpen } from 'lucide-react';
+import { getCleanProjectName } from '../utils/aiAllocation';
 
 const Historial = () => {
     const [logs, setLogs] = useState([]);
@@ -30,10 +31,7 @@ const Historial = () => {
 
     const formatProyecto = (ref) => {
         if (!ref) return '—';
-        // Si tenemos el nombre del cliente en el mapa, usarlo
-        if (propuestasMap[ref]) return propuestasMap[ref];
-        // Fallback: limpiar el ID (quitar timestamp + guiones bajos)
-        return ref.replace(/_\d{8,}.*$/, '').replace(/_/g, ' ').trim() || ref;
+        return getCleanProjectName(ref) || ref;
     };
 
     const fetchHistorial = async () => {
@@ -66,7 +64,10 @@ const Historial = () => {
         if (!searchTerm) return true;
         const term = searchTerm.toLowerCase();
         return (
-            (log.proyecto_referencia && log.proyecto_referencia.toLowerCase().includes(term)) ||
+            (log.proyecto_referencia && (
+                log.proyecto_referencia.toLowerCase().includes(term) ||
+                (propuestasMap[log.proyecto_referencia] && propuestasMap[log.proyecto_referencia].toLowerCase().includes(term))
+            )) ||
             (log.detalles && log.detalles.toLowerCase().includes(term)) ||
             (log.campo_modificado && log.campo_modificado.toLowerCase().includes(term))
         );
@@ -101,10 +102,11 @@ const Historial = () => {
 
 
     const exportCSV = () => {
-        const headers = ['Fecha','Proyecto','Origen','Campo','Valor Anterior','Valor Nuevo','Detalles'];
+        const headers = ['Fecha','Proyecto','Cliente','Origen','Campo','Valor Anterior','Valor Nuevo','Detalles'];
         const rows = logsFiltrados.map(log => [
             formatFecha(log.fecha_cambio),
-            log.proyecto_referencia || log.tipo_entidad || '',
+            log.proyecto_referencia ? formatProyecto(log.proyecto_referencia) : (log.tipo_entidad || ''),
+            log.proyecto_referencia ? (propuestasMap[log.proyecto_referencia] || '') : '',
             log.origen_cambio || '',
             log.campo_modificado || '',
             log.valor_anterior || '',
@@ -239,7 +241,7 @@ const Historial = () => {
                                             {formatProyecto(log.proyecto_referencia) || log.tipo_entidad}
                                             {log.proyecto_referencia && propuestasMap[log.proyecto_referencia] && (
                                                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>
-                                                    {log.proyecto_referencia.replace(/_\d{8,}.*$/, '').replace(/_/g, ' ').trim()}
+                                                    Cliente: {propuestasMap[log.proyecto_referencia]}
                                                 </div>
                                             )}
                                         </td>

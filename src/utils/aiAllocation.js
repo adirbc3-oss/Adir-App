@@ -11,6 +11,15 @@ export const TODOS_LOS_OFICIOS = [
     "Pintor",
 ];
 
+export const getCleanProjectName = (proyectoId) => {
+    if (!proyectoId) return '';
+    return proyectoId
+        .replace(/_\d{8,}.*$/, '') // removes timestamps (8+ digits)
+        .replace(/_\d+$/, '')      // removes trailing _1, _2
+        .replace(/_/g, ' ')        // replaces underscores with spaces
+        .trim();
+};
+
 const BATCH_SIZE = 6;
 
 /**
@@ -88,9 +97,11 @@ export const asignarProveedoresIA = async (partidas, proveedores, onProgress) =>
         const oficiosActivos = provData && provData.length > 0
             ? provData.map(p => p.oficio_principal).filter(Boolean)
             : [];
-        // Combinar oficios estándar con los que ya existan en la DB para darle a la IA todas las opciones
-        const oficiosUnicos = [...new Set([...TODOS_LOS_OFICIOS, ...oficiosActivos])].sort();
-        oficiosDisponibles = oficiosUnicos.join(', ');
+        // Filtrar para usar únicamente oficios que tienen al menos un proveedor
+        const oficiosConProveedor = [...new Set(oficiosActivos)].sort();
+        oficiosDisponibles = oficiosConProveedor.length > 0
+            ? oficiosConProveedor.join(', ')
+            : TODOS_LOS_OFICIOS.join(', ');
     } catch (_) {
         oficiosDisponibles = TODOS_LOS_OFICIOS.join(', ');
     }
@@ -166,14 +177,15 @@ REGLAS PARA ASIGNAR PRECIO (ORDEN DE PRIORIDAD):
 4. Si ninguna fuente tiene dato, estima el precio razonable para Murcia 2026.
 
 REGLAS PARA ASIGNAR OFICIO (lista OFICIOS POSIBLES):
-1. Siempre elige UN oficio de la lista "OFICIOS POSIBLES".
-2. Fontanería: bañera, grifo, PVC, tubo, sanitario, desagüe.
-3. Carpintería de Madera: puertas, muebles, tarima, parquet.
-4. Demolición: derribar, tirar, desmontar, demoler.
-5. Electricidad: cable, cuadro eléctrico, enchufe, interruptor, luminaria.
-6. Albañilería: tabique, ladrillo, mortero, enlucido, revoco.
-7. Solados y Alicatados: suelo, pavimento, cerámica, porcelánico, gres.
-8. Pintura: pintar, pintura, imprimación, barniz.
+1. Elige SIEMPRE uno de los oficios listados en "OFICIOS POSIBLES" (que son los únicos que tienen proveedores disponibles actualmente). Reparte las partidas mapeándolas al oficio disponible más compatible.
+2. Albañilería: albañil, tabique, ladrillo, mortero, enlucido, revoco, yeso, escayola, falso techo, pladur, demolición, derribar, desmontaje, desescombro, limpieza de obra, solados, alicatados, pavimentos, azulejos, baldosas, gres, cerámica, porcelánico.
+3. Carpintero: carpintero, puertas, cercos, muebles, armarios, marcos, ventanas de madera o aluminio/PVC, persianas, tarima, parquet, cerrajería, rejas, barandillas, trabajos en metal/acero/aluminio.
+4. Electricista: electricista, cable, cableado, cuadro eléctrico, enchufe, interruptor, luminaria, luces, tira led, instalación eléctrica, telecomunicaciones.
+5. Fontanería: fontanero, fontanería, tubería, desagüe, PVC, grifo, sanitario, lavabo, inodoro, plato de ducha, bañera, grifería, termos, calentadores.
+6. Climatización: climatización, aire acondicionado, conductos, rejillas, split, calefacción, caldera, radiador, bomba de calor, ventilación.
+7. Pintor: pintor, pintura, pintar, alisado, masilla, gotelé, lijado, imprimación, barniz, lacado, esmalte.
+8. Movimiento de Tierras: excavación, desbroce, vaciado, zanja, desmonte, desescombro con maquinaria, movimiento de tierras, relleno, nivelación, compactación.
+9. Cristalería: cristalero, vidrios, cristales, acristalamiento, mamparas de baño, espejos, lunas.
 
 OFICIOS POSIBLES: ${oficiosDisponibles}
 

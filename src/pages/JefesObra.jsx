@@ -6,7 +6,7 @@ import {
   Loader2, RefreshCw, HardHat, FileText, ArrowLeft, CheckCircle,
   X, AlertCircle, Trophy, User, Calendar, Briefcase
 } from 'lucide-react';
-import { TODOS_LOS_OFICIOS } from '../utils/aiAllocation';
+import { TODOS_LOS_OFICIOS, getCleanProjectName } from '../utils/aiAllocation';
 
 const JefesObra = () => {
     const { showAlert, ModalUI } = useModal();
@@ -28,6 +28,7 @@ const JefesObra = () => {
     const [showEditMetadata, setShowEditMetadata] = useState(false);
     const [metadataForm, setMetadataForm] = useState({ cliente: '', cliente_email: '', descripcion: '' });
     const [rawInputs, setRawInputs] = useState({});
+    const [oficiosDinamicos, setOficiosDinamicos] = useState(TODOS_LOS_OFICIOS);
 
     const formatDecimal = (val) =>
         (parseFloat(val) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -81,6 +82,14 @@ const JefesObra = () => {
         setActiveProject(project);
         setLoadingProject(true);
         try {
+            // Cargar Oficios de Proveedores
+            const { data: provData } = await supabase.from('proveedores').select('oficio_principal');
+            if (provData) {
+                const customOficios = provData.map(pr => pr.oficio_principal).filter(Boolean);
+                const uniqueOficios = [...new Set([...TODOS_LOS_OFICIOS, ...customOficios])].sort();
+                setOficiosDinamicos(uniqueOficios);
+            }
+
             // 1. Cargar Partidas
             const { data: pData, error: pError } = await supabase
                 .from('partidas')
@@ -225,7 +234,7 @@ const JefesObra = () => {
 
     const openEditMetadata = () => {
         setMetadataForm({
-            cliente: activeProject.cliente || activeProject.Proyecto.split('_')[0] || '',
+            cliente: activeProject.cliente || '',
             cliente_email: activeProject.direccion || ''
         });
         setShowEditMetadata(true);
@@ -419,9 +428,9 @@ const JefesObra = () => {
             await supabase.from('presupuestos_cliente').insert({
                 token,
                 propuesta_id: activeProject.Proyecto,
-                cliente_nombre: activeProject.cliente || activeProject.Proyecto,
+                cliente_nombre: activeProject.cliente || '',
                 cliente_email: activeProject.direccion || '',
-                proyecto_descripcion: activeProject.descripcion || activeProject.Proyecto,
+                proyecto_descripcion: activeProject.descripcion || getCleanProjectName(activeProject.Proyecto),
                 partidas: partidas,
                 precio_total: precioTotal
             });
@@ -483,7 +492,8 @@ const JefesObra = () => {
                 body: JSON.stringify({
                     token,
                     cliente_email: activeProject.direccion || '',
-                    cliente_nombre: activeProject.cliente || activeProject.Proyecto,
+                    cliente_nombre: activeProject.cliente || '',
+                    proyecto_nombre: getCleanProjectName(activeProject.Proyecto),
                     proyecto: activeProject.Proyecto,
                     precio_total: precioTotal,
                     portal_url: portalUrl,
@@ -531,11 +541,15 @@ const JefesObra = () => {
                                 </button>
                                 <div>
                                     <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><HardHat size={32} color="var(--primary)" /> 
-                                        {activeProject.cliente ? `${activeProject.Proyecto.split('_')[0]} - ${activeProject.cliente}` : activeProject.Proyecto.split('_')[0]}
+                                        {getCleanProjectName(activeProject.Proyecto)}
                                         <button className="btn btn-secondary btn-sm" onClick={openEditMetadata} title="Editar Datos del Proyecto" style={{ padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600 }}>
                                             ✏️ Editar Datos
                                         </button>
                                     </h1>
+                                    <div style={{ display: 'flex', gap: '15px', marginTop: '4px', marginBottom: '10px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                        {activeProject.cliente && <span>👤 <strong>Cliente:</strong> {activeProject.cliente}</span>}
+                                        {activeProject.direccion && <span>📧 <strong>Email:</strong> {activeProject.direccion}</span>}
+                                    </div>
                                     <span className="badge badge-blue">Revisión de Jefe de Obra</span>
                                 </div>
                             </div>
@@ -678,10 +692,10 @@ const JefesObra = () => {
                                                                     value={p["Oficio Asignado"] || ''}
                                                                 >
                                                                     <option value="Sin asignar">Sin asignar</option>
-                                                                    {p["Oficio Asignado"] && p["Oficio Asignado"] !== "Sin asignar" && !TODOS_LOS_OFICIOS.includes(p["Oficio Asignado"]) && (
+                                                                    {p["Oficio Asignado"] && p["Oficio Asignado"] !== "Sin asignar" && !oficiosDinamicos.includes(p["Oficio Asignado"]) && (
                                                                         <option value={p["Oficio Asignado"]}>{p["Oficio Asignado"]}</option>
                                                                     )}
-                                                                    {TODOS_LOS_OFICIOS.map(of => (
+                                                                    {oficiosDinamicos.map(of => (
                                                                         <option key={of} value={of}>{of}</option>
                                                                     ))}
                                                                 </select>
@@ -795,7 +809,10 @@ const JefesObra = () => {
                                                 proyectosFiltrados.map((pro, idx) => (
                                                     <tr key={idx}>
                                                         <td style={{ fontWeight: '600' }}>
-                                                            {pro.cliente || (pro.Proyecto || "").split('_')[0]}
+                                                            {getCleanProjectName(pro.Proyecto)}
+                                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: 'normal', marginTop: '2px' }}>
+                                                                👤 Cliente: {pro.cliente || "No asignado"}
+                                                            </div>
                                                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>
                                                                 ID: {pro.Proyecto}
                                                             </div>
@@ -866,11 +883,23 @@ const JefesObra = () => {
                         <h3 style={{ color: 'var(--accent-primary)', marginBottom: '15px' }}>✏️ Editar Datos del Proyecto</h3>
                         
                         <div style={{ marginBottom: '15px' }}>
-                            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 600 }}>Nombre del Cliente / Título:</label>
+                            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 600 }}>Proyecto (de BC3):</label>
+                            <input 
+                                type="text" 
+                                value={getCleanProjectName(activeProject.Proyecto)} 
+                                disabled
+                                readOnly
+                                style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', backgroundColor: '#f1f5f9', color: '#64748b', cursor: 'not-allowed' }}
+                            />
+                        </div>
+                        
+                        <div style={{ marginBottom: '15px' }}>
+                            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 600 }}>Nombre del Cliente:</label>
                             <input 
                                 type="text" 
                                 value={metadataForm.cliente} 
                                 onChange={(e) => setMetadataForm({...metadataForm, cliente: e.target.value})}
+                                placeholder="Nombre del cliente..."
                                 style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                             />
                         </div>

@@ -4,7 +4,7 @@ import { N8N_BASE_URL } from '../config';
 import { supabase } from '../utils/supabaseClient';
 import { useModal, useToast } from '../utils/useModal';
 import { Loader2, Bot, ArrowLeft, ArrowRight, Hash, Save, Trash2, Send, RefreshCw, Mail, Search, FileDown, ClipboardCheck, Folder, Calendar, User, Users, CheckSquare, Square, Check, X, Trophy, Paperclip, HardHat, Files } from 'lucide-react';
-import { asignarProveedoresIA, TODOS_LOS_OFICIOS } from '../utils/aiAllocation';
+import { asignarProveedoresIA, TODOS_LOS_OFICIOS, getCleanProjectName } from '../utils/aiAllocation';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
 
 const Borradores = ({ sessionCache = {}, setSessionCache }) => {
@@ -111,7 +111,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 throw new Error("No se pudo borrar de la base de datos (posible restricción de permisos RLS).");
             }
 
-            showToast(`Proyecto "${project.cliente || project.Proyecto}" eliminado correctamente.`);
+            showToast(`Proyecto "${getCleanProjectName(project.Proyecto)}" eliminado correctamente.`);
             fetchProyectos(true);
         } catch (error) {
             console.error("Error de borrado:", error);
@@ -138,7 +138,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     const openEditMetadata = () => {
         if (!activeProject) return;
         setMetadataForm({
-            cliente: activeProject.cliente || (activeProject.Proyecto || "").split('_')[0] || '',
+            cliente: activeProject.cliente || '',
             cliente_email: activeProject.direccion || ''
         });
         setShowEditMetadata(true);
@@ -754,7 +754,9 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     cantidad: parseFloat(t.Cantidad) || 1,
                     precio_estimado: parseFloat(t['Precio Total (€)']) || parseFloat(t.precio_base_estimado) || 0
                 }));
-                const clienteNombre = activeProject.cliente || activeProject.Proyecto.replace(/_\d+$/, '').replace(/_/g, ' ');
+                const projName = getCleanProjectName(activeProject.Proyecto);
+                const clientName = activeProject.cliente ? ` (Cliente: ${activeProject.cliente})` : '';
+                const clienteNombre = `${projName}${clientName}`;
                 const htmlEmail = buildSolicitudEmailHTML(prov.Nombre, selectedOficio, clienteNombre, tareas, portalUrl, anexo_url);
                 const payload = {
                     propuesta_id: activeProject.Proyecto,
@@ -821,9 +823,9 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 .reduce((acc, p) => acc + (parseFloat(p['Precio Total (€)'] || 0) * (parseFloat(p.Cantidad) || 1)), 0);
 
             const doc = generarPresupuestoPDF({
-                cliente:      activeProject.cliente || activeProject.Proyecto,
+                cliente:      activeProject.cliente || '',
                 propuesta_id: activeProject.Proyecto,
-                descripcion:  activeProject.descripcion || activeProject.Proyecto,
+                descripcion:  getCleanProjectName(activeProject.Proyecto),
                 partidas,
                 precio_total: precioTotal,
                 fecha:        new Date().toISOString(),
@@ -880,11 +882,14 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                             <button className="btn btn-secondary" onClick={() => setActiveProject(null)} style={{ padding: '8px', borderRadius: '50%' }}><ArrowLeft size={18} /></button>
                             <div>
-                                <h1 style={{ margin: 0, fontSize: '1.4rem' }}>
-                                    {activeProject.cliente ? `${activeProject.Proyecto.split('_')[0]} - ${activeProject.cliente}` : activeProject.Proyecto.split('_')[0]}
-                                    <button className="btn btn-secondary btn-sm" onClick={openEditMetadata} style={{ marginLeft: '10px' }}>✏️ Editar Datos</button>
+                                <h1 style={{ margin: 0, fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    {getCleanProjectName(activeProject.Proyecto)}
+                                    <button className="btn btn-secondary btn-sm" onClick={openEditMetadata} style={{ padding: '4px 8px', fontSize: '0.75rem' }}>✏️ Editar Datos</button>
                                 </h1>
-                                {activeProject.direccion && <span style={{ fontSize: '0.8rem' }}>📧 {activeProject.direccion}</span>}
+                                <div style={{ display: 'flex', gap: '15px', marginTop: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                    {activeProject.cliente && <span>👤 <strong>Cliente:</strong> {activeProject.cliente}</span>}
+                                    {activeProject.direccion && <span>📧 <strong>Email:</strong> {activeProject.direccion}</span>}
+                                </div>
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: '10px' }}>
@@ -1143,14 +1148,18 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 {showEditMetadata && (
                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,45,84,0.6)', backdropFilter: 'blur(6px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <div style={{ maxWidth: '450px', width: '90%', background: 'white', borderRadius: 20, padding: 32, boxShadow: '0 32px 80px rgba(0,45,84,0.18)', border: '1px solid #c7d5e6' }}>
-                            <h3>Editar Datos</h3>
+                            <h3>Editar Datos del Proyecto</h3>
                             <div style={{ marginBottom: '15px' }}>
-                                <label>Proyecto:</label>
-                                <input type="text" value={metadataForm.cliente} onChange={(e) => setMetadataForm({...metadataForm, cliente: e.target.value})} style={{ width: '100%' }} />
+                                <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>Proyecto (de BC3):</label>
+                                <input type="text" value={getCleanProjectName(activeProject.Proyecto)} disabled readOnly style={{ width: '100%', backgroundColor: '#f1f5f9', cursor: 'not-allowed', color: '#64748b' }} />
                             </div>
                             <div style={{ marginBottom: '15px' }}>
-                                <label>Email:</label>
-                                <input type="email" value={metadataForm.cliente_email} onChange={(e) => setMetadataForm({...metadataForm, cliente_email: e.target.value})} style={{ width: '100%' }} />
+                                <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>Nombre del Cliente:</label>
+                                <input type="text" value={metadataForm.cliente} onChange={(e) => setMetadataForm({...metadataForm, cliente: e.target.value})} placeholder="Nombre del cliente..." style={{ width: '100%' }} />
+                            </div>
+                            <div style={{ marginBottom: '15px' }}>
+                                <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>Email:</label>
+                                <input type="email" value={metadataForm.cliente_email} onChange={(e) => setMetadataForm({...metadataForm, cliente_email: e.target.value})} placeholder="correo@cliente.com" style={{ width: '100%' }} />
                             </div>
                             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                                 <button className="btn btn-secondary" onClick={() => setShowEditMetadata(false)}>Cancelar</button>
@@ -1264,15 +1273,18 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                         <div key={idx} className="project-card animate-fade-in">
                             <div className="project-card-header">
                                 <div className="project-card-info">
-                                    <h3 className="project-card-title">{pro.cliente || pro.Proyecto.split('_')[0]}</h3>
+                                    <h3 className="project-card-title">{getCleanProjectName(pro.Proyecto)}</h3>
+                                    <div className="info-item" style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                                        <User size={14} /> <span>Cliente: {pro.cliente || "No asignado"}</span>
+                                    </div>
                                     <div className="info-item">
-                                        <Hash size={14} /> <span>{pro.Proyecto}</span>
+                                        <Mail size={14} /> <span>Email: {pro.direccion || "Sin email"}</span>
+                                    </div>
+                                    <div className="info-item">
+                                        <Hash size={14} /> <span>ID: {pro.Proyecto}</span>
                                     </div>
                                     <div className="info-item">
                                         <Calendar size={14} /> <span>Recibido: {pro.fecha_recepcion || "Fecha no disponible"}</span>
-                                    </div>
-                                    <div className="info-item">
-                                        <User size={14} /> <span>{pro.direccion || "Sin dirección asignada"}</span>
                                     </div>
                                 </div>
                                 <div className="badge badge-blue">Borrador</div>
@@ -1305,7 +1317,10 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                             <Trash2 size={30} color="var(--danger)" />
                         </div>
                         <h2 style={{ fontSize: '1.5rem', marginBottom: '10px' }}>¿Eliminar Borrador?</h2>
-                        <p style={{ marginBottom: '25px' }}>Esta acción no se puede deshacer. Se borrará permanentemente <strong>{projectToDelete.cliente || projectToDelete.Proyecto}</strong> y todas sus partidas.</p>
+                        <p style={{ marginBottom: '25px' }}>
+                            Esta acción no se puede deshacer. Se borrará permanentemente el proyecto <strong>{getCleanProjectName(projectToDelete.Proyecto)}</strong>
+                            {projectToDelete.cliente ? ` (Cliente: ${projectToDelete.cliente})` : ''} y todas sus partidas.
+                        </p>
                         <div style={{ display: 'flex', gap: '12px' }}>
                             <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setProjectToDelete(null)}>Cancelar</button>
                             <button className="btn btn-primary" style={{ flex: 1, backgroundColor: 'var(--danger)' }} onClick={() => { confirmDelete(projectToDelete); setProjectToDelete(null); }}>Eliminar Ahora</button>

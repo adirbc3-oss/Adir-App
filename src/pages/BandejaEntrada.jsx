@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { Loader2, Mailbox, CheckCircle, Trash2, Clock, Bell, Archive, Mail, User } from 'lucide-react';
 import { useToast } from '../utils/useModal';
+import { getCleanProjectName } from '../utils/aiAllocation';
 
 const isEmailFormat = (str) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str || '');
 
@@ -32,8 +33,7 @@ const BandejaEntrada = () => {
             const initialEmails = {};
             (data || []).forEach(p => {
                 // Título: extraer nombre limpio del ID del proyecto
-                const rawName = (p.Proyecto || "").replace(/_\d{8,}.*$/, '').replace(/_/g, ' ').trim();
-                initialTitles[p.Proyecto] = rawName || p.Proyecto;
+                initialTitles[p.Proyecto] = getCleanProjectName(p.Proyecto);
 
                 // Si cliente es un email, usarlo como email y dejar nombre vacío
                 if (isEmailFormat(p.cliente)) {
@@ -248,11 +248,14 @@ const BandejaEntrada = () => {
                                         marginBottom: '10px',
                                         fontSize: '1.05rem',
                                         fontWeight: '600',
-                                        backgroundColor: 'rgba(255,255,255,0.5)',
-                                        border: '1px solid var(--border-color)'
+                                        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                                        border: '1px solid var(--border-color)',
+                                        cursor: 'not-allowed',
+                                        opacity: 0.7
                                     }}
                                     value={editTitles[p.Proyecto] || ""}
-                                    onChange={(e) => setEditTitles(prev => ({ ...prev, [p.Proyecto]: e.target.value }))}
+                                    readOnly
+                                    disabled
                                     placeholder="Nombre del presupuesto..."
                                 />
 

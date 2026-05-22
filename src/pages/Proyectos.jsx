@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
+import { getCleanProjectName } from '../utils/aiAllocation';
 import {  
     Loader2, RefreshCw, FolderOpen, CheckCircle, Clock,
     Download, FileCheck, Eye, X, AlertCircle, AlertTriangle, TrendingUp
@@ -108,12 +109,14 @@ const Proyectos = () => {
     const handleFinalizarObra = (pro) => {
         const presupuesto = presupuestosMap[pro.Proyecto];
         const tieneFirmado = presupuesto?.estado === 'firmado';
+        const projName = getCleanProjectName(pro.Proyecto);
+        const clientInfo = pro.cliente ? ` (Cliente: ${pro.cliente})` : '';
 
         if (!tieneFirmado) {
             // Sin contrato firmado → advertencia
             setModalWarn({
                 title: 'Sin contrato firmado',
-                msg: `El proyecto "${pro.cliente || pro.Proyecto}" no tiene un contrato firmado por el cliente. ¿Quieres finalizarlo igualmente?`,
+                msg: `El proyecto "${projName}${clientInfo}" no tiene un contrato firmado por el cliente. ¿Quieres finalizarlo igualmente?`,
                 onConfirm: () => {
                     setModalWarn(null);
                     confirmarCambioEstado(pro.Proyecto, 'Finalizado');
@@ -123,7 +126,7 @@ const Proyectos = () => {
             // Con contrato → confirmación normal
             setModalConfirm({
                 title: 'Finalizar Obra',
-                msg: `¿Estás seguro de que quieres marcar "${pro.cliente || pro.Proyecto}" como Finalizado?`,
+                msg: `¿Estás seguro de que quieres marcar el proyecto "${projName}${clientInfo}" como Finalizado?`,
                 type: 'success',
                 onConfirm: () => {
                     setModalConfirm(null);
@@ -134,9 +137,11 @@ const Proyectos = () => {
     };
 
     const handleReabrirObra = (pro) => {
+        const projName = getCleanProjectName(pro.Proyecto);
+        const clientInfo = pro.cliente ? ` (Cliente: ${pro.cliente})` : '';
         setModalConfirm({
             title: 'Reabrir Proyecto',
-            msg: `¿Quieres volver a marcar "${pro.cliente || pro.Proyecto}" como En Curso?`,
+            msg: `¿Quieres volver a marcar el proyecto "${projName}${clientInfo}" como En Curso?`,
             type: 'info',
             onConfirm: () => {
                 setModalConfirm(null);
@@ -165,7 +170,7 @@ const Proyectos = () => {
     const generarBC3 = (presupuesto) => {
         const allItems = presupuesto.partidas || [];
         const projectId = (presupuesto.propuesta_id || 'PROYECTO').replace(/[|\\]/g, '_');
-        const projectName = (presupuesto.cliente_nombre || 'Proyecto').replace(/[|\\]/g, ' ');
+        const projectName = getCleanProjectName(presupuesto.propuesta_id).replace(/[|\\]/g, ' ');
         const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
 
         const allCodes = new Set(allItems.map(p => p.Capítulo || '').filter(Boolean));
@@ -344,7 +349,10 @@ const Proyectos = () => {
                                     return (
                                         <tr key={idx}>
                                             <td style={{ fontWeight: '600' }}>
-                                                {pro.cliente || (pro.Proyecto || '').split('_')[0]}
+                                                {getCleanProjectName(pro.Proyecto)}
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: 'normal', marginTop: '2px' }}>
+                                                    👤 Cliente: {pro.cliente || "No asignado"}
+                                                </div>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>ID: {pro.Proyecto}</div>
                                             </td>
                                             <td>{new Date(pro.fecha_recepcion).toLocaleDateString()}</td>
