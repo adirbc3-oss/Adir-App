@@ -623,13 +623,44 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         if (f) { setAnexoFile(f); setAnexoFileName(f.name); }
     };
 
-    const buildSolicitudEmailHTML = (provNombre, oficio, clienteNombre, tareas, portalUrl, anexoUrl) => {
-        const filasHtml = tareas.map(t => `
-            <tr>
-                <td style="padding:10px 14px;font-size:13px;color:#334155;border-bottom:1px solid #e2e8f0;line-height:1.4;">${(t.descripcion || '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
-                <td style="padding:10px 14px;font-size:12px;text-align:center;color:#64748b;border-bottom:1px solid #e2e8f0;white-space:nowrap;">${t.cantidad} ${t.unidad}</td>
-                <td style="padding:10px 14px;font-size:12px;text-align:right;color:#64748b;border-bottom:1px solid #e2e8f0;white-space:nowrap;">${t.precio_estimado > 0 ? t.precio_estimado.toFixed(2) + ' €' : '—'}</td>
-            </tr>`).join('');
+    // Helper: extrae los capítulos/subcapítulos relevantes para el email al proveedor
+    // (en el email solo se muestra el resumen por capítulo; el detalle va en el formulario)
+    const getCapitulosParaEmail = (tareasOficio, todasPartidas) => {
+        const headers = todasPartidas.filter(p => (p.Capítulo || '').endsWith('#'));
+        const relevantes = new Set();
+        tareasOficio.forEach(t => {
+            const code = (t.Capítulo || '').trim();
+            headers.forEach(h => {
+                const hCode = (h.Capítulo || '').replace(/#$/, '');
+                if (hCode && (code === hCode || code.startsWith(hCode + '.'))) {
+                    relevantes.add(h.Capítulo);
+                }
+            });
+        });
+        return headers
+            .filter(h => relevantes.has(h.Capítulo))
+            .map(h => {
+                const limpio = (h.Capítulo || '').replace(/#$/, '');
+                const raw = h.Descripción || h.texto_partida || h.Capítulo || '-';
+                const desc = (raw.includes('::') ? raw.split('::').slice(1).join('::') : raw)
+                    .replace(/</g, '&lt;').replace(/>/g, '&gt;').trim();
+                return { limpio, desc, isSubcap: limpio.includes('.') };
+            });
+    };
+
+    // Email al proveedor: solo muestra capítulos/subcapítulos (el formulario tiene el desglose completo)
+    const buildSolicitudEmailHTML = (provNombre, oficio, clienteNombre, capitulos, portalUrl, anexoUrl) => {
+        const filasHtml = capitulos.length > 0
+            ? capitulos.map(c => {
+                const bgColor    = c.isSubcap ? '#eef4fb' : '#dce7f2';
+                const paddingLeft = c.isSubcap ? '28px' : '14px';
+                const textColor  = c.isSubcap ? '#2a5a8a' : '#002D54';
+                const fontWeight = c.isSubcap ? '600' : '700';
+                const border     = c.isSubcap ? 'border-bottom:1px solid #e2e8f0;' : 'border-bottom:2px solid #cbd5e1;';
+                return `<tr style="background:${bgColor};${border}"><td style="padding:10px 14px;padding-left:${paddingLeft};font-size:13px;font-weight:${fontWeight};color:${textColor};">${c.desc}</td></tr>`;
+              }).join('')
+            : `<tr><td style="padding:12px 14px;font-size:13px;color:#64748b;">Partidas de ${oficio}</td></tr>`;
+
         return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="font-family:Arial,sans-serif;background:#f1f5f9;margin:0;padding:20px 0;">
 <div style="max-width:620px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
@@ -641,14 +672,12 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     <p style="font-size:15px;color:#334155;margin:0 0 8px;">Estimado/a <strong>${provNombre}</strong>,</p>
     <p style="font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.6;">
       Le enviamos esta solicitud de presupuesto para el proyecto <strong>${clienteNombre}</strong> en el área de <strong>${oficio}</strong>.
-      Por favor, acceda al formulario para introducir sus precios.
+      Por favor, acceda al formulario para ver el detalle e introducir sus precios.
     </p>
     <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
       <thead>
         <tr style="background:#002D54;color:white;">
-          <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:700;">Descripción</th>
-          <th style="padding:10px 14px;text-align:center;font-size:12px;font-weight:700;width:80px;">Cant.</th>
-          <th style="padding:10px 14px;text-align:right;font-size:12px;font-weight:700;width:100px;">Referencia</th>
+          <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:700;">Capítulos de la obra</th>
         </tr>
       </thead>
       <tbody>${filasHtml}</tbody>
@@ -757,7 +786,9 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 const projName = getCleanProjectName(activeProject.Proyecto);
                 const clientName = activeProject.cliente ? ` (Cliente: ${activeProject.cliente})` : '';
                 const clienteNombre = `${projName}${clientName}`;
-                const htmlEmail = buildSolicitudEmailHTML(prov.Nombre, selectedOficio, clienteNombre, tareas, portalUrl, anexo_url);
+                // Email: solo capítulos/subcapítulos (resumen); el formulario tiene el desglose completo
+                const capitulosEmail = getCapitulosParaEmail(tareasOficio, partidas);
+                const htmlEmail = buildSolicitudEmailHTML(prov.Nombre, selectedOficio, clienteNombre, capitulosEmail, portalUrl, anexo_url);
                 const payload = {
                     propuesta_id: activeProject.Proyecto,
                     cliente_nombre: clienteNombre,
