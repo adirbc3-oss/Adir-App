@@ -366,7 +366,32 @@ const JefesObra = () => {
         }
     };
 
-    const confirmarProyecto = async () => {
+    // Calcula el total de un capítulo/subcapítulo sumando todas sus partidas descendientes
+    const calcularTotalesCapitulos = (todasPartidas) => {
+        const totales = {};
+        const headers = todasPartidas.filter(p => getTipoFila(p) !== 'partida');
+        const items   = todasPartidas.filter(p => getTipoFila(p) === 'partida');
+
+        for (const header of headers) {
+            const hCode    = (header.Capítulo || '').replace(/#+$/, '');
+            const isExtras = hCode === '99_EXTRAS';
+            const hIdx     = todasPartidas.indexOf(header);
+
+            totales[header.Capítulo] = items.reduce((acc, item) => {
+                const iIdx  = todasPartidas.indexOf(item);
+                const iCode = (item.Capítulo || '').trim();
+                const match = isExtras
+                    ? iIdx > hIdx
+                    : iCode === hCode || iCode.startsWith(hCode + '.');
+                if (!match) return acc;
+                return acc + (parseFloat(item['Precio Total (€)']) || 0) * (parseFloat(item.Cantidad) || 1);
+            }, 0);
+        }
+        return totales;
+    };
+
+    // formato: 'capitulos' | 'desglose' — se pasa explícitamente para evitar closures estancados
+    const confirmarProyecto = async (formato) => {
         setLoadingProject(true);
         setShowApproveWarning(false);
         setShowFormatModal(false);
@@ -383,7 +408,7 @@ const JefesObra = () => {
                 };
                 return supabase.from('partidas').update(dataToUpdate).eq('id', p.id);
             });
-            
+
             const results = await Promise.all(updatePromises);
             const hasError = results.find(r => r.error);
             if (hasError) throw hasError.error;
@@ -418,7 +443,7 @@ const JefesObra = () => {
                 .from('propuestas')
                 .update({ estado: 'En Curso' })
                 .eq('Proyecto', activeProject.Proyecto);
-                
+
             if (error) throw error;
 
             // ─── Crear presupuesto para cliente y enviar email ───
@@ -427,62 +452,130 @@ const JefesObra = () => {
                 .filter(p => !p.Capítulo?.endsWith('#'))
                 .reduce((acc, p) => acc + (parseFloat(p['Precio Total (€)']) || 0) * (parseFloat(p.Cantidad) || 1), 0);
 
+            // Calcular totales por capítulo de forma explícita (no depende de índices)
+            const totalesCapitulos = calcularTotalesCapitulos(partidas);
+
+            // Enriquecer todos los headers con su total calculado
+            const partidasParaCliente = partidas.map(p => {
+                const tipoFila = getTipoFila(p);
+                if (tipoFila === 'capitulo' || tipoFila === 'subcapitulo') {
+                    return { ...p, precio_total_capitulo: totalesCapitulos[p.Capítulo] ?? 0 };
+                }
+                return p;
+            });
+
+            // En modo 'capitulos': solo se guardan/envían los headers con sus totales
+            // En modo 'desglose': se guarda todo (headers + partidas individuales)
+            const soloCapitulos = formato === 'capitulos';
+            const partidasGuardar = soloCapitulos
+                ? partidasParaCliente.filter(p => {
+                    const tipoFila = getTipoFila(p);
+                    return tipoFila === 'capitulo' || tipoFila === 'subcapitulo';
+                  })
+                : partidasParaCliente;
+
             await supabase.from('presupuestos_cliente').insert({
                 token,
                 propuesta_id: activeProject.Proyecto,
                 cliente_nombre: activeProject.cliente || '',
                 cliente_email: activeProject.direccion || '',
                 proyecto_descripcion: activeProject.descripcion || getCleanProjectName(activeProject.Proyecto),
-                partidas: partidas,
+                partidas: partidasGuardar,
                 precio_total: precioTotal
             });
 
             const portalUrl = `${window.location.origin}/#/presupuesto-cliente?token=${token}`;
 
-            // Construir tabla HTML del presupuesto para incluirla en el email
-            const partidasEmail = partidas.filter(p => !p.Capítulo?.endsWith('#'));
-            const filasHtml = partidasEmail.map((p, i) => {
-                const pUnit = parseFloat(p['Precio Total (€)'] || 0);
-                const cant  = parseFloat(p.Cantidad) || 1;
-                const total = pUnit * cant;
-                const ud    = p['Unidad IA'] || p.unidad || 'ud';
-                return `
-                <tr style="background:${i % 2 === 0 ? '#e5edf7' : '#ffffff'};">
-                    <td style="padding:10px 14px;font-size:13px;color:#334155;border-bottom:1px solid #c7d5e6;">
-                        ${(p.Descripción || p.texto_partida || '-').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-                    </td>
-                    <td style="padding:10px 14px;font-size:12px;text-align:center;color:#64748b;border-bottom:1px solid #c7d5e6;white-space:nowrap;">
-                        ${cant.toLocaleString('es-ES', { maximumFractionDigits: 2 })} ${ud}
-                    </td>
-                    <td style="padding:10px 14px;font-size:12px;text-align:right;color:#64748b;border-bottom:1px solid #c7d5e6;white-space:nowrap;">
-                        ${pUnit.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-                    </td>
-                    <td style="padding:10px 14px;font-size:13px;text-align:right;font-weight:600;color:#002D54;border-bottom:1px solid #c7d5e6;white-space:nowrap;">
-                        ${total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-                    </td>
-                </tr>`;
-            }).join('');
+            // ─── Construir HTML del email según formato elegido ───
+            let filasHtml = '';
 
-            const htmlPresupuesto = `
-                <table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;margin:16px 0;">
-                    <thead>
-                        <tr style="background:#002D54;color:white;">
-                            <th style="padding:11px 14px;text-align:left;font-size:13px;">Descripción</th>
-                            <th style="padding:11px 14px;text-align:center;font-size:12px;width:100px;">Cantidad</th>
-                            <th style="padding:11px 14px;text-align:right;font-size:12px;width:110px;">Precio/ud (€)</th>
-                            <th style="padding:11px 14px;text-align:right;font-size:13px;width:120px;">Total (€)</th>
-                        </tr>
-                    </thead>
-                    <tbody>${filasHtml}</tbody>
-                    <tfoot>
-                        <tr style="background:#002D54;color:white;">
-                            <td style="padding:12px 14px;font-weight:bold;font-size:15px;">TOTAL PRESUPUESTO</td>
-                            <td style="padding:12px 14px;text-align:right;font-weight:bold;font-size:15px;white-space:nowrap;">
-                                ${precioTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-                            </td>
-                        </tr>
-                    </tfoot>
-                </table>`;
+            if (soloCapitulos) {
+                // Solo capítulos y subcapítulos con su precio total acumulado
+                filasHtml = partidasGuardar.map((p) => {
+                    const tipoFila = getTipoFila(p);
+                    const capClean = (p.Capítulo || '').replace(/#+$/, '');
+                    const totalCap = parseFloat(p.precio_total_capitulo) || 0;
+                    const esCap    = tipoFila === 'capitulo';
+                    const bgColor  = esCap ? '#dce7f2' : '#eef4fb';
+                    const paddingLeft = esCap ? '14px' : '28px';
+                    const textColor   = esCap ? '#002D54' : '#2a5a8a';
+                    const fontWeight  = esCap ? '700' : '600';
+                    const borderStyle = esCap ? 'border-bottom: 2px solid #cbd5e1;' : 'border-bottom: 1px solid #e2e8f0;';
+                    const desc = (p.Descripción || p.texto_partida || '-').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+                    return `<tr style="background:${bgColor}; ${borderStyle}">` +
+                        `<td colspan="3" style="padding:10px 14px; padding-left:${paddingLeft}; font-size:13px; font-weight:${fontWeight}; color:${textColor};">` +
+                            `${capClean ? capClean + ' — ' : ''}${desc}` +
+                        `</td>` +
+                        `<td style="padding:10px 14px; font-size:13px; text-align:right; font-weight:${fontWeight}; color:${textColor}; white-space:nowrap;">` +
+                            `${totalCap.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` +
+                        `</td>` +
+                    `</tr>`;
+                }).join('');
+            } else {
+                // Desglose completo: headers de capítulo con total + cada partida con su precio
+                let partidaIndex = 0;
+                filasHtml = partidasParaCliente.map((p) => {
+                    const tipoFila = getTipoFila(p);
+                    const capClean = (p.Capítulo || '').replace(/#+$/, '');
+                    const desc = (p.Descripción || p.texto_partida || '-').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+                    if (tipoFila === 'capitulo' || tipoFila === 'subcapitulo') {
+                        const totalCap = parseFloat(p.precio_total_capitulo) || 0;
+                        const esCap    = tipoFila === 'capitulo';
+                        const bgColor  = esCap ? '#dce7f2' : '#eef4fb';
+                        const paddingLeft = esCap ? '14px' : '28px';
+                        const textColor   = esCap ? '#002D54' : '#2a5a8a';
+                        const fontWeight  = esCap ? '700' : '600';
+                        const borderStyle = esCap ? 'border-top: 1px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;' : 'border-bottom: 1px solid #e2e8f0;';
+
+                        return `<tr style="background:${bgColor}; ${borderStyle}">` +
+                            `<td colspan="3" style="padding:10px 14px; padding-left:${paddingLeft}; font-size:13px; font-weight:${fontWeight}; color:${textColor};">` +
+                                `${capClean ? capClean + ' — ' : ''}${desc}` +
+                            `</td>` +
+                            `<td style="padding:10px 14px; font-size:13px; text-align:right; font-weight:${fontWeight}; color:${textColor}; white-space:nowrap;">` +
+                                `${totalCap.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` +
+                            `</td>` +
+                        `</tr>`;
+                    } else {
+                        const pUnit = parseFloat(p['Precio Total (€)']) || 0;
+                        const cant  = parseFloat(p.Cantidad) || 1;
+                        const total = pUnit * cant;
+                        const ud    = p['Unidad IA'] || p.unidad || 'ud';
+                        const bgColor = partidaIndex % 2 === 0 ? '#ffffff' : '#f8fafc';
+                        partidaIndex++;
+
+                        return `<tr style="background:${bgColor};">` +
+                            `<td style="padding:10px 14px; padding-left:42px; font-size:13px; color:#334155; border-bottom:1px solid #e2e8f0;">${desc}</td>` +
+                            `<td style="padding:10px 14px; font-size:12px; text-align:center; color:#64748b; border-bottom:1px solid #e2e8f0; white-space:nowrap;">${cant.toLocaleString('es-ES', { maximumFractionDigits: 2 })} ${ud}</td>` +
+                            `<td style="padding:10px 14px; font-size:12px; text-align:right; color:#64748b; border-bottom:1px solid #e2e8f0; white-space:nowrap;">${pUnit.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>` +
+                            `<td style="padding:10px 14px; font-size:13px; text-align:right; font-weight:600; color:#002D54; border-bottom:1px solid #e2e8f0; white-space:nowrap;">${total.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>` +
+                        `</tr>`;
+                    }
+                }).join('');
+            }
+
+            const theadHtml = soloCapitulos
+                ? `<thead><tr style="background:#002D54;color:white;">` +
+                    `<th colspan="3" style="padding:11px 14px;text-align:left;font-size:13px;">Capítulo / Descripción</th>` +
+                    `<th style="padding:11px 14px;text-align:right;font-size:13px;width:140px;">Total (€)</th>` +
+                  `</tr></thead>`
+                : `<thead><tr style="background:#002D54;color:white;">` +
+                    `<th style="padding:11px 14px;text-align:left;font-size:13px;">Descripción</th>` +
+                    `<th style="padding:11px 14px;text-align:center;font-size:12px;width:100px;">Cantidad</th>` +
+                    `<th style="padding:11px 14px;text-align:right;font-size:12px;width:110px;">Precio/ud (€)</th>` +
+                    `<th style="padding:11px 14px;text-align:right;font-size:13px;width:120px;">Total (€)</th>` +
+                  `</tr></thead>`;
+
+            const htmlPresupuesto =
+                `<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;margin:16px 0;">` +
+                    theadHtml +
+                    `<tbody>${filasHtml}</tbody>` +
+                    `<tfoot><tr style="background:#002D54;color:white;">` +
+                        `<td colspan="3" style="padding:12px 14px;font-weight:bold;font-size:15px;text-align:left;">TOTAL PRESUPUESTO</td>` +
+                        `<td style="padding:12px 14px;text-align:right;font-weight:bold;font-size:15px;white-space:nowrap;">${precioTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>` +
+                    `</tr></tfoot>` +
+                `</table>`;
 
             // Sanitizar HTML: comillas dobles → simples, colapsar whitespace (seguro para JSON)
             const htmlPresupuestoSafe = htmlPresupuesto.replace(/"/g, "'").replace(/\s+/g, ' ').trim();
@@ -500,16 +593,24 @@ const JefesObra = () => {
                     precio_total: precioTotal,
                     portal_url: portalUrl,
                     html_presupuesto: htmlPresupuestoSafe,
-                    modo_vista: modoVista,
-                    partidas: partidas
-                        .filter(p => !p.Capítulo?.endsWith('#'))
-                        .map(p => ({
+                    modo_vista: formato,
+                    partidas: soloCapitulos
+                        ? partidasGuardar.map(p => ({
                             texto_partida: (p.Capítulo || 'S/C') + '::' + (p.Descripción || p.texto_partida || 'Sin descripcion'),
-                            precio_adjudicado: parseFloat(p['Precio Total (€)']) || 0,
-                            precio_base_estimado: parseFloat(p['Precio Total (€)']) || 0,
-                            cantidad: parseFloat(p.Cantidad) || 1,
-                            unidad: p['Unidad IA'] || p.unidad || 'ud'
+                            precio_adjudicado: parseFloat(p.precio_total_capitulo) || 0,
+                            precio_base_estimado: parseFloat(p.precio_total_capitulo) || 0,
+                            cantidad: 1,
+                            unidad: 'ud'
                         }))
+                        : partidas
+                            .filter(p => !p.Capítulo?.endsWith('#'))
+                            .map(p => ({
+                                texto_partida: (p.Capítulo || 'S/C') + '::' + (p.Descripción || p.texto_partida || 'Sin descripcion'),
+                                precio_adjudicado: parseFloat(p['Precio Total (€)']) || 0,
+                                precio_base_estimado: parseFloat(p['Precio Total (€)']) || 0,
+                                cantidad: parseFloat(p.Cantidad) || 1,
+                                unidad: p['Unidad IA'] || p.unidad || 'ud'
+                            }))
                 })
             }).catch(e => console.warn('n8n no disponible, email no enviado:', e));
 
@@ -940,11 +1041,9 @@ const JefesObra = () => {
                              <button className="btn btn-secondary" onClick={() => setShowFormatModal(false)} style={{ flex: 1 }}>
                                  Cancelar
                              </button>
-                             <button 
-                                 className="btn btn-success" 
-                                 onClick={() => {
-                                     confirmarProyecto();
-                                 }}
+                             <button
+                                 className="btn btn-success"
+                                 onClick={() => confirmarProyecto(modoVista)}
                                  style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
                              >
                                  <CheckCircle size={16} /> Aprobar y Enviar
