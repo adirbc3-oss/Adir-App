@@ -735,7 +735,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             // Only block re-send if the existing solicitud is still pending (not yet responded)
             const pendingProvIds = new Set(
                 (existingSols || [])
-                    .filter(s => s.estado_solicitud !== 'Respondido')
+                    .filter(s => s.estado_solicitud === 'Pendiente')
                     .map(s => String(s.proveedor_id))
             );
 
