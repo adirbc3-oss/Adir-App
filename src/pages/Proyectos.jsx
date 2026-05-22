@@ -14,7 +14,7 @@ const Modal = ({ icon, iconBg, title, children, footer }) => (
         display: 'flex', alignItems: 'center', justifyContent: 'center'
     }}>
         <div style={{
-            background: 'var(--bg-primary)', borderRadius: 20, padding: 36,
+            background: 'white', borderRadius: 20, padding: 36,
             maxWidth: 480, width: '90%', boxShadow: '0 25px 60px rgba(0,0,0,0.4)',
             textAlign: 'center'
         }}>
@@ -448,7 +448,7 @@ const Proyectos = () => {
             {/* Modal de firma */}
             {viendoFirma && (
                 <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ background: 'var(--bg-primary)', borderRadius: 20, padding: 36, maxWidth: 520, width: '90%', boxShadow: '0 25px 60px rgba(0,0,0,0.4)' }}>
+                    <div style={{ background: 'white', borderRadius: 20, padding: 36, maxWidth: 520, width: '90%', boxShadow: '0 25px 60px rgba(0,0,0,0.4)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                             <div>
                                 <h3 style={{ margin: 0 }}>Firma Digital</h3>

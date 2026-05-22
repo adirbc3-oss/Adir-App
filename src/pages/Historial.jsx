@@ -178,7 +178,7 @@ const Historial = () => {
                         <select 
                             value={filtroOrigen}
                             onChange={(e) => setFiltroOrigen(e.target.value)}
-                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'white' }}
                         >
                             <option value="">Cualquier Origen</option>
                             <option value="Manual">Manual</option>
@@ -192,7 +192,7 @@ const Historial = () => {
                         <select 
                             value={filtroEntidad}
                             onChange={(e) => setFiltroEntidad(e.target.value)}
-                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'white' }}
                         >
                             <option value="">Cualquier Entidad</option>
                             <option value="Partida">Partida (Borradores)</option>

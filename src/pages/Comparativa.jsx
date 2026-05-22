@@ -1082,7 +1082,9 @@ export default function Comparativa({ setSessionCache }) {
       {ModalUI}
       {ToastUI}
       {/* CABECERA */}
-      <div style={s.header}>        <div style={{ flex: 1 }}>
+      <div className="glass-card" style={{ marginBottom: '20px' }}>
+        <div style={s.header}>
+          <div style={{ flex: 1 }}>
           <h1 style={{ ...s.title,  display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px'  }}><BarChart2 size={32} color="var(--primary)" /> Comparativa de Presupuestos</h1>
           <p style={s.subtitle}>
             {loading ? 'Cargando...' : `${totalRespuestas} respuesta(s) recibida(s) · ${totalGrupos} grupo(s) comparables`}
@@ -1099,6 +1101,7 @@ export default function Comparativa({ setSessionCache }) {
             <Download size={16} /> Exportar Excel
           </button>
         )}
+        </div>
       </div>
 
       {/* FILTROS */}

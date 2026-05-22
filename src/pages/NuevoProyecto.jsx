@@ -161,14 +161,18 @@ const NuevoProyecto = () => {
 
     return (
         <div className="animate-fade-in">
-            <div style={{ marginBottom: '24px' }}>
-                <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
-                    <UploadCloud size={32} color="var(--primary)" />
-                    Procesar Nuevo BC3
-                </h1>
-                <p style={{ color: 'var(--text-muted)' }}>
-                    Carga un archivo .bc3 de Presto para importarlo directamente a Borradores en Curso.
-                </p>
+            <div className="glass-card" style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div>
+                        <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}>
+                            <UploadCloud size={32} color="var(--primary)" />
+                            Procesar Nuevo BC3
+                        </h1>
+                        <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            Carga un archivo .bc3 de Presto para importarlo directamente a Borradores en Curso.
+                        </p>
+                    </div>
+                </div>
             </div>
 
             {ToastUI}

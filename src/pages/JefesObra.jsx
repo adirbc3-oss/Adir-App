@@ -545,7 +545,7 @@ const JefesObra = () => {
                                     onChange={e => setModoVista(e.target.value)}
                                     disabled={loadingProject}
                                     title="Selecciona cómo verá el cliente el presupuesto en el email"
-                                    style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', fontSize: '0.82rem', backgroundColor: 'var(--bg-primary)', cursor: 'pointer' }}
+                                    style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', fontSize: '0.82rem', backgroundColor: 'white', cursor: 'pointer' }}
                                 >
                                     <option value="desglose">Email: Desglose completo</option>
                                     <option value="capitulos">Email: Solo capítulos</option>

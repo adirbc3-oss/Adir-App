@@ -107,7 +107,7 @@ const PresupuestosFirmados = () => {
                     <select
                         value={filtroEstado}
                         onChange={e => setFiltroEstado(e.target.value)}
-                        style={{ flex: 1, minWidth: 160, padding: '10px', borderRadius: 8, border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}
+                        style={{ flex: 1, minWidth: 160, padding: '10px', borderRadius: 8, border: '1px solid var(--border-color)', backgroundColor: 'white' }}
                     >
                         <option value="">Todos los estados</option>
                         <option value="pendiente">Pendiente de firma</option>
@@ -202,7 +202,7 @@ const PresupuestosFirmados = () => {
             {/* Modal de detalle con firma */}
             {viendoDetalle && (
                 <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ background: 'var(--bg-primary)', borderRadius: 20, padding: 36, maxWidth: 500, width: '90%', boxShadow: '0 25px 60px rgba(0,0,0,0.4)' }}>
+                    <div style={{ background: 'white', borderRadius: 20, padding: 36, maxWidth: 500, width: '90%', boxShadow: '0 25px 60px rgba(0,0,0,0.4)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                             <h3 style={{ margin: 0 }}>Firma Digital — {viendoDetalle.cliente_nombre}</h3>
                             <button onClick={() => setViendoDetalle(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>

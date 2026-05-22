@@ -303,7 +303,7 @@ function ModalImport({ onClose, onImportDone, showToast }) {
     zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
   };
   const boxStyle = {
-    background: 'var(--bg-primary)', borderRadius: '16px', padding: '28px',
+    background: 'white', borderRadius: '16px', padding: '28px',
     maxWidth: '820px', width: '100%', maxHeight: '92vh', overflowY: 'auto',
     boxShadow: '0 24px 64px rgba(0,0,0,0.45)',
   };
@@ -449,7 +449,7 @@ function ModalImport({ onClose, onImportDone, showToast }) {
                           value={decisions[i]}
                           onChange={e => setDecisions(d => ({ ...d, [i]: e.target.value }))}
                           style={{ fontSize: '0.78rem', padding: '3px 6px', borderRadius: '6px',
-                            border: '1px solid var(--border-color)', background: 'var(--bg-primary)',
+                            border: '1px solid var(--border-color)', background: 'white',
                             color: decisions[i] === 'ignorar' ? 'var(--text-muted)' : undefined }}
                         >
                           <option value="crear">Crear nueva</option>
@@ -644,7 +644,7 @@ function PanelEstimacionTrabajo({ item, onClose }) {
 
 function MiniStat({ label, value, color, sub }) {
   return (
-    <div style={{ background: 'var(--bg-primary)', borderRadius: '8px', padding: '10px 14px',
+    <div style={{ background: 'white', borderRadius: '8px', padding: '10px 14px',
       borderLeft: `3px solid ${color}` }}>
       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '2px' }}>{label}</div>
       <div style={{ fontWeight: 700, color, fontSize: '1rem' }}>{value}</div>
@@ -816,7 +816,7 @@ const BasePrecios = () => {
             <div style={{ flex: '1', minWidth: '180px' }}>
               <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
                 style={{ width: '100%', padding: '10px', borderRadius: '8px',
-                  border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}>
+                  border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
                 <option value="">Todas las categorías</option>
                 {categoriasDisponibles.map((cat, i) => <option key={i} value={cat}>{cat}</option>)}
               </select>
