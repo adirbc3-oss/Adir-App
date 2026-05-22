@@ -23,6 +23,7 @@ const JefesObra = () => {
     const [loadingProject, setLoadingProject] = useState(false);
     const [showDenyModal, setShowDenyModal] = useState(false);
     const [showApproveWarning, setShowApproveWarning] = useState(false);
+    const [showFormatModal, setShowFormatModal] = useState(false);
     const [modoVista, setModoVista] = useState('desglose');
     
     const [showEditMetadata, setShowEditMetadata] = useState(false);
@@ -361,13 +362,14 @@ const JefesObra = () => {
         if (noAprobadas.length > 0) {
             setShowApproveWarning(true);
         } else {
-            confirmarProyecto();
+            setShowFormatModal(true);
         }
     };
 
     const confirmarProyecto = async () => {
         setLoadingProject(true);
         setShowApproveWarning(false);
+        setShowFormatModal(false);
         try {
             const updatePromises = partidas.filter(p => p.id && !p._synthetic).map(p => {
                 const dataToUpdate = {
@@ -554,16 +556,6 @@ const JefesObra = () => {
                                 </div>
                             </div>
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                <select
-                                    value={modoVista}
-                                    onChange={e => setModoVista(e.target.value)}
-                                    disabled={loadingProject}
-                                    title="Selecciona cómo verá el cliente el presupuesto en el email"
-                                    style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-color)', fontSize: '0.82rem', backgroundColor: 'white', cursor: 'pointer' }}
-                                >
-                                    <option value="desglose">Email: Desglose completo</option>
-                                    <option value="capitulos">Email: Solo capítulos</option>
-                                </select>
                                 <button
                                     className="btn btn-secondary"
                                     onClick={() => setShowDenyModal(true)}
@@ -871,11 +863,96 @@ const JefesObra = () => {
                         </p>
                         <div style={{ display: 'flex', gap: '12px' }}>
                             <button onClick={() => setShowApproveWarning(false)} style={btnCancel}>Seguir Revisando</button>
-                            <button onClick={confirmarProyecto} style={btnSuccess}>Aprobar de todas formas</button>
+                            <button onClick={() => { setShowApproveWarning(false); setShowFormatModal(true); }} style={btnSuccess}>Aprobar de todas formas</button>
                         </div>
                     </div>
                 </div>
             )}
+
+            {showFormatModal && (
+                 <div style={modalOverlay}>
+                     <div style={{...modalContent, textAlign: 'left', maxWidth: '500px'}}>
+                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+                             <span style={{ fontSize: '1.5rem' }}>📧</span>
+                             <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.25rem', fontWeight: 700 }}>Formato del Presupuesto por Email</h3>
+                         </div>
+                         <p style={{ margin: '0 0 20px', fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                             Selecciona cómo deseas que el cliente visualice el presupuesto en el correo electrónico de firma digital:
+                         </p>
+                         
+                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '25px' }}>
+                             <label 
+                                 style={{
+                                     display: 'flex',
+                                     alignItems: 'flex-start',
+                                     gap: '12px',
+                                     padding: '16px',
+                                     borderRadius: '12px',
+                                     border: modoVista === 'desglose' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                                     backgroundColor: modoVista === 'desglose' ? 'rgba(0, 45, 84, 0.04)' : 'transparent',
+                                     cursor: 'pointer',
+                                     transition: 'all 0.2s'
+                                 }}
+                             >
+                                 <input 
+                                     type="radio" 
+                                     name="modoVistaEmail" 
+                                     value="desglose" 
+                                     checked={modoVista === 'desglose'} 
+                                     onChange={() => setModoVista('desglose')}
+                                     style={{ marginTop: '4px', accentColor: 'var(--primary)' }}
+                                 />
+                                 <div>
+                                     <strong style={{ display: 'block', fontSize: '0.95rem', color: 'var(--text-main)', marginBottom: '2px' }}>Desglose completo de partidas</strong>
+                                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Muestra todas las partidas de la obra con sus descripciones, cantidades, precios unitarios y totales.</span>
+                                 </div>
+                             </label>
+
+                             <label 
+                                 style={{
+                                     display: 'flex',
+                                     alignItems: 'flex-start',
+                                     gap: '12px',
+                                     padding: '16px',
+                                     borderRadius: '12px',
+                                     border: modoVista === 'capitulos' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                                     backgroundColor: modoVista === 'capitulos' ? 'rgba(0, 45, 84, 0.04)' : 'transparent',
+                                     cursor: 'pointer',
+                                     transition: 'all 0.2s'
+                                 }}
+                             >
+                                 <input 
+                                     type="radio" 
+                                     name="modoVistaEmail" 
+                                     value="capitulos" 
+                                     checked={modoVista === 'capitulos'} 
+                                     onChange={() => setModoVista('capitulos')}
+                                     style={{ marginTop: '4px', accentColor: 'var(--primary)' }}
+                                 />
+                                 <div>
+                                     <strong style={{ display: 'block', fontSize: '0.95rem', color: 'var(--text-main)', marginBottom: '2px' }}>Solo totales por capítulo</strong>
+                                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Muestra únicamente la suma total acumulada por cada capítulo o grupo de trabajo, simplificando la vista.</span>
+                                 </div>
+                             </label>
+                         </div>
+
+                         <div style={{ display: 'flex', gap: '12px' }}>
+                             <button className="btn btn-secondary" onClick={() => setShowFormatModal(false)} style={{ flex: 1 }}>
+                                 Cancelar
+                             </button>
+                             <button 
+                                 className="btn btn-success" 
+                                 onClick={() => {
+                                     confirmarProyecto();
+                                 }}
+                                 style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+                             >
+                                 <CheckCircle size={16} /> Aprobar y Enviar
+                             </button>
+                         </div>
+                     </div>
+                 </div>
+             )}
 
             {showEditMetadata && (
                 <div style={modalOverlay}>
