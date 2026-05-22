@@ -728,14 +728,14 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             // for this same project+oficio. If they already responded, allow re-requesting.
             const { data: existingSols } = await supabase
                 .from('solicitudes')
-                .select('proveedor_id, estado')
+                .select('proveedor_id, estado_solicitud')
                 .eq('propuesta_id', activeProject.Proyecto)
                 .eq('oficio_solicitado', selectedOficio);
 
             // Only block re-send if the existing solicitud is still pending (not yet responded)
             const pendingProvIds = new Set(
                 (existingSols || [])
-                    .filter(s => s.estado !== 'Respondido')
+                    .filter(s => s.estado_solicitud !== 'Respondido')
                     .map(s => String(s.proveedor_id))
             );
 
@@ -746,7 +746,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     continue;
                 }
                 const token = crypto.randomUUID();
-                const portalUrl = `${N8N_BASE_URL}/webhook/portal-proveedor?token=${token}`;
+                const portalUrl = `${window.location.origin}/#/portal?token=${token}`;
                 const tareas = tareasOficio.map(t => ({
                     cap: t.Capítulo,
                     descripcion: t.Descripción || t.texto_partida || '',
@@ -768,7 +768,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     token,
                     portal_url: portalUrl,
                     anexo_url: anexo_url || '',
-                    html_email: htmlEmail,
+                    html_email: htmlEmail.replace(/"/g, "'").replace(/\s+/g, ' ').trim(),
                     tareas,
                 };
 

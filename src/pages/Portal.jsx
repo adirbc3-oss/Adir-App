@@ -51,7 +51,7 @@ const Portal = () => {
             console.error(solError);
             throw new Error("La solicitud no existe, el enlace está corrupto o ha caducado.");
         }
-        if (solData.estado === 'Respondido') throw new Error("Esta solicitud ya fue respondida.");
+        if (solData.estado_solicitud === 'Respondido') throw new Error("Esta solicitud ya fue respondida.");
 
         setSolicitud(solData);
 
@@ -226,6 +226,13 @@ const Portal = () => {
       <div style={{ padding: 20, background: '#f8f9fa', borderRadius: 8, marginBottom: 20 }}>
         <h3>Hola, {solicitud.proveedor_nombre || solicitud.proveedores?.nombre || "Proveedor"}</h3>
         <p>Por favor, indica tu precio por cada partida solicitada para <strong>{solicitud.oficio_solicitado}</strong>.</p>
+        {solicitud.anexo_url && (
+          <p style={{ marginTop: 10, marginBottom: 0 }}>
+            📎 <a href={solicitud.anexo_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600 }}>
+              Descargar anexo del proyecto
+            </a>
+          </p>
+        )}
       </div>
 
       <form onSubmit={handleSubmit}>
