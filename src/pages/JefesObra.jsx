@@ -567,8 +567,8 @@ const JefesObra = () => {
                     `<th style="padding:11px 14px;text-align:right;font-size:13px;width:120px;">Total (€)</th>` +
                   `</tr></thead>`;
 
-            const htmlPresupuesto =
-                `<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;margin:16px 0;">` +
+            const tableHtml =
+                `<table style="width:100%;border-collapse:collapse;margin-bottom:20px;">` +
                     theadHtml +
                     `<tbody>${filasHtml}</tbody>` +
                     `<tfoot><tr style="background:#002D54;color:white;">` +
@@ -576,6 +576,37 @@ const JefesObra = () => {
                         `<td style="padding:12px 14px;text-align:right;font-weight:bold;font-size:15px;white-space:nowrap;">${precioTotal.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</td>` +
                     `</tr></tfoot>` +
                 `</table>`;
+
+            const htmlPresupuesto =
+                `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>` +
+                `<body style="font-family:Arial,sans-serif;background:#f1f5f9;margin:0;padding:20px 0;">` +
+                `<div style="max-width:660px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">` +
+                  `<div style="background:#002D54;padding:28px 32px;text-align:center;">` +
+                    `<h1 style="color:white;margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">ADIR Reformas</h1>` +
+                    `<p style="color:rgba(255,255,255,0.65);margin:6px 0 0;font-size:13px;">Presupuesto de Obra</p>` +
+                  `</div>` +
+                  `<div style="padding:32px;">` +
+                    `<p style="font-size:15px;color:#334155;margin:0 0 8px;">Estimado/a <strong>${activeProject.cliente || 'Cliente'}</strong>,</p>` +
+                    `<p style="font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.6;">` +
+                      `Le adjuntamos el presupuesto detallado para el proyecto <strong>${getCleanProjectName(activeProject.Proyecto)}</strong>. ` +
+                      `Por favor, revíselo y proceda a firmarlo desde el siguiente enlace.` +
+                    `</p>` +
+                    tableHtml +
+                    `<div style="text-align:center;margin:28px 0 20px;">` +
+                      `<a href="${portalUrl}" style="display:inline-block;padding:16px 36px;background:#002D54;color:white;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;letter-spacing:0.2px;">` +
+                        `→ Revisar y Firmar Presupuesto` +
+                      `</a>` +
+                    `</div>` +
+                    `<p style="font-size:11px;color:#94a3b8;text-align:center;margin:0;">` +
+                      `Si el botón no funciona, copie este enlace en su navegador:<br>` +
+                      `<a href="${portalUrl}" style="color:#002D54;word-break:break-all;">${portalUrl}</a>` +
+                    `</p>` +
+                  `</div>` +
+                  `<div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;text-align:center;">` +
+                    `<p style="margin:0;font-size:11px;color:#94a3b8;">ADIR Reformas · Gestión Profesional de Obras y Reformas · adirbc3@gmail.com</p>` +
+                  `</div>` +
+                `</div>` +
+                `</body></html>`;
 
             // Sanitizar HTML: comillas dobles → simples, colapsar whitespace (seguro para JSON)
             const htmlPresupuestoSafe = htmlPresupuesto.replace(/"/g, "'").replace(/\s+/g, ' ').trim();
