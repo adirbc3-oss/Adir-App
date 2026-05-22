@@ -274,11 +274,18 @@ const Proyectos = () => {
                 </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Files size={32} color="var(--primary)" /> Proyectos Activos e Histórico</h1>
-                <button className="btn btn-secondary" onClick={fetchProyectos} disabled={loading}>
-                    <RefreshCw size={16} className={loading ? 'loader-spinner' : ''} />
-                </button>
+            <div className="glass-card" style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div>
+                            <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}><Files size={32} color="var(--primary)" /> Proyectos Activos e Histórico</h1>
+                            <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Visualiza y gestiona todo el ciclo de vida de las obras.</p>
+                        </div>
+                    </div>
+                    <button className="btn btn-secondary" onClick={fetchProyectos} disabled={loading}>
+                        <RefreshCw size={16} className={loading ? 'loader-spinner' : ''} />
+                    </button>
+                </div>
             </div>
 
             {!loading && proyectos.length > 0 && (

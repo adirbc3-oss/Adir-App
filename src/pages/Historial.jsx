@@ -135,7 +135,7 @@ const Historial = () => {
             <div className="glass-card" style={{ marginBottom: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>                        <div>
-                            <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><History size={32} color="var(--primary)" /> Historial de Cambios</h1>
+                            <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}><History size={32} color="var(--primary)" /> Historial de Cambios</h1>
                             <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Registro de auditoría de todas las modificaciones de precios y asignaciones.</p>
                         </div>
                     </div>

@@ -149,16 +149,22 @@ const Proveedores = () => {
     return (
         <div className="animate-fade-in">
             {ModalUI}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>                    <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Users size={32} color="var(--primary)" /> Gestión de Proveedores</h1>
-                </div>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <button className="btn btn-secondary" onClick={fetchProveedores} disabled={loading}>
-                        <RefreshCw size={16} className={loading ? 'loader-spinner' : ''} /> Refrescar
-                    </button>
-                    <button className="btn btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
-                        <UserPlus size={16} /> {showAddForm ? 'Cerrar' : 'Añadir Proveedor'}
-                    </button>
+            <div className="glass-card" style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div>
+                            <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}><Users size={32} color="var(--primary)" /> Gestión de Proveedores</h1>
+                            <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Directorio y evaluación de subcontratas y proveedores.</p>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <button className="btn btn-secondary" onClick={fetchProveedores} disabled={loading}>
+                            <RefreshCw size={16} className={loading ? 'loader-spinner' : ''} /> Refrescar
+                        </button>
+                        <button className="btn btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
+                            <UserPlus size={16} /> {showAddForm ? 'Cerrar' : 'Añadir Proveedor'}
+                        </button>
+                    </div>
                 </div>
             </div>
 

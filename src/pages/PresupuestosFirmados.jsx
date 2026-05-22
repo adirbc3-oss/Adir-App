@@ -77,17 +77,16 @@ const PresupuestosFirmados = () => {
     return (
         <div className="animate-fade-in" style={{ paddingBottom: 40 }}>
             {/* Header */}
-            <div className="glass-card" style={{ marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-                    <div style={{ backgroundColor: 'rgba(22,163,74,0.1)', padding: 12, borderRadius: 12 }}>
-                        <FileCheck size={28} color="#16a34a" />
+            <div className="glass-card" style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div>
+                            <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}><FileSignature size={32} color="var(--primary)" /> Presupuestos y Contratos</h1>
+                            <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Seguimiento de presupuestos enviados a clientes, firmas y rechazos.</p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><FileSignature size={32} color="var(--primary)" /> Presupuestos y Contratos</h1>
-                        <p>Seguimiento de presupuestos enviados a clientes, firmas y rechazos.</p>
-                    </div>
-                    <button onClick={fetchPresupuestos} className="btn btn-secondary" style={{ marginLeft: 'auto' }}>
-                        Actualizar
+                    <button onClick={fetchPresupuestos} className="btn btn-secondary">
+                        <RefreshCw size={16} /> Actualizar
                     </button>
                 </div>
             </div>

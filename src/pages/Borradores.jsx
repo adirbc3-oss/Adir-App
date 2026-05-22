@@ -1241,13 +1241,16 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     return (
         <div className="animate-fade-in">
             {ModalUI} {ToastUI}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>                    <div>
-                        <h1 style={{ margin: 0 }}>Borradores</h1>
-                        <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Gestiona tus licitaciones y presupuestos en curso.</p>
+            <div className="glass-card" style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div>
+                            <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}><Files size={32} color="var(--primary)" /> Borradores</h1>
+                            <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Gestiona tus licitaciones y presupuestos en curso.</p>
+                        </div>
                     </div>
+                    <button className="btn btn-secondary" onClick={() => fetchProyectos(true)} style={{ padding: '10px' }}><RefreshCw size={18} /></button>
                 </div>
-                <button className="btn btn-secondary" onClick={() => fetchProyectos(true)} style={{ padding: '10px' }}><RefreshCw size={18} /></button>
             </div>
 
             {loading ? (

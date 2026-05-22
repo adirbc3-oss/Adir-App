@@ -171,13 +171,15 @@ const BandejaEntrada = () => {
     return (
         <div className="animate-fade-in" style={{ padding: '0 20px 40px', maxWidth: '1200px', margin: '0 auto' }}>
             {ToastUI}
-            <div className="section-header" style={{ marginBottom: '30px' }}>
-                <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Mailbox size={32} color="var(--primary)" />                    Bandeja de Recepción Automática
-                </h1>
-                <p style={{ color: 'var(--text-secondary)' }}>
-                    Buzón inteligente que intercepta correos con ficheros BC3 configurados mediante n8n.
-                    Los proyectos recibidos aparecen aquí para revisión y aceptación.
-                </p>
+            <div className="glass-card" style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div>
+                            <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}><Mailbox size={32} color="var(--primary)" /> Bandeja de Recepción Automática</h1>
+                            <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Buzón inteligente que intercepta correos con ficheros BC3 configurados mediante n8n. Los proyectos recibidos aparecen aquí para revisión y aceptación.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {notificaciones.length > 0 && (

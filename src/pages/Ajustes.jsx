@@ -62,9 +62,10 @@ const Ajustes = () => {
 
     return (
         <div className="animate-fade-in">
-            <div style={{ marginBottom: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>                    <div>
-                        <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><Settings size={32} color="var(--primary)" /> Ajustes</h1>
+            <div className="glass-card" style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div>
+                        <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}><Settings size={32} color="var(--primary)" /> Ajustes</h1>
                         <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Configuración general de la aplicación.</p>
                     </div>
                 </div>

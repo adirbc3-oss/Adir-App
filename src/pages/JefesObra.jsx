@@ -733,12 +733,18 @@ const JefesObra = () => {
                 ) : (
                     /* ─── VISTA LISTADO DE PROYECTOS ─── */
                     <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>                                <h1 style={{ margin: 0 }}>Panel de Jefes de Obra</h1>
+                        <div className="glass-card" style={{ marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                    <div>
+                                        <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}><HardHat size={32} color="var(--primary)" /> Panel de Jefes de Obra</h1>
+                                        <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Gestiona las revisiones técnicas y adjudicaciones.</p>
+                                    </div>
+                                </div>
+                                <button className="btn btn-secondary" onClick={fetchProyectos} disabled={loading}>
+                                    <RefreshCw size={16} className={loading ? 'loader-spinner' : ''} />
+                                </button>
                             </div>
-                            <button className="btn btn-secondary" onClick={fetchProyectos} disabled={loading}>
-                                <RefreshCw size={16} className={loading ? 'loader-spinner' : ''} />
-                            </button>
                         </div>
 
                         <div className="glass-card" style={{ marginTop: '24px', marginBottom: '24px' }}>
