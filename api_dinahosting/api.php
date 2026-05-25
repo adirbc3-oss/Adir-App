@@ -248,8 +248,9 @@ $method = $_SERVER['REQUEST_METHOD'];
 $uri    = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $parts  = array_values(array_filter(explode('/', trim($uri, '/'))));
 
-// Esperamos: api/TABLA_SUPABASE
-$sbTable    = $parts[1] ?? '';   // nombre Supabase (ej: "partidas", "PreciosCype")
+// URL: /api/api.php/TABLA  → último segmento es siempre la tabla
+// Funciona tanto con /api/api.php/tabla como con /api/tabla (via .htaccess)
+$sbTable = end($parts) ?: '';
 $mysqlTable = $TABLE_MAP[$sbTable] ?? '';
 
 if (!$mysqlTable) {
