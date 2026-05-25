@@ -423,6 +423,17 @@ const JefesObra = () => {
         return totales;
     };
 
+    // Sanitiza una partida antes de guardarla en la BD — elimina todos los campos
+    // de estado React que no necesita el portal del cliente ni el PDF.
+    const sanitizarPartidaParaBD = (p) => ({
+        Capítulo:            p.Capítulo || '',
+        Descripción:         p.Descripción || '',
+        Cantidad:            parseFloat(p.Cantidad) || 0,
+        'Unidad IA':         p['Unidad IA'] || p.unidad || '',
+        precio_adjudicado:   parseFloat(p['Precio Total (€)']) || 0,
+        precio_total_capitulo: parseFloat(p.precio_total_capitulo) || 0,
+    });
+
     // modoPortal: 'capitulos' | 'desglose' → qué datos se guardan en Supabase para el formulario de firma
     // El correo SIEMPRE renderiza solo capítulos y subcapítulos
     const confirmarProyecto = async (modoPortalParam) => {
@@ -503,12 +514,13 @@ const JefesObra = () => {
             const soloCapitulosPortal = modoPortalParam === 'capitulos';
             const soloCapitulosEmail  = true;
 
-            const partidasGuardar = soloCapitulosPortal
+            const partidasGuardar = (soloCapitulosPortal
                 ? partidasParaCliente.filter(p => {
                     const tipoFila = getTipoFila(p);
                     return tipoFila === 'capitulo' || tipoFila === 'subcapitulo';
                   })
-                : partidasParaCliente;
+                : partidasParaCliente
+            ).map(sanitizarPartidaParaBD); // ← solo los campos necesarios, sin estado React
 
             await supabase.from('presupuestos_cliente').insert({
                 token,
