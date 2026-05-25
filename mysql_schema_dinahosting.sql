@@ -138,7 +138,7 @@ CREATE TABLE `ctcon_proveedores` (
 CREATE TABLE `ctcon_solicitudes` (
   `id`                    BIGINT        NOT NULL AUTO_INCREMENT,
   `id_bc3`                CHAR(36)      DEFAULT NULL UNIQUE  COMMENT 'UUID original de Supabase',
-  `propuesta_id`          BIGINT        NOT NULL,
+  `propuesta_id`          BIGINT        DEFAULT NULL  COMMENT 'FK → ctcon_propuestas.id (NULL si propuesta huérfana)',
   `propuesta_bc3`         VARCHAR(200)  DEFAULT NULL,
   `oficio_solicitado`     VARCHAR(100)  DEFAULT NULL,
   `fecha_envio`           DATETIME      DEFAULT NULL,
@@ -158,7 +158,7 @@ CREATE TABLE `ctcon_solicitudes` (
   INDEX `idx_sol_token`     (`token`(50)),
   CONSTRAINT `fk_sol_propuesta`
     FOREIGN KEY (`propuesta_id`) REFERENCES `ctcon_propuestas` (`id`)
-    ON DELETE CASCADE ON UPDATE CASCADE
+    ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -168,7 +168,7 @@ CREATE TABLE `ctcon_solicitudes` (
 CREATE TABLE `ctcon_respuestas` (
   `id`              BIGINT        NOT NULL AUTO_INCREMENT,
   `id_bc3`          CHAR(36)      DEFAULT NULL UNIQUE  COMMENT 'UUID original de Supabase',
-  `solicitud_id`    BIGINT        NOT NULL              COMMENT 'FK → ctcon_solicitudes.id',
+  `solicitud_id`    BIGINT        DEFAULT NULL          COMMENT 'FK → ctcon_solicitudes.id',
   `solicitud_bc3`   CHAR(36)      DEFAULT NULL          COMMENT 'UUID original solicitud',
   `proveedor_id`    BIGINT        DEFAULT NULL,
   `proveedor_bc3`   VARCHAR(36)   DEFAULT NULL,
@@ -182,7 +182,7 @@ CREATE TABLE `ctcon_respuestas` (
   INDEX `idx_resp_partida`   (`partida_id`),
   CONSTRAINT `fk_resp_solicitud`
     FOREIGN KEY (`solicitud_id`) REFERENCES `ctcon_solicitudes` (`id`)
-    ON DELETE CASCADE ON UPDATE CASCADE
+    ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 

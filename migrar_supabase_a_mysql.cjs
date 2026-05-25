@@ -125,9 +125,6 @@ function genInserts(mysqlTable, rows, mapFn) {
     lines.push(`-- ${'═'.repeat(50)}`);
     lines.push(`-- ${mysqlTable}  (${rows.length} filas)`);
     lines.push(`-- ${'═'.repeat(50)}`);
-    lines.push(`SET FOREIGN_KEY_CHECKS = 0;`);
-    lines.push(`TRUNCATE TABLE \`${mysqlTable}\`;`);
-    lines.push(`SET FOREIGN_KEY_CHECKS = 1;`);
 
     let err = 0;
     rows.forEach((row, idx) => {
@@ -136,7 +133,7 @@ function genInserts(mysqlTable, rows, mapFn) {
             if (!m) return;
             const cols = Object.keys(m).map(c => `\`${c}\``).join(', ');
             const vals = Object.values(m).join(', ');
-            lines.push(`INSERT INTO \`${mysqlTable}\` (${cols}) VALUES (${vals});`);
+            lines.push(`INSERT IGNORE INTO \`${mysqlTable}\` (${cols}) VALUES (${vals});`);
         } catch (e) {
             err++;
             if (err <= 3) console.warn(`  ⚠ Error fila ${idx} en ${mysqlTable}:`, e.message);
@@ -366,46 +363,55 @@ async function main() {
     console.log(`   base_precios_adir:   ${baseAdir.length}`);
     console.log(`   precios_cype:        ${cype.length}`);
 
-    const fecha   = new Date().toISOString().split('T')[0];
-    const outFile = `migracion_adir_datos_${fecha}.sql`;
-
-    console.log('\n✍  Generando fichero SQL...');
-
-    const cabecera = [
-        `-- ${'='.repeat(60)}`,
-        `--  ADIR — Migración completa Supabase → MySQL`,
-        `--  Prefijo: ${PREFIX}   BD: adirg_bbdd (Dinahosting)`,
-        `--  IDs: BIGINT AUTO_INCREMENT (numéricos secuenciales)`,
-        `--  Generado: ${new Date().toISOString()}`,
-        `--  Total filas: ${total.toLocaleString()}`,
-        `-- ${'='.repeat(60)}`,
-        `--`,
-        `--  ORDEN DE IMPORTACIÓN:`,
-        `--    1. mysql_schema_dinahosting.sql  (estructura, primero)`,
-        `--    2. Este fichero (datos)`,
-        `--  phpMyAdmin → adirg_bbdd → Importar → utf-8 → SQL`,
-        `-- ${'='.repeat(60)}`,
-        ``,
-        `SET NAMES utf8mb4;`,
-        `SET FOREIGN_KEY_CHECKS = 0;`,
-        ``,
-    ].join('\n');
-
+    const fecha = new Date().toISOString().split('T')[0];
     const pie = [
         ``,
         `SET FOREIGN_KEY_CHECKS = 1;`,
         ``,
         `-- ${'='.repeat(60)}`,
-        `--  FIN DE LA MIGRACIÓN`,
+        `--  FIN`,
         `-- ${'='.repeat(60)}`,
     ].join('\n');
 
-    // Escribir en partes para evitar string gigante en memoria
-    const ws = fs.createWriteStream(outFile, { encoding: 'utf8' });
-    ws.write(cabecera);
+    function makeCabecera(titulo, tablas) {
+        return [
+            `-- ${'='.repeat(60)}`,
+            `--  ADIR — ${titulo}`,
+            `--  Prefijo: ${PREFIX}   BD: adirg_bbdd (Dinahosting)`,
+            `--  IDs: BIGINT AUTO_INCREMENT | INSERT IGNORE (reimportable)`,
+            `--  Generado: ${new Date().toISOString()}`,
+            `--  Tablas: ${tablas}`,
+            `-- ${'='.repeat(60)}`,
+            ``,
+            `SET NAMES utf8mb4;`,
+            `SET FOREIGN_KEY_CHECKS = 0;`,
+            ``,
+        ].join('\n');
+    }
 
-    // Orden: sin FK primero, luego dependientes
-    const bloques = [
+    // ── PARTE 1: datos de transacciones (~pequeño) ────────────────────────────
+    const outFile1 = `migracion_parte1_datos_${fecha}.sql`;
+    console.log('\n✍  Generando PARTE 1 (datos de obra)...');
+
+    const cab1 = makeCabecera(
+        'Parte 1 — Datos de obra (propuestas, partidas, solicitudes...)',
+        'propuestas, proveedores, partidas, presupuestos, solicitudes, respuestas, historial, config'
+    ) + [
+        `-- Limpiar tablas de obra (hijos primero)`,
+        `TRUNCATE TABLE \`${PREFIX}respuestas\`;`,
+        `TRUNCATE TABLE \`${PREFIX}solicitudes\`;`,
+        `TRUNCATE TABLE \`${PREFIX}partidas\`;`,
+        `TRUNCATE TABLE \`${PREFIX}presupuestos_cliente\`;`,
+        `TRUNCATE TABLE \`${PREFIX}propuestas\`;`,
+        `TRUNCATE TABLE \`${PREFIX}proveedores\`;`,
+        `TRUNCATE TABLE \`${PREFIX}historial_cambios\`;`,
+        `TRUNCATE TABLE \`${PREFIX}configuracion\`;`,
+        ``,
+    ].join('\n');
+
+    const ws1 = fs.createWriteStream(outFile1, { encoding: 'utf8' });
+    ws1.write(cab1);
+    for (const b of [
         genInserts(`${PREFIX}propuestas`,           propuestas,   mapPropuesta),
         genInserts(`${PREFIX}proveedores`,          proveedores,  mapProveedor),
         genInserts(`${PREFIX}partidas`,             partidas,     mapPartida),
@@ -413,32 +419,60 @@ async function main() {
         genInserts(`${PREFIX}solicitudes`,          solicitudes,  mapSolicitud),
         genInserts(`${PREFIX}respuestas`,           respuestas,   mapRespuesta),
         genInserts(`${PREFIX}historial_cambios`,    historial,    mapHistorial),
-        genInserts(`${PREFIX}base_precios_adir`,    baseAdir,     mapBaseAdir),
-        genInserts(`${PREFIX}precios_cype`,         cype,         mapCype),
         genInserts(`${PREFIX}configuracion`,        configuracion,mapConfig),
-    ];
+    ]) ws1.write(b);
+    ws1.write(pie);
+    ws1.end();
+    await new Promise(r => ws1.on('finish', r));
 
-    for (const bloque of bloques) ws.write(bloque);
-    ws.write(pie);
-    ws.end();
+    // ── PARTE 2a: precios ADIR (~grande) ─────────────────────────────────────
+    const outFile2 = `migracion_parte2_precios_adir_${fecha}.sql`;
+    console.log('✍  Generando PARTE 2 (precios ADIR)...');
 
-    await new Promise(r => ws.on('finish', r));
+    const cab2 = makeCabecera(
+        'Parte 2 — Catálogo precios ADIR (54.490 filas)',
+        'base_precios_adir'
+    ) + `TRUNCATE TABLE \`${PREFIX}base_precios_adir\`;\n\n`;
 
-    const stats  = fs.statSync(outFile);
-    const sizeKB = Math.round(stats.size / 1024);
-    const sizeMB = (stats.size / (1024 * 1024)).toFixed(1);
+    const ws2 = fs.createWriteStream(outFile2, { encoding: 'utf8' });
+    ws2.write(cab2);
+    ws2.write(genInserts(`${PREFIX}base_precios_adir`, baseAdir, mapBaseAdir));
+    ws2.write(pie);
+    ws2.end();
+    await new Promise(r => ws2.on('finish', r));
 
-    console.log(`\n✅ Fichero: ${outFile}  (${sizeKB} KB / ${sizeMB} MB)`);
+    // ── PARTE 3: precios CYPE (~pequeño) ─────────────────────────────────────
+    const outFile3 = `migracion_parte3_precios_cype_${fecha}.sql`;
+    console.log('✍  Generando PARTE 3 (precios CYPE)...');
 
-    if (stats.size > 90 * 1024 * 1024) {
-        console.log(`\n⚠ Fichero > 90 MB. Puede superar el límite de phpMyAdmin (100 MB).`);
-        console.log(`  Solución: importa las tablas de precios por separado.`);
+    const cab3 = makeCabecera(
+        'Parte 3 — Catálogo precios CYPE (3.669 filas)',
+        'precios_cype'
+    ) + `TRUNCATE TABLE \`${PREFIX}precios_cype\`;\n\n`;
+
+    const ws3 = fs.createWriteStream(outFile3, { encoding: 'utf8' });
+    ws3.write(cab3);
+    ws3.write(genInserts(`${PREFIX}precios_cype`, cype, mapCype));
+    ws3.write(pie);
+    ws3.end();
+    await new Promise(r => ws3.on('finish', r));
+
+    // ── Resumen ───────────────────────────────────────────────────────────────
+    function fmtSize(f) {
+        const s = fs.statSync(f).size;
+        return `${Math.round(s/1024)} KB / ${(s/1024/1024).toFixed(1)} MB`;
     }
+    console.log(`\n✅ Ficheros generados:`);
+    console.log(`   [1] ${outFile1}  (${fmtSize(outFile1)})`);
+    console.log(`   [2] ${outFile2}  (${fmtSize(outFile2)})`);
+    console.log(`   [3] ${outFile3}  (${fmtSize(outFile3)})`);
 
-    console.log(`\n📌 Pasos en phpMyAdmin:`);
-    console.log(`   https://phpadmin.gestiondecuenta.com/52/index.php?route=/database/structure&db=adirg_bbdd`);
-    console.log(`   1. Importar → mysql_schema_dinahosting.sql  (charset: utf-8)`);
-    console.log(`   2. Importar → ${outFile}  (charset: utf-8)`);
+    console.log(`\n📌 Orden de importación en phpMyAdmin:`);
+    console.log(`   https://phpadmin.gestiondecuenta.com/52/`);
+    console.log(`   1. mysql_schema_dinahosting.sql   (estructura)`);
+    console.log(`   2. ${outFile1}  (propuestas, partidas, solicitudes...)`);
+    console.log(`   3. ${outFile2}  (precios ADIR)`);
+    console.log(`   4. ${outFile3}  (precios CYPE)`);
 
     console.log(`\n📋 Mapas de IDs generados:`);
     console.log(`   propuestas:  ${MAP.propuestas.size} entradas`);
