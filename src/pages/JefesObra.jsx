@@ -608,10 +608,9 @@ const JefesObra = () => {
                 `</div>` +
                 `</body></html>`;
 
-            // Sanitizar HTML: comillas dobles → simples, colapsar whitespace (seguro para JSON)
-            const htmlPresupuestoSafe = htmlPresupuesto.replace(/"/g, "'").replace(/\s+/g, ' ').trim();
-
-            // Fire-and-forget: no esperamos respuesta de n8n para no bloquear la UI
+            // JSON.stringify en el body del fetch maneja el encoding correctamente —
+            // no hace falta reemplazar comillas ni colapsar whitespace manualmente.
+            // El Code node de n8n hace JSON.stringify(payload) de forma segura.
             fetch(`${N8N_BASE_URL}/webhook/presupuesto-cliente`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -623,7 +622,7 @@ const JefesObra = () => {
                     proyecto: activeProject.Proyecto,
                     precio_total: precioTotal,
                     portal_url: portalUrl,
-                    html_presupuesto: htmlPresupuestoSafe,
+                    html_presupuesto: htmlPresupuesto,
                     modo_vista: formato,
                     partidas: soloCapitulos
                         ? partidasGuardar.map(p => ({
@@ -643,7 +642,16 @@ const JefesObra = () => {
                                 unidad: p['Unidad IA'] || p.unidad || 'ud'
                             }))
                 })
-            }).catch(e => console.warn('n8n no disponible, email no enviado:', e));
+            }).then(async r => {
+                if (!r.ok) {
+                    const txt = await r.text().catch(() => 'sin respuesta');
+                    console.error('[JefesObra] Email cliente error:', r.status, txt);
+                    showToast(`⚠️ Email al cliente no pudo enviarse (${r.status}). Comprueba n8n.`, 'error');
+                }
+            }).catch(e => {
+                console.warn('[JefesObra] n8n no disponible:', e.message);
+                showToast('⚠️ No se pudo conectar con n8n. El email puede no haberse enviado.', 'warning');
+            });
 
             showAlert(`✅ Proyecto aprobado y en curso.\n\n📧 Presupuesto enviado al cliente.\n\n🔗 Enlace:\n${portalUrl}`, { type: 'success', title: '¡Proyecto Aprobado!' });
             setActiveProject(null);
