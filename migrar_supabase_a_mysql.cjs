@@ -1,10 +1,9 @@
 /**
  * MIGRACIÓN: Supabase → MySQL (Dinahosting)
  * ==========================================
- * Columnas auditadas directamente contra Supabase REST API.
- * Tablas: propuestas, partidas, presupuestos_cliente, proveedores,
- *         solicitudes, respuestas, historial_cambios,
- *         base_precios_adir, PreciosCype, configuracion
+ * IDs: BIGINT AUTO_INCREMENT secuencial (1, 2, 3...)
+ * Los BC3/UUID originales se guardan en columnas _bc3 / id_bc3
+ * Los FK se remapean usando tablas de lookup construidas en memoria.
  *
  * USO: node migrar_supabase_a_mysql.cjs
  */
@@ -31,7 +30,7 @@ async function fetchAll(table, select = '*') {
         const res = await fetch(url, { headers });
         if (!res.ok) {
             const txt = await res.text().catch(() => res.status);
-            console.log(`  ⚠ ${table}: ${res.status} — ${txt.slice(0, 80)}`);
+            console.log(`  ⚠ ${table}: ${res.status} — ${String(txt).slice(0, 80)}`);
             break;
         }
         const data = await res.json();
@@ -41,7 +40,6 @@ async function fetchAll(table, select = '*') {
         if (data.length < limit) break;
         offset += limit;
     }
-    const range = res => res;  // solo para mostrar
     console.log(`\r  ✓ ${table}: ${rows.length} filas           `);
     return rows;
 }
@@ -80,6 +78,23 @@ function num(v, def = 'NULL') {
     return isFinite(n) ? String(n) : def;
 }
 
+// ─── Lookup maps (old_id → new numeric id) ──────────────────────────────────
+// Se construyen en main() antes de generar los INSERTs
+const MAP = {
+    propuestas:  new Map(),  // Proyecto (BC3) → numeric id
+    partidas:    new Map(),  // id (BC3 composite) → numeric id
+    proveedores: new Map(),  // id (string random) → numeric id
+    solicitudes: new Map(),  // id (UUID) → numeric id
+    presupuestos: new Map(), // id (UUID) → numeric id
+};
+
+/** Devuelve el id numérico mapeado o NULL si no existe */
+function remapId(map, oldId) {
+    if (oldId === null || oldId === undefined || oldId === '') return 'NULL';
+    const n = map.get(String(oldId));
+    return n !== undefined ? String(n) : 'NULL';
+}
+
 // ─── Sanitizar JSONB de partidas ─────────────────────────────────────────────
 function sanitizarPartidas(partidas) {
     if (!Array.isArray(partidas)) return partidas;
@@ -103,7 +118,7 @@ function splitTextoPart(texto) {
     return { codigo: null, desc: texto.replace(/\|/g, ' ').trim() };
 }
 
-// ─── Generar bloque INSERT ────────────────────────────────────────────────────
+// ─── Generar bloque INSERT (idx base-1 → AUTO_INCREMENT) ─────────────────────
 function genInserts(mysqlTable, rows, mapFn) {
     if (!rows.length) return `-- (sin datos en ${mysqlTable})\n\n`;
     const lines = [];
@@ -115,27 +130,28 @@ function genInserts(mysqlTable, rows, mapFn) {
     lines.push(`SET FOREIGN_KEY_CHECKS = 1;`);
 
     let err = 0;
-    for (const row of rows) {
+    rows.forEach((row, idx) => {
         try {
-            const m = mapFn(row);
-            if (!m) continue;
+            const m = mapFn(row, idx + 1);   // idx+1 = nuevo id numérico (1-based)
+            if (!m) return;
             const cols = Object.keys(m).map(c => `\`${c}\``).join(', ');
             const vals = Object.values(m).join(', ');
             lines.push(`INSERT INTO \`${mysqlTable}\` (${cols}) VALUES (${vals});`);
         } catch (e) {
             err++;
-            if (err <= 3) console.warn(`  ⚠ Error fila en ${mysqlTable}:`, e.message);
+            if (err <= 3) console.warn(`  ⚠ Error fila ${idx} en ${mysqlTable}:`, e.message);
         }
-    }
+    });
     if (err) console.warn(`  ⚠ ${err} filas omitidas en ${mysqlTable}`);
     lines.push('');
     return lines.join('\n');
 }
 
-// ─── MAPEOS ───────────────────────────────────────────────────────────────────
+// ─── MAPEOS (con IDs numéricos secuenciales) ──────────────────────────────────
 
-const mapPropuesta = r => ({
-    Proyecto:        esc(r.Proyecto),
+const mapPropuesta = (r, id) => ({
+    id:              String(id),                  // BIGINT nuevo
+    proyecto_bc3:    esc(r.Proyecto),             // BC3 original (PK vieja)
     cliente:         esc(r.cliente),
     direccion:       esc(r.direccion),
     jefe_obra:       esc(r.jefe_obra),
@@ -144,31 +160,37 @@ const mapPropuesta = r => ({
     descripcion:     esc(r.descripcion),
 });
 
-const mapPartida = r => {
+const mapPartida = (r, id) => {
     const { codigo, desc } = splitTextoPart(r.texto_partida);
+    const propuestaNuevoId = remapId(MAP.propuestas, r.propuesta_id);
+    const proveedorNuevoId = remapId(MAP.proveedores, r.proveedor_adjudicado_id);
     return {
-        id:                      esc(r.id),
-        propuesta_id:            esc(r.propuesta_id),
-        texto_partida:           esc(r.texto_partida),
+        id:                      String(id),             // BIGINT nuevo
+        id_bc3:                  esc(r.id),              // BC3 original (PK vieja)
+        propuesta_id:            propuestaNuevoId,        // FK numérica nueva
+        propuesta_bc3:           esc(r.propuesta_id),    // BC3 original referencia
         capitulo_codigo:         esc(codigo),
         descripcion:             esc(desc),
+        texto_partida:           esc(r.texto_partida),
         precio_base_estimado:    num(r.precio_base_estimado, '0'),
         precio_adjudicado:       num(r.precio_adjudicado),
         precio_ia:               num(r.precio_ia),
         cantidad:                num(r.cantidad, '0'),
         unidad:                  esc(r.unidad),
         oficio_asignado:         esc(r.oficio_asignado),
-        proveedor_adjudicado_id: esc(r.proveedor_adjudicado_id),
+        proveedor_adjudicado_id: proveedorNuevoId,
         estado_adjudicacion:     esc(r.estado_adjudicacion),
         force_quote:             r.force_quote ? '1' : '0',
         created_at:              'CURRENT_TIMESTAMP',
     };
 };
 
-const mapPresupuesto = r => ({
-    id:                   esc(r.id),
+const mapPresupuesto = (r, id) => ({
+    id:                   String(id),
+    id_bc3:               esc(r.id),
     token:                esc(r.token),
-    propuesta_id:         esc(r.propuesta_id),
+    propuesta_id:         remapId(MAP.propuestas, r.propuesta_id),
+    propuesta_bc3:        esc(r.propuesta_id),
     cliente_nombre:       esc(r.cliente_nombre),
     cliente_email:        esc(r.cliente_email),
     proyecto_descripcion: esc(r.proyecto_descripcion),
@@ -182,8 +204,9 @@ const mapPresupuesto = r => ({
     detalles_rechazo:     esc(r.detalles_rechazo),
 });
 
-const mapProveedor = r => ({
-    id:               esc(r.id),
+const mapProveedor = (r, id) => ({
+    id:               String(id),
+    id_bc3:           esc(r.id),
     nombre_empresa:   esc(r.nombre_empresa),
     oficio_principal: esc(r.oficio_principal),
     email:            esc(r.email),
@@ -192,9 +215,11 @@ const mapProveedor = r => ({
     created_at:       'CURRENT_TIMESTAMP',
 });
 
-const mapSolicitud = r => ({
-    id:                    esc(r.id),
-    propuesta_id:          esc(r.propuesta_id),
+const mapSolicitud = (r, id) => ({
+    id:                    String(id),
+    id_bc3:                esc(r.id),
+    propuesta_id:          remapId(MAP.propuestas, r.propuesta_id),
+    propuesta_bc3:         esc(r.propuesta_id),
     oficio_solicitado:     esc(r.oficio_solicitado),
     fecha_envio:           dt(r.fecha_envio),
     estado_solicitud:      esc(r.estado_solicitud || 'Enviada'),
@@ -202,24 +227,28 @@ const mapSolicitud = r => ({
     proveedor_nombre:      esc(r.proveedor_nombre),
     proveedor_email:       esc(r.proveedor_email),
     tareas:                esc(r.tareas),
-    proveedor_id:          esc(r.proveedor_id),
+    proveedor_id:          remapId(MAP.proveedores, r.proveedor_id),
     comentarios_generales: esc(r.comentarios_generales),
     anexo_url:             esc(r.anexo_url),
     created_at:            'CURRENT_TIMESTAMP',
 });
 
-const mapRespuesta = r => ({
-    id:              esc(r.id),
-    solicitud_id:    esc(r.solicitud_id),
-    proveedor_id:    esc(r.proveedor_id),
-    partida_id:      esc(r.partida_id),
+const mapRespuesta = (r, id) => ({
+    id:              String(id),
+    id_bc3:          esc(r.id),
+    solicitud_id:    remapId(MAP.solicitudes, r.solicitud_id),
+    solicitud_bc3:   esc(r.solicitud_id),
+    proveedor_id:    remapId(MAP.proveedores, r.proveedor_id),
+    proveedor_bc3:   esc(r.proveedor_id),
+    partida_id:      remapId(MAP.partidas, r.partida_id),
+    partida_bc3:     esc(r.partida_id),
     precio_ofertado: num(r.precio_ofertado),
     comentarios:     esc(r.comentarios),
     created_at:      dt(r.created_at) !== 'NULL' ? dt(r.created_at) : 'CURRENT_TIMESTAMP',
 });
 
-const mapHistorial = r => ({
-    // id es AUTO_INCREMENT — no se inserta
+const mapHistorial = (r /*, id */) => ({
+    // id: AUTO_INCREMENT — no se inserta
     fecha_cambio:        dt(r.fecha_cambio) !== 'NULL' ? dt(r.fecha_cambio) : 'CURRENT_TIMESTAMP',
     usuario:             esc(r.usuario),
     origen_cambio:       esc(r.origen_cambio),
@@ -233,7 +262,8 @@ const mapHistorial = r => ({
     created_at:          'CURRENT_TIMESTAMP',
 });
 
-const mapBaseAdir = r => ({
+const mapBaseAdir = (r /*, id */) => ({
+    // id: AUTO_INCREMENT — el natural key es `codigo`
     codigo:               esc(r.codigo),
     categoria:            esc(r.categoria),
     unidad:               esc(r.unidad),
@@ -251,7 +281,8 @@ const mapBaseAdir = r => ({
     fecha_actualizacion:  dateOnly(r.fecha_actualizacion),
 });
 
-const mapCype = r => ({
+const mapCype = (r /*, id */) => ({
+    // id: AUTO_INCREMENT — el natural key es `codigo`
     codigo:               esc(r.codigo),
     categoria:            esc(r.categoria),
     unidad:               esc(r.unidad),
@@ -266,7 +297,7 @@ const mapCype = r => ({
     fecha_actualizacion:  dateOnly(r.fecha_actualizacion),
 });
 
-const mapConfig = r => ({
+const mapConfig = (r /*, id */) => ({
     clave: esc(r.clave),
     valor: esc(r.valor),
 });
@@ -275,7 +306,7 @@ const mapConfig = r => ({
 async function main() {
     console.log('🚀 Exportando Supabase → MySQL (prefijo: ' + PREFIX + ')\n');
 
-    // Tablas de transacciones (pequeñas/medianas — en paralelo)
+    // Tablas de transacciones (en paralelo)
     const [propuestas, presupuestos, proveedores, solicitudes, respuestas, configuracion] =
         await Promise.all([
             fetchAll('propuestas'),
@@ -286,7 +317,7 @@ async function main() {
             fetchAll('configuracion'),
         ]);
 
-    // partidas e historial (potencialmente grandes — en serie para no saturar)
+    // partidas e historial (potencialmente grandes — en serie)
     const partidas  = await fetchAll('partidas');
     const historial = await fetchAll('historial_cambios');
 
@@ -294,6 +325,30 @@ async function main() {
     console.log('\n📚 Exportando catálogos de precios (puede tardar ~30s)...');
     const baseAdir = await fetchAll('base_precios_adir');
     const cype     = await fetchAll('PreciosCype');
+
+    // ─── Construir lookup maps (old_id → nuevo id numérico 1-based) ───────────
+    console.log('\n🔗 Construyendo mapas de IDs...');
+
+    propuestas.forEach((r, i)  => MAP.propuestas.set(String(r.Proyecto), i + 1));
+    partidas.forEach((r, i)    => MAP.partidas.set(String(r.id), i + 1));
+    proveedores.forEach((r, i) => MAP.proveedores.set(String(r.id), i + 1));
+    solicitudes.forEach((r, i) => MAP.solicitudes.set(String(r.id), i + 1));
+    presupuestos.forEach((r, i)=> MAP.presupuestos.set(String(r.id), i + 1));
+
+    // Verificar cobertura de FKs
+    let fkWarnPartidas = 0, fkWarnSolicitudes = 0, fkWarnRespSol = 0, fkWarnRespPart = 0;
+    partidas.forEach(r => { if (r.propuesta_id && !MAP.propuestas.has(String(r.propuesta_id))) fkWarnPartidas++; });
+    solicitudes.forEach(r => { if (r.propuesta_id && !MAP.propuestas.has(String(r.propuesta_id))) fkWarnSolicitudes++; });
+    respuestas.forEach(r => { if (r.solicitud_id && !MAP.solicitudes.has(String(r.solicitud_id))) fkWarnRespSol++; });
+    respuestas.forEach(r => { if (r.partida_id   && !MAP.partidas.has(String(r.partida_id)))     fkWarnRespPart++; });
+
+    if (fkWarnPartidas)    console.log(`  ⚠ ${fkWarnPartidas} partidas con propuesta_id no encontrada en propuestas`);
+    if (fkWarnSolicitudes) console.log(`  ⚠ ${fkWarnSolicitudes} solicitudes con propuesta_id no encontrada`);
+    if (fkWarnRespSol)     console.log(`  ⚠ ${fkWarnRespSol} respuestas con solicitud_id no encontrada`);
+    if (fkWarnRespPart)    console.log(`  ⚠ ${fkWarnRespPart} respuestas con partida_id no encontrada`);
+    if (!fkWarnPartidas && !fkWarnSolicitudes && !fkWarnRespSol && !fkWarnRespPart) {
+        console.log('  ✓ Todos los FK resueltos correctamente');
+    }
 
     // Totales
     const total = [propuestas, partidas, presupuestos, proveedores, solicitudes,
@@ -320,6 +375,7 @@ async function main() {
         `-- ${'='.repeat(60)}`,
         `--  ADIR — Migración completa Supabase → MySQL`,
         `--  Prefijo: ${PREFIX}   BD: adirg_bbdd (Dinahosting)`,
+        `--  IDs: BIGINT AUTO_INCREMENT (numéricos secuenciales)`,
         `--  Generado: ${new Date().toISOString()}`,
         `--  Total filas: ${total.toLocaleString()}`,
         `-- ${'='.repeat(60)}`,
@@ -383,6 +439,13 @@ async function main() {
     console.log(`   https://phpadmin.gestiondecuenta.com/52/index.php?route=/database/structure&db=adirg_bbdd`);
     console.log(`   1. Importar → mysql_schema_dinahosting.sql  (charset: utf-8)`);
     console.log(`   2. Importar → ${outFile}  (charset: utf-8)`);
+
+    console.log(`\n📋 Mapas de IDs generados:`);
+    console.log(`   propuestas:  ${MAP.propuestas.size} entradas`);
+    console.log(`   partidas:    ${MAP.partidas.size} entradas`);
+    console.log(`   proveedores: ${MAP.proveedores.size} entradas`);
+    console.log(`   solicitudes: ${MAP.solicitudes.size} entradas`);
+    console.log(`   presupuestos: ${MAP.presupuestos.size} entradas`);
 }
 
 main().catch(err => { console.error('\n❌', err.message); process.exit(1); });
