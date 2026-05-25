@@ -24,9 +24,8 @@ const JefesObra = () => {
     const [showDenyModal, setShowDenyModal] = useState(false);
     const [showApproveWarning, setShowApproveWarning] = useState(false);
     const [showFormatModal, setShowFormatModal] = useState(false);
-    // modoEmail: formato visual del HTML en el correo
     // modoPortal: qué datos se guardan en Supabase para el formulario de firma
-    const [modoEmail, setModoEmail] = useState('capitulos');
+    // El correo SIEMPRE muestra solo capítulos y subcapítulos
     const [modoPortal, setModoPortal] = useState('desglose');
     
     const [showEditMetadata, setShowEditMetadata] = useState(false);
@@ -396,9 +395,9 @@ const JefesObra = () => {
         return totales;
     };
 
-    // modoEmail: 'capitulos' | 'desglose' → cómo se renderiza el HTML del correo
     // modoPortal: 'capitulos' | 'desglose' → qué datos se guardan en Supabase para el formulario de firma
-    const confirmarProyecto = async (modoEmailParam, modoPortalParam) => {
+    // El correo SIEMPRE renderiza solo capítulos y subcapítulos
+    const confirmarProyecto = async (modoPortalParam) => {
         setLoadingProject(true);
         setShowApproveWarning(false);
         setShowFormatModal(false);
@@ -472,9 +471,9 @@ const JefesObra = () => {
             });
 
             // soloCapitulosPortal: qué se guarda en Supabase para el formulario de firma del cliente
-            // soloCapitulosEmail:  cómo se renderiza la tabla en el HTML del correo
+            // soloCapitulosEmail: el correo SIEMPRE muestra solo capítulos y subcapítulos
             const soloCapitulosPortal = modoPortalParam === 'capitulos';
-            const soloCapitulosEmail  = modoEmailParam  === 'capitulos';
+            const soloCapitulosEmail  = true;
 
             const partidasGuardar = soloCapitulosPortal
                 ? partidasParaCliente.filter(p => {
@@ -636,7 +635,7 @@ const JefesObra = () => {
                     precio_total: precioTotal,
                     portal_url: portalUrl,
                     html_presupuesto: htmlPresupuesto,
-                    modo_email: modoEmailParam,
+                    modo_email: 'capitulos',
                     modo_portal: modoPortalParam,
                     partidas: soloCapitulosPortal
                         ? partidasGuardar.map(p => ({
@@ -1025,63 +1024,32 @@ const JefesObra = () => {
 
             {showFormatModal && (
                 <div style={modalOverlay}>
-                    <div style={{...modalContent, textAlign: 'left', maxWidth: '540px'}}>
+                    <div style={{...modalContent, textAlign: 'left', maxWidth: '500px'}}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
                             <span style={{ fontSize: '1.5rem' }}>📋</span>
                             <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.2rem', fontWeight: 700 }}>Formato del Presupuesto</h3>
                         </div>
 
-                        {/* ─── SECCIÓN 1: Correo ─── */}
-                        <div style={{ marginBottom: '22px' }}>
-                            <p style={{ margin: '0 0 10px', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                📧 Desglose en el correo
-                            </p>
-                            <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                                Cómo se muestra el presupuesto en el cuerpo del email que recibirá el cliente:
-                            </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                <label style={{
-                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '13px 16px',
-                                    borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s',
-                                    border: modoEmail === 'capitulos' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                                    backgroundColor: modoEmail === 'capitulos' ? 'rgba(0, 45, 84, 0.05)' : 'transparent'
-                                }}>
-                                    <input type="radio" name="modoEmail" value="capitulos"
-                                        checked={modoEmail === 'capitulos'} onChange={() => setModoEmail('capitulos')}
-                                        style={{ marginTop: '3px', accentColor: 'var(--primary)' }} />
-                                    <div>
-                                        <strong style={{ display: 'block', fontSize: '0.9rem', marginBottom: '2px' }}>Solo capítulos y subcapítulos</strong>
-                                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Vista resumida: una línea por capítulo/subcapítulo con su total acumulado.</span>
-                                    </div>
-                                </label>
-                                <label style={{
-                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '13px 16px',
-                                    borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s',
-                                    border: modoEmail === 'desglose' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                                    backgroundColor: modoEmail === 'desglose' ? 'rgba(0, 45, 84, 0.05)' : 'transparent'
-                                }}>
-                                    <input type="radio" name="modoEmail" value="desglose"
-                                        checked={modoEmail === 'desglose'} onChange={() => setModoEmail('desglose')}
-                                        style={{ marginTop: '3px', accentColor: 'var(--primary)' }} />
-                                    <div>
-                                        <strong style={{ display: 'block', fontSize: '0.9rem', marginBottom: '2px' }}>Desglose completo de partidas</strong>
-                                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Muestra cada partida con descripción, cantidad, precio unitario y total.</span>
-                                    </div>
-                                </label>
+                        {/* ─── Correo: siempre caps/subcaps (info fija) ─── */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px 14px', marginBottom: '20px', borderRadius: '10px', backgroundColor: '#f0f7ff', border: '1px solid #bfdbfe' }}>
+                            <span style={{ fontSize: '1.1rem', marginTop: '1px' }}>📧</span>
+                            <div>
+                                <strong style={{ display: 'block', fontSize: '0.88rem', color: '#1e40af', marginBottom: '2px' }}>El correo siempre muestra solo capítulos y subcapítulos</strong>
+                                <span style={{ fontSize: '0.78rem', color: '#3b82f6' }}>Vista resumida: una línea por capítulo/subcapítulo con su total acumulado.</span>
                             </div>
                         </div>
 
-                        {/* ─── SECCIÓN 2: Formulario de firma ─── */}
-                        <div style={{ marginBottom: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
-                            <p style={{ margin: '0 0 10px', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                📝 Formulario de firma (portal del cliente)
+                        {/* ─── Formulario de firma ─── */}
+                        <div style={{ marginBottom: '24px' }}>
+                            <p style={{ margin: '0 0 8px', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                📝 Formulario de firma — portal del cliente
                             </p>
-                            <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                            <p style={{ margin: '0 0 14px', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                                 Qué nivel de detalle verá el cliente en el portal al revisar y firmar:
                             </p>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <label style={{
-                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '13px 16px',
+                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '14px 16px',
                                     borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s',
                                     border: modoPortal === 'desglose' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
                                     backgroundColor: modoPortal === 'desglose' ? 'rgba(0, 45, 84, 0.05)' : 'transparent'
@@ -1090,12 +1058,12 @@ const JefesObra = () => {
                                         checked={modoPortal === 'desglose'} onChange={() => setModoPortal('desglose')}
                                         style={{ marginTop: '3px', accentColor: 'var(--primary)' }} />
                                     <div>
-                                        <strong style={{ display: 'block', fontSize: '0.9rem', marginBottom: '2px' }}>Desglose completo — todas las partes y partidas</strong>
+                                        <strong style={{ display: 'block', fontSize: '0.9rem', marginBottom: '3px' }}>Desglose completo — todas las partes y partidas</strong>
                                         <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>El portal muestra capítulos, subcapítulos y cada partida individual con sus precios.</span>
                                     </div>
                                 </label>
                                 <label style={{
-                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '13px 16px',
+                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '14px 16px',
                                     borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s',
                                     border: modoPortal === 'capitulos' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
                                     backgroundColor: modoPortal === 'capitulos' ? 'rgba(0, 45, 84, 0.05)' : 'transparent'
@@ -1104,7 +1072,7 @@ const JefesObra = () => {
                                         checked={modoPortal === 'capitulos'} onChange={() => setModoPortal('capitulos')}
                                         style={{ marginTop: '3px', accentColor: 'var(--primary)' }} />
                                     <div>
-                                        <strong style={{ display: 'block', fontSize: '0.9rem', marginBottom: '2px' }}>Solo capítulos y subcapítulos</strong>
+                                        <strong style={{ display: 'block', fontSize: '0.9rem', marginBottom: '3px' }}>Solo capítulos y subcapítulos</strong>
                                         <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>El portal muestra únicamente el resumen por capítulo/subcapítulo, sin detallar partidas.</span>
                                     </div>
                                 </label>
@@ -1117,7 +1085,7 @@ const JefesObra = () => {
                             </button>
                             <button
                                 className="btn btn-success"
-                                onClick={() => confirmarProyecto(modoEmail, modoPortal)}
+                                onClick={() => confirmarProyecto(modoPortal)}
                                 style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
                             >
                                 <CheckCircle size={16} /> Aprobar y Enviar
