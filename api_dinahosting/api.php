@@ -342,7 +342,7 @@ try {
 
             // Detectar UPSERT: header Prefer: resolution=merge-duplicates
             $prefer = $_SERVER['HTTP_PREFER'] ?? '';
-            $isUpsert = str_contains($prefer, 'merge-duplicates');
+            $isUpsert = (strpos($prefer, 'merge-duplicates') !== false);
 
             if ($isUpsert) {
                 // INSERT ... ON DUPLICATE KEY UPDATE (todas las columnas menos la PK)
