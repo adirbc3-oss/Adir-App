@@ -283,12 +283,25 @@ const PresupuestoCliente = () => {
         </div>
     );
 
-    // Solo mostrar capítulos y subcapítulos (los que terminan en '#') — las partidas individuales no se muestran al cliente
-    const partidas = (presupuesto.partidas || []).filter(p => {
+    // Detectar modo desde los datos guardados en Supabase:
+    // Si hay filas que NO terminan en '#' → desglose completo (caps + partidas individuales)
+    // Si todas terminan en '#' → vista resumida solo capítulos/subcapítulos
+    const todasPartidas = presupuesto.partidas || [];
+    const esModoDesglose = todasPartidas.some(p => {
         const cap = (p.Capítulo || p.Capitulo || '').trim();
-        return cap.endsWith('#');
+        return !cap.endsWith('#');
     });
     const total = parseFloat(presupuesto.precio_total || 0);
+
+    // Helper para clasificar fila (sincronizado con JefesObra)
+    const getTipoFila = (p) => {
+        const cap = (p.Capítulo || p.Capitulo || '').trim();
+        if (!cap.endsWith('#')) return 'partida';
+        const limpio = cap.replace(/#$/, '');
+        if (limpio === '99_EXTRAS') return 'capitulo';
+        if (limpio.includes('.')) return 'subcapitulo';
+        return 'capitulo';
+    };
 
     return (
         <div style={styles.page}>
@@ -319,64 +332,100 @@ const PresupuestoCliente = () => {
                     </button>
                 </div>
 
-                {/* Tabla de capítulos (solo capítulos y subcapítulos — vista cliente) */}
+                {/* Tabla presupuesto — modo dinámico según datos guardados */}
                 <div style={styles.card}>
-                    <h3 style={styles.sectionTitle}>Resumen del Presupuesto</h3>
+                    <h3 style={styles.sectionTitle}>
+                        {esModoDesglose ? 'Desglose Detallado del Presupuesto' : 'Resumen del Presupuesto'}
+                    </h3>
                     <div style={{ overflowX: 'auto' }}>
                         <table style={styles.table}>
                             <thead>
                                 <tr style={{ backgroundColor: '#002D54', color: 'white' }}>
-                                    <th style={{ ...styles.th, textAlign: 'left' }}>Capítulo / Descripción</th>
-                                    <th style={{ ...styles.th, textAlign: 'right', width: 150 }}>Total (€)</th>
+                                    {esModoDesglose ? (
+                                        <>
+                                            <th style={{ ...styles.th, textAlign: 'left' }}>Descripción</th>
+                                            <th style={{ ...styles.th, textAlign: 'center', width: 70 }}>Cant.</th>
+                                            <th style={{ ...styles.th, textAlign: 'center', width: 50 }}>Ud.</th>
+                                            <th style={{ ...styles.th, textAlign: 'right', width: 110 }}>Precio/ud (€)</th>
+                                            <th style={{ ...styles.th, textAlign: 'right', width: 110 }}>Total (€)</th>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <th style={{ ...styles.th, textAlign: 'left' }}>Capítulo / Descripción</th>
+                                            <th style={{ ...styles.th, textAlign: 'right', width: 150 }}>Total (€)</th>
+                                        </>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody>
-                                {partidas.map((p, idx) => {
-                                    const cap = (p.Capítulo || p.Capitulo || '').trim();
-                                    const limpio = cap.replace(/#$/, '');
-                                    const isSubcap = limpio.includes('.');
+                                {todasPartidas.map((p, idx) => {
+                                    const tipo = getTipoFila(p);
+                                    const desc = cleanText(p.Descripción || p.Descripcion || p.texto_partida || '-');
                                     const totalCap = parseFloat(p.precio_total_capitulo || 0);
-                                    const desc = cleanText(p.Descripción || p.texto_partida || '-');
 
-                                    if (!isSubcap) {
+                                    // ── Capítulo principal ──
+                                    if (tipo === 'capitulo') {
+                                        const colSpan = esModoDesglose ? 5 : 2;
                                         return (
                                             <tr key={idx}>
-                                                <td style={{
+                                                <td colSpan={colSpan} style={{
                                                     padding: '11px 16px', fontWeight: 700,
                                                     fontSize: '0.9rem', letterSpacing: '0.4px',
                                                     backgroundColor: '#002D54', color: 'white',
                                                     textTransform: 'uppercase'
                                                 }}>
+                                                    {!esModoDesglose && (
+                                                        <span style={{ display: 'inline-block', float: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                                            {totalCap.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                                                        </span>
+                                                    )}
                                                     {desc}
-                                                </td>
-                                                <td style={{
-                                                    padding: '11px 16px', fontWeight: 700,
-                                                    fontSize: '0.9rem', textAlign: 'right',
-                                                    backgroundColor: '#002D54', color: 'white',
-                                                    whiteSpace: 'nowrap'
-                                                }}>
-                                                    {totalCap.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                                                 </td>
                                             </tr>
                                         );
                                     }
+
+                                    // ── Subcapítulo ──
+                                    if (tipo === 'subcapitulo') {
+                                        const colSpan = esModoDesglose ? 5 : 2;
+                                        return (
+                                            <tr key={idx}>
+                                                <td colSpan={colSpan} style={{
+                                                    padding: '8px 28px', fontWeight: 600,
+                                                    fontSize: '0.85rem',
+                                                    backgroundColor: '#1e3a8a', color: '#bfdbfe',
+                                                    fontStyle: 'italic'
+                                                }}>
+                                                    {!esModoDesglose && (
+                                                        <span style={{ display: 'inline-block', float: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                            {totalCap.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                                                        </span>
+                                                    )}
+                                                    {desc}
+                                                </td>
+                                            </tr>
+                                        );
+                                    }
+
+                                    // ── Partida individual (solo en modo desglose) ──
+                                    const precioUd = parseFloat(p['Precio Total (€)'] || p.precio_adjudicado || 0);
+                                    const cant = parseFloat(p.Cantidad || p.cantidad || 1);
+                                    const ud = (p['Unidad IA'] || p.unidad || 'ud').trim();
+                                    const totalFila = precioUd * cant;
+                                    const bgColor = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+
                                     return (
-                                        <tr key={idx}>
-                                            <td style={{
-                                                padding: '8px 28px', fontWeight: 600,
-                                                fontSize: '0.85rem',
-                                                backgroundColor: '#1e3a8a', color: '#bfdbfe',
-                                                fontStyle: 'italic'
-                                            }}>
-                                                {desc}
+                                        <tr key={idx} style={{ backgroundColor: bgColor }}>
+                                            <td style={{ ...styles.td, paddingLeft: 32, color: '#334155' }}>{desc}</td>
+                                            <td style={{ ...styles.td, textAlign: 'center', color: '#64748b', whiteSpace: 'nowrap' }}>
+                                                {cant.toLocaleString('es-ES', { maximumFractionDigits: 2 })}
                                             </td>
-                                            <td style={{
-                                                padding: '8px 16px', fontWeight: 600,
-                                                fontSize: '0.85rem', textAlign: 'right',
-                                                backgroundColor: '#1e3a8a', color: '#bfdbfe',
-                                                whiteSpace: 'nowrap', fontStyle: 'italic'
-                                            }}>
-                                                {totalCap.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                                            <td style={{ ...styles.td, textAlign: 'center', color: '#64748b' }}>{ud}</td>
+                                            <td style={{ ...styles.td, textAlign: 'right', color: '#64748b', whiteSpace: 'nowrap' }}>
+                                                {precioUd.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
+                                            </td>
+                                            <td style={{ ...styles.td, textAlign: 'right', fontWeight: 600, color: '#002D54', whiteSpace: 'nowrap' }}>
+                                                {totalFila.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
                                             </td>
                                         </tr>
                                     );
@@ -384,7 +433,7 @@ const PresupuestoCliente = () => {
                             </tbody>
                             <tfoot>
                                 <tr style={{ backgroundColor: '#002D54', color: 'white' }}>
-                                    <td style={{ ...styles.td, fontWeight: 'bold', fontSize: '1.05rem' }}>
+                                    <td colSpan={esModoDesglose ? 4 : 1} style={{ ...styles.td, fontWeight: 'bold', fontSize: '1.05rem' }}>
                                         TOTAL PRESUPUESTO
                                     </td>
                                     <td style={{ ...styles.td, textAlign: 'right', fontWeight: 'bold', fontSize: '1.1rem', whiteSpace: 'nowrap' }}>

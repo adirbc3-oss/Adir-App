@@ -125,73 +125,102 @@ export function generarPresupuestoPDF(data) {
     doc.text('Ref: ' + (token ? token.substring(0, 8).toUpperCase() : propuesta_id.substring(0, 8)), 14, 63);
 
     // ── 3. TABLA DE PARTIDAS ───────────────────────────────────────────────────
+    // Detectar modo desde los datos: si hay filas que no son caps/subcaps → desglose completo
+    const todasPartidas = partidas || [];
+    const esModoDesglose = todasPartidas.some(p => {
+        const cap = (p.Capítulo || p.Capitulo || '').trim();
+        return !cap.endsWith('#');
+    });
+
     const filas = [];
     let totalCalculado = 0;
-    (partidas || []).forEach(p => {
+
+    todasPartidas.forEach(p => {
         const tipo   = getFilaTipoPDF(p);
         const cap    = (p.Capítulo || p.Capitulo || '').replace(/#+/g, '').trim();
         const desc   = cleanDesc(p.Descripción || p.Descripcion || p.texto_partida || '').substring(0, 120);
-        const precio = parseFloat(p['Precio Total (€)'] || p.precio || 0);
-        const cant   = parseFloat(p.Cantidad || p.cantidad || 1);
-        const unidad = (p['Unidad IA'] || p.unidad || 'ud').trim();
-        const total  = precio * cant;
+        const totalCap = parseFloat(p.precio_total_capitulo || 0);
 
-        if (tipo === 'capitulo') {
-            // Capítulo principal — fondo azul oscuro, texto AZUL en negrita (= UI Borradores)
-            filas.push([
-                { content: cap, styles: { fontStyle: 'bold', fillColor: CAP_FILL, textColor: AZUL } },
-                { content: desc, styles: { fontStyle: 'bold', fillColor: CAP_FILL, textColor: AZUL, colSpan: 4 } },
-                { content: '', styles: { fillColor: CAP_FILL } },
-            ]);
-        } else if (tipo === 'subcapitulo') {
-            // Subcapítulo — fondo azul claro, texto azul medio (= var(--bg-secondary) en UI)
-            filas.push([
-                { content: cap, styles: { fontStyle: 'bold', fillColor: SUB_FILL, textColor: SUB_TEXT } },
-                { content: desc, styles: { fontStyle: 'bold', fillColor: SUB_FILL, textColor: SUB_TEXT, colSpan: 4 } },
-                { content: '', styles: { fillColor: SUB_FILL } },
-            ]);
+        if (esModoDesglose) {
+            // ── MODO DESGLOSE: 6 columnas ──
+            const precio = parseFloat(p['Precio Total (€)'] || p.precio_adjudicado || 0);
+            const cant   = parseFloat(p.Cantidad || p.cantidad || 1);
+            const unidad = (p['Unidad IA'] || p.unidad || 'ud').trim();
+            const total  = precio * cant;
+
+            if (tipo === 'capitulo') {
+                filas.push([
+                    { content: cap, styles: { fontStyle: 'bold', fillColor: CAP_FILL, textColor: AZUL } },
+                    { content: desc, styles: { fontStyle: 'bold', fillColor: CAP_FILL, textColor: AZUL, colSpan: 4 } },
+                    { content: '', styles: { fillColor: CAP_FILL } },
+                ]);
+            } else if (tipo === 'subcapitulo') {
+                filas.push([
+                    { content: cap, styles: { fontStyle: 'bold', fillColor: SUB_FILL, textColor: SUB_TEXT } },
+                    { content: desc, styles: { fontStyle: 'bold', fillColor: SUB_FILL, textColor: SUB_TEXT, colSpan: 4 } },
+                    { content: '', styles: { fillColor: SUB_FILL } },
+                ]);
+            } else {
+                totalCalculado += total;
+                filas.push([
+                    { content: cap, styles: { halign: 'center' } },
+                    desc,
+                    { content: cant.toLocaleString('es-ES', { maximumFractionDigits: 2 }), styles: { halign: 'center' } },
+                    { content: unidad, styles: { halign: 'center' } },
+                    { content: precio.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right', fontStyle: precio > 0 ? 'normal' : 'italic', textColor: precio > 0 ? GRIS_TEXTO : GRIS_MUTED } },
+                    { content: total.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right', fontStyle: 'bold', textColor: total > 0 ? AZUL : GRIS_MUTED } },
+                ]);
+            }
         } else {
-            // Partida real — precio/ud × cantidad
-            totalCalculado += total;
-            filas.push([
-                { content: cap, styles: { halign: 'center' } },
-                desc,
-                { content: cant.toLocaleString('es-ES', { maximumFractionDigits: 2 }), styles: { halign: 'center' } },
-                { content: unidad, styles: { halign: 'center' } },
-                { content: precio.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right', fontStyle: precio > 0 ? 'normal' : 'italic', textColor: precio > 0 ? GRIS_TEXTO : GRIS_MUTED } },
-                { content: total.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €', styles: { halign: 'right', fontStyle: 'bold', textColor: total > 0 ? AZUL : GRIS_MUTED } },
-            ]);
+            // ── MODO CAPS/SUBCAPS: 2 columnas (Descripción | Total) ──
+            const totalStr = totalCap.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €';
+            if (tipo === 'capitulo') {
+                filas.push([
+                    { content: desc, styles: { fontStyle: 'bold', fillColor: CAP_FILL, textColor: AZUL, fontSize: 9 } },
+                    { content: totalStr, styles: { fontStyle: 'bold', fillColor: CAP_FILL, textColor: AZUL, halign: 'right', whiteSpace: 'nowrap' } },
+                ]);
+            } else if (tipo === 'subcapitulo') {
+                filas.push([
+                    { content: '    ' + desc, styles: { fontStyle: 'bold', fillColor: SUB_FILL, textColor: SUB_TEXT, fontStyle: 'italic' } },
+                    { content: totalStr, styles: { fontStyle: 'bold', fillColor: SUB_FILL, textColor: SUB_TEXT, halign: 'right', fontStyle: 'italic', whiteSpace: 'nowrap' } },
+                ]);
+            }
         }
     });
 
-    autoTable(doc, {
-        startY: 75,
-        head: [['Cap.', 'Descripción', 'Cant.', 'Ud.', 'Precio/ud (€)', 'Total (€)']],
-        body: filas,
-        theme: 'plain',
-        headStyles: {
-            fillColor: AZUL,
-            textColor: [255, 255, 255],
-            fontStyle: 'bold',
-            fontSize: 9,
-            cellPadding: 4,
-        },
-        bodyStyles: {
-            fontSize: 8.5,
-            cellPadding: 3,
-            lineWidth: 0.1,
-            lineColor: [220, 224, 235],
-        },
-        alternateRowStyles: { fillColor: GRIS_FILA },
-        columnStyles: {
-            0: { cellWidth: 14, halign: 'center' },
-            2: { cellWidth: 16, halign: 'center' },
-            3: { cellWidth: 12, halign: 'center' },
-            4: { cellWidth: 28, halign: 'right' },
-            5: { cellWidth: 28, halign: 'right' },
-        },
-        margin: { left: 14, right: 14 },
-    });
+    if (esModoDesglose) {
+        autoTable(doc, {
+            startY: 75,
+            head: [['Cap.', 'Descripción', 'Cant.', 'Ud.', 'Precio/ud (€)', 'Total (€)']],
+            body: filas,
+            theme: 'plain',
+            headStyles: { fillColor: AZUL, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9, cellPadding: 4 },
+            bodyStyles: { fontSize: 8.5, cellPadding: 3, lineWidth: 0.1, lineColor: [220, 224, 235] },
+            alternateRowStyles: { fillColor: GRIS_FILA },
+            columnStyles: {
+                0: { cellWidth: 14, halign: 'center' },
+                2: { cellWidth: 16, halign: 'center' },
+                3: { cellWidth: 12, halign: 'center' },
+                4: { cellWidth: 28, halign: 'right' },
+                5: { cellWidth: 28, halign: 'right' },
+            },
+            margin: { left: 14, right: 14 },
+        });
+    } else {
+        autoTable(doc, {
+            startY: 75,
+            head: [['Capítulo / Descripción', 'Total (€)']],
+            body: filas,
+            theme: 'plain',
+            headStyles: { fillColor: AZUL, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9, cellPadding: 4 },
+            bodyStyles: { fontSize: 9, cellPadding: 4, lineWidth: 0.1, lineColor: [220, 224, 235] },
+            columnStyles: {
+                0: { cellWidth: 'auto' },
+                1: { cellWidth: 38, halign: 'right' },
+            },
+            margin: { left: 14, right: 14 },
+        });
+    }
 
     // ── 4. TOTAL ───────────────────────────────────────────────────────────────
     const tableEnd = (doc.lastAutoTable?.finalY || 80) + 8;
