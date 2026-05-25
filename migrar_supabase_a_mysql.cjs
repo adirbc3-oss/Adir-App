@@ -1,21 +1,21 @@
 /**
  * MIGRACIÓN: Supabase → MySQL (Dinahosting)
  * ==========================================
- * Lee todos los datos de Supabase vía REST API y genera un fichero SQL
- * listo para importar en phpMyAdmin de Dinahosting.
+ * Lee todos los datos de Supabase vía REST API y genera DOS ficheros:
+ *   1. mysql_schema_dinahosting.sql  — estructura de tablas (ya existe)
+ *   2. migracion_adir_datos_YYYY-MM-DD.sql — todos los datos
  *
  * USO:
- *   1. Abre el panel de Dinahosting y anota: host, usuario, contraseña, BD (adirg_bbdd)
- *   2. (Opcional) Instala mysql2: npm install mysql2
- *   3. Ejecuta: node migrar_supabase_a_mysql.cjs
- *   4. Se generará "migracion_adir_YYYY-MM-DD.sql" — impórtalo en phpMyAdmin
+ *   node migrar_supabase_a_mysql.cjs
  *
- * ALTERNATIVA DIRECTA (sin fichero):
- *   Descomenta la sección MYSQL_DIRECT al final del script.
+ * Importar en phpMyAdmin en este orden:
+ *   1. mysql_schema_dinahosting.sql  (crea las tablas ctcon_*)
+ *   2. migracion_adir_datos_*.sql    (inserta todos los datos)
  */
 
 const SUPABASE_URL = 'https://mspejiongrdsgbqomewj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_-_DqtXu-GQ97LecbJgLgqw_ADU_ZMzG';
+const PREFIX = 'ctcon_';      // prefijo de tablas en la BD compartida
 const fs = require('fs');
 
 const headers = {
@@ -24,18 +24,19 @@ const headers = {
     'Content-Type': 'application/json'
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-async function fetchAll(table, select = '*', extraParams = '') {
+// ─── Leer tabla completa con paginación ──────────────────────────────────────
+async function fetchAll(table, select = '*') {
     const rows = [];
     let offset = 0;
     const limit = 1000;
     while (true) {
-        const url = `${SUPABASE_URL}/rest/v1/${table}?select=${select}&limit=${limit}&offset=${offset}${extraParams}`;
+        const url = `${SUPABASE_URL}/rest/v1/${table}?select=${select}&limit=${limit}&offset=${offset}`;
         const res = await fetch(url, { headers });
         if (!res.ok) {
             const txt = await res.text();
-            console.error(`Error en ${table}:`, txt);
+            // Si la tabla no existe en Supabase, devuelve array vacío silenciosamente
+            if (res.status === 404 || res.status === 400) { console.log(`  ⚠ ${table}: no encontrada o vacía`); break; }
+            console.error(`  ✗ Error en ${table}:`, txt);
             break;
         }
         const data = await res.json();
@@ -48,12 +49,12 @@ async function fetchAll(table, select = '*', extraParams = '') {
     return rows;
 }
 
-function escape(v) {
+// ─── Escape seguro para MySQL ────────────────────────────────────────────────
+function esc(v) {
     if (v === null || v === undefined) return 'NULL';
-    if (typeof v === 'number') return String(v);
+    if (typeof v === 'number') return isFinite(v) ? String(v) : 'NULL';
     if (typeof v === 'boolean') return v ? '1' : '0';
     if (typeof v === 'object') v = JSON.stringify(v);
-    // Escapar para MySQL
     return "'" + String(v)
         .replace(/\\/g, '\\\\')
         .replace(/'/g, "\\'")
@@ -63,201 +64,184 @@ function escape(v) {
         .replace(/\x1a/g, '\\Z') + "'";
 }
 
-function toDateTime(v) {
+function dt(v) {
     if (!v) return 'NULL';
-    // Normalizar timestamp de Supabase a MySQL DATETIME
     const d = new Date(v);
     if (isNaN(d.getTime())) return 'NULL';
     return `'${d.toISOString().slice(0, 19).replace('T', ' ')}'`;
 }
 
-function genInserts(table, rows, mapFn) {
-    if (!rows.length) return `-- (sin datos en ${table})\n`;
+// ─── Generar bloque INSERT para una tabla ────────────────────────────────────
+function genInserts(mysqlTable, rows, mapFn) {
+    if (!rows.length) return `-- (sin datos en ${mysqlTable})\n\n`;
     const lines = [];
-    lines.push(`-- ${table} (${rows.length} filas)`);
-    lines.push(`TRUNCATE TABLE \`${table}\`;`);
+    lines.push(`-- ═══════════════════════════════════════`);
+    lines.push(`-- ${mysqlTable}  (${rows.length} filas)`);
+    lines.push(`-- ═══════════════════════════════════════`);
+    // Desactivar FK checks y truncar para importación limpia
+    lines.push(`SET FOREIGN_KEY_CHECKS = 0;`);
+    lines.push(`TRUNCATE TABLE \`${mysqlTable}\`;`);
+    lines.push(`SET FOREIGN_KEY_CHECKS = 1;`);
+
+    let errCount = 0;
     for (const row of rows) {
         try {
             const mapped = mapFn(row);
             if (!mapped) continue;
             const cols = Object.keys(mapped).map(c => `\`${c}\``).join(', ');
             const vals = Object.values(mapped).join(', ');
-            lines.push(`INSERT INTO \`${table}\` (${cols}) VALUES (${vals});`);
+            lines.push(`INSERT INTO \`${mysqlTable}\` (${cols}) VALUES (${vals});`);
         } catch (e) {
-            console.warn(`  ⚠ Error en fila de ${table}:`, e.message, row);
+            errCount++;
+            if (errCount <= 3) console.warn(`  ⚠ Error mapeando fila en ${mysqlTable}:`, e.message);
         }
     }
+    if (errCount > 0) console.warn(`  ⚠ ${errCount} filas omitidas en ${mysqlTable}`);
     lines.push('');
     return lines.join('\n');
 }
 
-// ─── Mapeos: Supabase → MySQL ──────────────────────────────────────────────────
-
-function mapPropuesta(r) {
-    return {
-        Proyecto:         escape(r.Proyecto),
-        cliente:          escape(r.cliente),
-        direccion:        escape(r.direccion),
-        jefe_obra:        escape(r.jefe_obra),
-        estado:           escape(r.estado || 'Borrador'),
-        fecha_recepcion:  toDateTime(r.fecha_recepcion),
-        descripcion:      escape(r.descripcion),
-    };
-}
-
-function mapPartida(r) {
-    // Separar texto_partida "COD::Descripción" → capitulo_codigo + descripcion
-    let capitulo_codigo = null;
-    let descripcion = null;
-    if (r.texto_partida) {
-        if (r.texto_partida.includes('::')) {
-            const parts = r.texto_partida.split('::');
-            capitulo_codigo = parts[0].trim();
-            descripcion = parts.slice(1).join('::').replace(/\|/g, ' ').trim();
-        } else {
-            descripcion = r.texto_partida;
-        }
-    }
-    return {
-        id:                      escape(r.id),
-        propuesta_id:            escape(r.propuesta_id),
-        capitulo_codigo:         escape(capitulo_codigo),
-        descripcion:             escape(descripcion),
-        precio_base_estimado:    parseFloat(r.precio_base_estimado) || 0,
-        precio_adjudicado:       r.precio_adjudicado != null ? parseFloat(r.precio_adjudicado) : 'NULL',
-        cantidad:                parseFloat(r.cantidad) || 0,
-        unidad:                  escape(r.unidad),
-        oficio_asignado:         escape(r.oficio_asignado),
-        proveedor_adjudicado_id: escape(r.proveedor_adjudicado_id),
-        estado_adjudicacion:     escape(r.estado_adjudicacion),
-        created_at:              toDateTime(r.created_at),
-    };
-}
-
-function sanitizarPartidasJSON(partidas) {
+// ─── Limpieza del JSONB de partidas ─────────────────────────────────────────
+function sanitizarPartidas(partidas) {
     if (!Array.isArray(partidas)) return partidas;
     return partidas.map(p => ({
-        Capítulo:              p.Capítulo || p['Capítulo'] || '',
-        Descripción:           p.Descripción || p['Descripción'] || '',
-        Cantidad:              parseFloat(p.Cantidad) || 0,
-        'Unidad IA':           p['Unidad IA'] || p.unidad || '',
-        precio_adjudicado:     parseFloat(p.precio_adjudicado || p['Precio Total (€)']) || 0,
-        precio_total_capitulo: parseFloat(p.precio_total_capitulo) || 0,
+        'Capítulo':              p['Capítulo'] || p.Capitulo || '',
+        'Descripción':           p['Descripción'] || p.Descripcion || '',
+        'Cantidad':              parseFloat(p.Cantidad) || 0,
+        'Unidad IA':             p['Unidad IA'] || p.unidad || '',
+        'precio_adjudicado':     parseFloat(p.precio_adjudicado ?? p['Precio Total (€)']) || 0,
+        'precio_total_capitulo': parseFloat(p.precio_total_capitulo) || 0,
     }));
 }
 
-function mapPresupuesto(r) {
-    const partidasClean = sanitizarPartidasJSON(r.partidas);
+// ─── Mapeos: Supabase row → MySQL row ────────────────────────────────────────
+
+const mapPropuesta = r => ({
+    Proyecto:        esc(r.Proyecto),
+    cliente:         esc(r.cliente),
+    direccion:       esc(r.direccion),
+    jefe_obra:       esc(r.jefe_obra),
+    estado:          esc(r.estado || 'Borrador'),
+    fecha_recepcion: dt(r.fecha_recepcion),
+    descripcion:     esc(r.descripcion),
+});
+
+const mapPartida = r => {
+    // Separar texto_partida "COD::Descripción"
+    let capitulo_codigo = null, descripcion = null;
+    if (r.texto_partida) {
+        if (r.texto_partida.includes('::')) {
+            const [cod, ...rest] = r.texto_partida.split('::');
+            capitulo_codigo = cod.trim();
+            descripcion = rest.join('::').replace(/\|/g, ' ').trim();
+        } else {
+            descripcion = r.texto_partida.replace(/\|/g, ' ').trim();
+        }
+    }
     return {
-        id:                    escape(r.id),
-        token:                 escape(r.token),
-        propuesta_id:          escape(r.propuesta_id),
-        cliente_nombre:        escape(r.cliente_nombre),
-        cliente_email:         escape(r.cliente_email),
-        proyecto_descripcion:  escape(r.proyecto_descripcion),
-        partidas:              escape(partidasClean),
-        precio_total:          parseFloat(r.precio_total) || 0,
-        fecha_envio:           toDateTime(r.fecha_envio),
-        estado:                escape(r.estado || 'pendiente'),
-        firma_url:             'NULL',  // base64 → fichero (ver nota abajo)
-        firma_base64:          escape(r.firma_base64),  // migrar temporalmente
-        fecha_firma:           toDateTime(r.fecha_firma),
-        detalles_rechazo:      escape(r.detalles_rechazo),
+        id:                      esc(r.id),
+        propuesta_id:            esc(r.propuesta_id),
+        capitulo_codigo:         esc(capitulo_codigo),
+        descripcion:             esc(descripcion),
+        precio_base_estimado:    parseFloat(r.precio_base_estimado) || 0,
+        precio_adjudicado:       r.precio_adjudicado != null ? parseFloat(r.precio_adjudicado) : 'NULL',
+        cantidad:                parseFloat(r.cantidad) || 0,
+        unidad:                  esc(r.unidad),
+        oficio_asignado:         esc(r.oficio_asignado),
+        proveedor_adjudicado_id: esc(r.proveedor_adjudicado_id),
+        estado_adjudicacion:     esc(r.estado_adjudicacion),
+        created_at:              dt(r.created_at) !== 'NULL' ? dt(r.created_at) : 'CURRENT_TIMESTAMP',
     };
-}
+};
 
-function mapProveedor(r) {
+const mapPresupuesto = r => {
+    const partidasClean = sanitizarPartidas(r.partidas);
     return {
-        id:               escape(r.id),
-        nombre_empresa:   escape(r.nombre_empresa),
-        oficio_principal: escape(r.oficio_principal),
-        email:            escape(r.email),
-        telefono:         escape(r.telefono),
-        created_at:       toDateTime(r.created_at),
+        id:                   esc(r.id),
+        token:                esc(r.token),
+        propuesta_id:         esc(r.propuesta_id),
+        cliente_nombre:       esc(r.cliente_nombre),
+        cliente_email:        esc(r.cliente_email),
+        proyecto_descripcion: esc(r.proyecto_descripcion),
+        partidas:             esc(partidasClean),   // JSON limpio
+        precio_total:         parseFloat(r.precio_total) || 0,
+        fecha_envio:          dt(r.fecha_envio) !== 'NULL' ? dt(r.fecha_envio) : 'CURRENT_TIMESTAMP',
+        estado:               esc(r.estado || 'pendiente'),
+        firma_url:            'NULL',
+        firma_base64:         esc(r.firma_base64),
+        fecha_firma:          dt(r.fecha_firma),
+        detalles_rechazo:     esc(r.detalles_rechazo),
     };
-}
+};
 
-function mapSolicitud(r) {
-    return {
-        id:               escape(r.id),
-        propuesta_id:     escape(r.propuesta_id),
-        proveedor_id:     escape(r.proveedor_id),
-        proveedor_nombre: escape(r.proveedor_nombre),
-        proveedor_email:  escape(r.proveedor_email),
-        estado_solicitud: escape(r.estado_solicitud || 'Enviada'),
-        created_at:       toDateTime(r.created_at),
-    };
-}
+const mapProveedor = r => ({
+    id:               esc(r.id),
+    nombre_empresa:   esc(r.nombre_empresa),
+    oficio_principal: esc(r.oficio_principal),
+    email:            esc(r.email),
+    telefono:         esc(r.telefono),
+    created_at:       dt(r.created_at) !== 'NULL' ? dt(r.created_at) : 'CURRENT_TIMESTAMP',
+});
 
-function mapRespuesta(r) {
-    return {
-        id:              escape(r.id),
-        solicitud_id:    escape(r.solicitud_id),
-        partida_id:      escape(r.partida_id),
-        precio_ofertado: r.precio_ofertado != null ? parseFloat(r.precio_ofertado) : 'NULL',
-        comentarios:     escape(r.comentarios),
-        created_at:      toDateTime(r.created_at),
-    };
-}
+const mapSolicitud = r => ({
+    id:               esc(r.id),
+    propuesta_id:     esc(r.propuesta_id),
+    proveedor_id:     esc(r.proveedor_id),
+    proveedor_nombre: esc(r.proveedor_nombre),
+    proveedor_email:  esc(r.proveedor_email),
+    estado_solicitud: esc(r.estado_solicitud || 'Enviada'),
+    created_at:       dt(r.created_at) !== 'NULL' ? dt(r.created_at) : 'CURRENT_TIMESTAMP',
+});
 
-function mapHistorial(r) {
-    return {
-        id:                   parseInt(r.id) || 'NULL',
-        origen_cambio:        escape(r.origen_cambio),
-        tipo_entidad:         escape(r.tipo_entidad),
-        entidad_id:           escape(r.entidad_id),
-        proyecto_referencia:  escape(r.proyecto_referencia),
-        campo_modificado:     escape(r.campo_modificado),
-        valor_anterior:       escape(r.valor_anterior),
-        valor_nuevo:          escape(r.valor_nuevo),
-        detalles:             escape(r.detalles),
-        created_at:           toDateTime(r.created_at),
-    };
-}
+const mapRespuesta = r => ({
+    id:              esc(r.id),
+    solicitud_id:    esc(r.solicitud_id),
+    partida_id:      esc(r.partida_id),
+    precio_ofertado: r.precio_ofertado != null ? parseFloat(r.precio_ofertado) : 'NULL',
+    comentarios:     esc(r.comentarios),
+    created_at:      dt(r.created_at) !== 'NULL' ? dt(r.created_at) : 'CURRENT_TIMESTAMP',
+});
 
-function mapBasePrecios(r) {
-    return {
-        id:                escape(r.id),
-        codigo:            escape(r.codigo),
-        descripcion_corta: escape(r.descripcion_corta),
-        descripcion_larga: escape(r.descripcion_larga || r.descripcion),
-        tags:              escape(r.tags),
-        unidad:            escape(r.unidad),
-        tipo_partida:      escape(r.tipo_partida),
-        precio_total:      r.precio_total != null ? parseFloat(r.precio_total) : 'NULL',
-        mano_de_obra:      r.mano_de_obra != null ? parseFloat(r.mano_de_obra) : 'NULL',
-        ratio_mo:          r.ratio_mo != null ? parseFloat(r.ratio_mo) : 'NULL',
-        origen:            escape(r.origen),
-        created_at:        toDateTime(r.created_at),
-    };
-}
+const mapHistorial = r => ({
+    origen_cambio:       esc(r.origen_cambio),
+    tipo_entidad:        esc(r.tipo_entidad),
+    entidad_id:          esc(r.entidad_id),
+    proyecto_referencia: esc(r.proyecto_referencia),
+    campo_modificado:    esc(r.campo_modificado),
+    valor_anterior:      esc(r.valor_anterior),
+    valor_nuevo:         esc(r.valor_nuevo),
+    detalles:            esc(r.detalles),
+    created_at:          dt(r.created_at) !== 'NULL' ? dt(r.created_at) : 'CURRENT_TIMESTAMP',
+    // id AUTO_INCREMENT: no lo insertamos, se asigna solo
+});
 
-function mapConfiguracion(r) {
-    return {
-        clave:  escape(r.clave),
-        valor:  escape(r.valor),
-    };
-}
+const mapBasePrecios = r => ({
+    id:                esc(r.id),
+    codigo:            esc(r.codigo),
+    descripcion_corta: esc(r.descripcion_corta),
+    descripcion_larga: esc(r.descripcion_larga || r.descripcion || null),
+    tags:              esc(r.tags),
+    unidad:            esc(r.unidad),
+    tipo_partida:      esc(r.tipo_partida),
+    precio_total:      r.precio_total != null ? parseFloat(r.precio_total) : 'NULL',
+    mano_de_obra:      r.mano_de_obra != null ? parseFloat(r.mano_de_obra) : 'NULL',
+    ratio_mo:          r.ratio_mo    != null ? parseFloat(r.ratio_mo)    : 'NULL',
+    origen:            esc(r.origen),
+    created_at:        dt(r.created_at) !== 'NULL' ? dt(r.created_at) : 'CURRENT_TIMESTAMP',
+});
 
-// ─── MAIN ─────────────────────────────────────────────────────────────────────
+const mapConfiguracion = r => ({
+    clave: esc(r.clave),
+    valor: esc(r.valor),
+});
 
+// ─── MAIN ────────────────────────────────────────────────────────────────────
 async function main() {
-    console.log('🚀 Iniciando migración Supabase → MySQL\n');
+    console.log('🚀 Exportando Supabase → MySQL (prefijo: ' + PREFIX + ')\n');
 
-    const fecha = new Date().toISOString().split('T')[0];
-    const outFile = `migracion_adir_${fecha}.sql`;
-
-    // Leer todas las tablas
     const [
-        propuestas,
-        partidas,
-        presupuestos,
-        proveedores,
-        solicitudes,
-        respuestas,
-        historial,
-        basePrecios,
-        configuracion,
+        propuestas, partidas, presupuestos, proveedores,
+        solicitudes, respuestas, historial, basePrecios, configuracion
     ] = await Promise.all([
         fetchAll('propuestas'),
         fetchAll('partidas'),
@@ -270,80 +254,81 @@ async function main() {
         fetchAll('configuracion'),
     ]);
 
-    // Estadísticas
-    console.log('\n📊 Resumen:');
-    console.log(`  propuestas:          ${propuestas.length}`);
-    console.log(`  partidas:            ${partidas.length}`);
-    console.log(`  presupuestos:        ${presupuestos.length}`);
-    console.log(`  proveedores:         ${proveedores.length}`);
-    console.log(`  solicitudes:         ${solicitudes.length}`);
-    console.log(`  respuestas:          ${respuestas.length}`);
-    console.log(`  historial_cambios:   ${historial.length}`);
-    console.log(`  base_precios:        ${basePrecios.length}`);
+    console.log('\n📊 Total filas exportadas:');
+    const total = propuestas.length + partidas.length + presupuestos.length +
+                  proveedores.length + solicitudes.length + respuestas.length +
+                  historial.length + basePrecios.length + configuracion.length;
+    console.log(`  ${total} filas en total`);
 
-    // Generar SQL
-    const sql = [
+    // Avisar si hay presupuestos con firma grande
+    const conFirma = presupuestos.filter(p => p.firma_base64 && p.firma_base64.length > 1000);
+    if (conFirma.length > 0) {
+        const kbTotal = presupuestos.reduce((s,p) => s + (p.firma_base64?.length || 0), 0) / 1024;
+        console.log(`\n  ⚠ ${conFirma.length} firmas base64 detectadas (~${Math.round(kbTotal)} KB)`);
+        console.log(`    Se migran a firma_base64. Después puedes moverlas a ficheros.`);
+    }
+
+    const fecha = new Date().toISOString().split('T')[0];
+    const outFile = `migracion_adir_datos_${fecha}.sql`;
+
+    const bloques = [
         `-- ============================================================`,
-        `--  MIGRACIÓN ADIR: Supabase → MySQL/MariaDB`,
-        `--  Generado: ${new Date().toISOString()}`,
+        `--  ADIR — Datos de migración Supabase → MySQL`,
+        `--  Prefijo tablas: ${PREFIX}`,
         `--  BD destino: adirg_bbdd (Dinahosting)`,
+        `--  Generado: ${new Date().toISOString()}`,
+        `--  Total filas: ${total}`,
+        `-- ============================================================`,
+        `--`,
+        `--  INSTRUCCIONES:`,
+        `--  1. Importa PRIMERO: mysql_schema_dinahosting.sql`,
+        `--  2. Importa DESPUÉS: este fichero`,
+        `--  phpMyAdmin: Selecciona "adirg_bbdd" → Importar → Elegir archivo`,
+        `--`,
         `-- ============================================================`,
         ``,
         `SET NAMES utf8mb4;`,
         `SET FOREIGN_KEY_CHECKS = 0;`,
         ``,
-        genInserts('propuestas',          propuestas,   mapPropuesta),
-        genInserts('proveedores',         proveedores,  mapProveedor),
-        genInserts('partidas',            partidas,     mapPartida),
-        genInserts('presupuestos_cliente',presupuestos, mapPresupuesto),
-        genInserts('solicitudes',         solicitudes,  mapSolicitud),
-        genInserts('respuestas',          respuestas,   mapRespuesta),
-        genInserts('historial_cambios',   historial,    mapHistorial),
-        genInserts('base_precios',        basePrecios,  mapBasePrecios),
-        genInserts('configuracion',       configuracion,mapConfiguracion),
-        ``,
+        // Orden: primero tablas sin FK, luego las dependientes
+        genInserts(`${PREFIX}propuestas`,           propuestas,    mapPropuesta),
+        genInserts(`${PREFIX}proveedores`,          proveedores,   mapProveedor),
+        genInserts(`${PREFIX}partidas`,             partidas,      mapPartida),
+        genInserts(`${PREFIX}presupuestos_cliente`, presupuestos,  mapPresupuesto),
+        genInserts(`${PREFIX}solicitudes`,          solicitudes,   mapSolicitud),
+        genInserts(`${PREFIX}respuestas`,           respuestas,    mapRespuesta),
+        genInserts(`${PREFIX}historial_cambios`,    historial,     mapHistorial),
+        genInserts(`${PREFIX}base_precios`,         basePrecios,   mapBasePrecios),
+        genInserts(`${PREFIX}configuracion`,        configuracion, mapConfiguracion),
         `SET FOREIGN_KEY_CHECKS = 1;`,
         ``,
         `-- ============================================================`,
-        `--  NOTAS POST-MIGRACIÓN:`,
-        `--`,
-        `--  1. firma_base64: los registros se han migrado a firma_base64`,
-        `--     Para moverlos a ficheros: extraer base64, subir a FTP de`,
-        `--     Dinahosting como /firmas/{token}.png, actualizar firma_url`,
-        `--     y vaciar firma_base64 para ahorrar espacio.`,
-        `--`,
-        `--  2. partidas.capitulo_codigo: ya separado de texto_partida.`,
-        `--     Si el frontend sigue usando texto_partida, añade una`,
-        `--     columna virtual o actualiza el código React.`,
+        `--  FIN DE LA MIGRACIÓN`,
         `-- ============================================================`,
     ].join('\n');
 
-    fs.writeFileSync(outFile, sql, 'utf8');
+    fs.writeFileSync(outFile, bloques, 'utf8');
 
-    const sizeKB = Math.round(Buffer.byteLength(sql, 'utf8') / 1024);
-    console.log(`\n✅ Fichero generado: ${outFile} (${sizeKB} KB)`);
-    console.log('\n📌 Próximos pasos:');
-    console.log('  1. Importa mysql_schema_dinahosting.sql en phpMyAdmin primero');
-    console.log('  2. Luego importa este fichero de datos');
-    console.log('  3. Si el fichero es >64 MB, divide por tablas manualmente');
-    console.log('\n🔗 phpMyAdmin: https://phpadmin.gestiondecuenta.com/52/index.php?route=/database/structure&db=adirg_bbdd');
+    const sizeKB  = Math.round(Buffer.byteLength(bloques, 'utf8') / 1024);
+    const sizeMB  = (sizeKB / 1024).toFixed(1);
+
+    console.log(`\n✅ Fichero generado: ${outFile}`);
+    console.log(`   Tamaño: ${sizeKB} KB (${sizeMB} MB)`);
+
+    if (sizeKB > 50000) {
+        console.log(`\n  ⚠ El fichero supera 50 MB. phpMyAdmin tiene límite de 100 MB.`);
+        console.log(`    Si falla, divide el fichero por tablas o usa BigDump:`);
+        console.log(`    https://www.ozerov.de/bigdump/`);
+    }
+
+    console.log(`\n📌 Pasos en phpMyAdmin:`);
+    console.log(`   1. Ir a: https://phpadmin.gestiondecuenta.com/52/index.php?route=/database/structure&db=adirg_bbdd`);
+    console.log(`   2. Importar → mysql_schema_dinahosting.sql  (estructura)`);
+    console.log(`   3. Importar → ${outFile}  (datos)`);
+    console.log(`   4. Charset: utf-8  |  Formato: SQL`);
 }
 
-main().catch(console.error);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONEXIÓN DIRECTA A MYSQL (alternativa al fichero SQL)
-// Descomenta si tienes los datos de acceso de Dinahosting
-// ─────────────────────────────────────────────────────────────────────────────
-/*
-const mysql = require('mysql2/promise');
-
-const MYSQL_CONFIG = {
-    host:     'TU_HOST_DINAHOSTING',    // ej: db123.dinahosting.com
-    user:     'TU_USUARIO',
-    password: 'TU_PASSWORD',
-    database: 'adirg_bbdd',
-    charset:  'utf8mb4',
-    ssl:      { rejectUnauthorized: false }
-};
-*/
+main().catch(err => {
+    console.error('\n❌ Error fatal:', err.message);
+    process.exit(1);
+});
