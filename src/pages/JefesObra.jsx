@@ -24,10 +24,13 @@ const JefesObra = () => {
     const [showDenyModal, setShowDenyModal] = useState(false);
     const [showApproveWarning, setShowApproveWarning] = useState(false);
     const [showFormatModal, setShowFormatModal] = useState(false);
-    const [modoVista, setModoVista] = useState('desglose');
+    // modoEmail: formato visual del HTML en el correo
+    // modoPortal: qué datos se guardan en Supabase para el formulario de firma
+    const [modoEmail, setModoEmail] = useState('capitulos');
+    const [modoPortal, setModoPortal] = useState('desglose');
     
     const [showEditMetadata, setShowEditMetadata] = useState(false);
-    const [metadataForm, setMetadataForm] = useState({ cliente: '', cliente_email: '', descripcion: '' });
+    const [metadataForm, setMetadataForm] = useState({ nombre_proyecto: '', cliente: '', cliente_email: '' });
     const [rawInputs, setRawInputs] = useState({});
     const [oficiosDinamicos, setOficiosDinamicos] = useState(TODOS_LOS_OFICIOS);
 
@@ -235,6 +238,7 @@ const JefesObra = () => {
 
     const openEditMetadata = () => {
         setMetadataForm({
+            nombre_proyecto: activeProject.descripcion || getCleanProjectName(activeProject.Proyecto),
             cliente: activeProject.cliente || '',
             cliente_email: activeProject.direccion || ''
         });
@@ -245,15 +249,17 @@ const JefesObra = () => {
         try {
             const { error } = await supabase.from('propuestas')
                 .update({
+                    descripcion: metadataForm.nombre_proyecto,
                     cliente: metadataForm.cliente,
                     direccion: metadataForm.cliente_email
                 })
                 .eq('Proyecto', activeProject.Proyecto);
-                
+
             if (error) throw error;
             
             setActiveProject(prev => ({
                 ...prev,
+                descripcion: metadataForm.nombre_proyecto,
                 cliente: metadataForm.cliente,
                 direccion: metadataForm.cliente_email
             }));
@@ -390,8 +396,9 @@ const JefesObra = () => {
         return totales;
     };
 
-    // formato: 'capitulos' | 'desglose' — se pasa explícitamente para evitar closures estancados
-    const confirmarProyecto = async (formato) => {
+    // modoEmail: 'capitulos' | 'desglose' → cómo se renderiza el HTML del correo
+    // modoPortal: 'capitulos' | 'desglose' → qué datos se guardan en Supabase para el formulario de firma
+    const confirmarProyecto = async (modoEmailParam, modoPortalParam) => {
         setLoadingProject(true);
         setShowApproveWarning(false);
         setShowFormatModal(false);
@@ -464,10 +471,12 @@ const JefesObra = () => {
                 return p;
             });
 
-            // En modo 'capitulos': solo se guardan/envían los headers con sus totales
-            // En modo 'desglose': se guarda todo (headers + partidas individuales)
-            const soloCapitulos = formato === 'capitulos';
-            const partidasGuardar = soloCapitulos
+            // soloCapitulosPortal: qué se guarda en Supabase para el formulario de firma del cliente
+            // soloCapitulosEmail:  cómo se renderiza la tabla en el HTML del correo
+            const soloCapitulosPortal = modoPortalParam === 'capitulos';
+            const soloCapitulosEmail  = modoEmailParam  === 'capitulos';
+
+            const partidasGuardar = soloCapitulosPortal
                 ? partidasParaCliente.filter(p => {
                     const tipoFila = getTipoFila(p);
                     return tipoFila === 'capitulo' || tipoFila === 'subcapitulo';
@@ -489,9 +498,13 @@ const JefesObra = () => {
             // ─── Construir HTML del email según formato elegido ───
             let filasHtml = '';
 
-            if (soloCapitulos) {
+            if (soloCapitulosEmail) {
                 // Solo capítulos y subcapítulos con su precio total acumulado
-                filasHtml = partidasGuardar.map((p) => {
+                const partidasEmail = partidasParaCliente.filter(p => {
+                    const t = getTipoFila(p);
+                    return t === 'capitulo' || t === 'subcapitulo';
+                });
+                filasHtml = partidasEmail.map((p) => {
                     const tipoFila = getTipoFila(p);
                     const capClean = (p.Capítulo || '').replace(/#+$/, '');
                     const totalCap = parseFloat(p.precio_total_capitulo) || 0;
@@ -555,7 +568,7 @@ const JefesObra = () => {
                 }).join('');
             }
 
-            const theadHtml = soloCapitulos
+            const theadHtml = soloCapitulosEmail
                 ? `<thead><tr style="background:#002D54;color:white;">` +
                     `<th colspan="3" style="padding:11px 14px;text-align:left;font-size:13px;">Capítulo / Descripción</th>` +
                     `<th style="padding:11px 14px;text-align:right;font-size:13px;width:140px;">Total (€)</th>` +
@@ -588,7 +601,7 @@ const JefesObra = () => {
                   `<div style="padding:32px;">` +
                     `<p style="font-size:15px;color:#334155;margin:0 0 8px;">Estimado/a <strong>${activeProject.cliente || 'Cliente'}</strong>,</p>` +
                     `<p style="font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.6;">` +
-                      `Le adjuntamos el presupuesto detallado para el proyecto <strong>${getCleanProjectName(activeProject.Proyecto)}</strong>. ` +
+                      `Le adjuntamos el presupuesto detallado para el proyecto <strong>${activeProject.descripcion || getCleanProjectName(activeProject.Proyecto)}</strong>. ` +
                       `Por favor, revíselo y proceda a firmarlo desde el siguiente enlace.` +
                     `</p>` +
                     tableHtml +
@@ -618,13 +631,14 @@ const JefesObra = () => {
                     token,
                     cliente_email: activeProject.direccion || '',
                     cliente_nombre: activeProject.cliente || '',
-                    proyecto_nombre: getCleanProjectName(activeProject.Proyecto),
+                    proyecto_nombre: activeProject.descripcion || getCleanProjectName(activeProject.Proyecto),
                     proyecto: activeProject.Proyecto,
                     precio_total: precioTotal,
                     portal_url: portalUrl,
                     html_presupuesto: htmlPresupuesto,
-                    modo_vista: formato,
-                    partidas: soloCapitulos
+                    modo_email: modoEmailParam,
+                    modo_portal: modoPortalParam,
+                    partidas: soloCapitulosPortal
                         ? partidasGuardar.map(p => ({
                             texto_partida: (p.Capítulo || 'S/C') + '::' + (p.Descripción || p.texto_partida || 'Sin descripcion'),
                             precio_adjudicado: parseFloat(p.precio_total_capitulo) || 0,
@@ -682,8 +696,8 @@ const JefesObra = () => {
                                     <ArrowLeft size={18} />
                                 </button>
                                 <div>
-                                    <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><HardHat size={32} color="var(--primary)" /> 
-                                        {getCleanProjectName(activeProject.Proyecto)}
+                                    <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}><HardHat size={32} color="var(--primary)" />
+                                        {activeProject.descripcion || getCleanProjectName(activeProject.Proyecto)}
                                         <button className="btn btn-secondary btn-sm" onClick={openEditMetadata} title="Editar Datos del Proyecto" style={{ padding: '4px 8px', fontSize: '0.75rem', fontWeight: 600 }}>
                                             ✏️ Editar Datos
                                         </button>
@@ -1010,125 +1024,156 @@ const JefesObra = () => {
             )}
 
             {showFormatModal && (
-                 <div style={modalOverlay}>
-                     <div style={{...modalContent, textAlign: 'left', maxWidth: '500px'}}>
-                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-                             <span style={{ fontSize: '1.5rem' }}>📧</span>
-                             <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.25rem', fontWeight: 700 }}>Formato del Presupuesto por Email</h3>
-                         </div>
-                         <p style={{ margin: '0 0 20px', fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                             Selecciona cómo deseas que el cliente visualice el presupuesto en el correo electrónico de firma digital:
-                         </p>
-                         
-                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '25px' }}>
-                             <label 
-                                 style={{
-                                     display: 'flex',
-                                     alignItems: 'flex-start',
-                                     gap: '12px',
-                                     padding: '16px',
-                                     borderRadius: '12px',
-                                     border: modoVista === 'desglose' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                                     backgroundColor: modoVista === 'desglose' ? 'rgba(0, 45, 84, 0.04)' : 'transparent',
-                                     cursor: 'pointer',
-                                     transition: 'all 0.2s'
-                                 }}
-                             >
-                                 <input 
-                                     type="radio" 
-                                     name="modoVistaEmail" 
-                                     value="desglose" 
-                                     checked={modoVista === 'desglose'} 
-                                     onChange={() => setModoVista('desglose')}
-                                     style={{ marginTop: '4px', accentColor: 'var(--primary)' }}
-                                 />
-                                 <div>
-                                     <strong style={{ display: 'block', fontSize: '0.95rem', color: 'var(--text-main)', marginBottom: '2px' }}>Desglose completo de partidas</strong>
-                                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Muestra todas las partidas de la obra con sus descripciones, cantidades, precios unitarios y totales.</span>
-                                 </div>
-                             </label>
+                <div style={modalOverlay}>
+                    <div style={{...modalContent, textAlign: 'left', maxWidth: '540px'}}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
+                            <span style={{ fontSize: '1.5rem' }}>📋</span>
+                            <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.2rem', fontWeight: 700 }}>Formato del Presupuesto</h3>
+                        </div>
 
-                             <label 
-                                 style={{
-                                     display: 'flex',
-                                     alignItems: 'flex-start',
-                                     gap: '12px',
-                                     padding: '16px',
-                                     borderRadius: '12px',
-                                     border: modoVista === 'capitulos' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
-                                     backgroundColor: modoVista === 'capitulos' ? 'rgba(0, 45, 84, 0.04)' : 'transparent',
-                                     cursor: 'pointer',
-                                     transition: 'all 0.2s'
-                                 }}
-                             >
-                                 <input 
-                                     type="radio" 
-                                     name="modoVistaEmail" 
-                                     value="capitulos" 
-                                     checked={modoVista === 'capitulos'} 
-                                     onChange={() => setModoVista('capitulos')}
-                                     style={{ marginTop: '4px', accentColor: 'var(--primary)' }}
-                                 />
-                                 <div>
-                                     <strong style={{ display: 'block', fontSize: '0.95rem', color: 'var(--text-main)', marginBottom: '2px' }}>Solo totales por capítulo</strong>
-                                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Muestra únicamente la suma total acumulada por cada capítulo o grupo de trabajo, simplificando la vista.</span>
-                                 </div>
-                             </label>
-                         </div>
+                        {/* ─── SECCIÓN 1: Correo ─── */}
+                        <div style={{ marginBottom: '22px' }}>
+                            <p style={{ margin: '0 0 10px', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                📧 Desglose en el correo
+                            </p>
+                            <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                                Cómo se muestra el presupuesto en el cuerpo del email que recibirá el cliente:
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <label style={{
+                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '13px 16px',
+                                    borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s',
+                                    border: modoEmail === 'capitulos' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                                    backgroundColor: modoEmail === 'capitulos' ? 'rgba(0, 45, 84, 0.05)' : 'transparent'
+                                }}>
+                                    <input type="radio" name="modoEmail" value="capitulos"
+                                        checked={modoEmail === 'capitulos'} onChange={() => setModoEmail('capitulos')}
+                                        style={{ marginTop: '3px', accentColor: 'var(--primary)' }} />
+                                    <div>
+                                        <strong style={{ display: 'block', fontSize: '0.9rem', marginBottom: '2px' }}>Solo capítulos y subcapítulos</strong>
+                                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Vista resumida: una línea por capítulo/subcapítulo con su total acumulado.</span>
+                                    </div>
+                                </label>
+                                <label style={{
+                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '13px 16px',
+                                    borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s',
+                                    border: modoEmail === 'desglose' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                                    backgroundColor: modoEmail === 'desglose' ? 'rgba(0, 45, 84, 0.05)' : 'transparent'
+                                }}>
+                                    <input type="radio" name="modoEmail" value="desglose"
+                                        checked={modoEmail === 'desglose'} onChange={() => setModoEmail('desglose')}
+                                        style={{ marginTop: '3px', accentColor: 'var(--primary)' }} />
+                                    <div>
+                                        <strong style={{ display: 'block', fontSize: '0.9rem', marginBottom: '2px' }}>Desglose completo de partidas</strong>
+                                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Muestra cada partida con descripción, cantidad, precio unitario y total.</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
 
-                         <div style={{ display: 'flex', gap: '12px' }}>
-                             <button className="btn btn-secondary" onClick={() => setShowFormatModal(false)} style={{ flex: 1 }}>
-                                 Cancelar
-                             </button>
-                             <button
-                                 className="btn btn-success"
-                                 onClick={() => confirmarProyecto(modoVista)}
-                                 style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
-                             >
-                                 <CheckCircle size={16} /> Aprobar y Enviar
-                             </button>
-                         </div>
-                     </div>
-                 </div>
-             )}
+                        {/* ─── SECCIÓN 2: Formulario de firma ─── */}
+                        <div style={{ marginBottom: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+                            <p style={{ margin: '0 0 10px', fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                📝 Formulario de firma (portal del cliente)
+                            </p>
+                            <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                                Qué nivel de detalle verá el cliente en el portal al revisar y firmar:
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <label style={{
+                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '13px 16px',
+                                    borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s',
+                                    border: modoPortal === 'desglose' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                                    backgroundColor: modoPortal === 'desglose' ? 'rgba(0, 45, 84, 0.05)' : 'transparent'
+                                }}>
+                                    <input type="radio" name="modoPortal" value="desglose"
+                                        checked={modoPortal === 'desglose'} onChange={() => setModoPortal('desglose')}
+                                        style={{ marginTop: '3px', accentColor: 'var(--primary)' }} />
+                                    <div>
+                                        <strong style={{ display: 'block', fontSize: '0.9rem', marginBottom: '2px' }}>Desglose completo — todas las partes y partidas</strong>
+                                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>El portal muestra capítulos, subcapítulos y cada partida individual con sus precios.</span>
+                                    </div>
+                                </label>
+                                <label style={{
+                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '13px 16px',
+                                    borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s',
+                                    border: modoPortal === 'capitulos' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                                    backgroundColor: modoPortal === 'capitulos' ? 'rgba(0, 45, 84, 0.05)' : 'transparent'
+                                }}>
+                                    <input type="radio" name="modoPortal" value="capitulos"
+                                        checked={modoPortal === 'capitulos'} onChange={() => setModoPortal('capitulos')}
+                                        style={{ marginTop: '3px', accentColor: 'var(--primary)' }} />
+                                    <div>
+                                        <strong style={{ display: 'block', fontSize: '0.9rem', marginBottom: '2px' }}>Solo capítulos y subcapítulos</strong>
+                                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>El portal muestra únicamente el resumen por capítulo/subcapítulo, sin detallar partidas.</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <button className="btn btn-secondary" onClick={() => setShowFormatModal(false)} style={{ flex: 1 }}>
+                                Cancelar
+                            </button>
+                            <button
+                                className="btn btn-success"
+                                onClick={() => confirmarProyecto(modoEmail, modoPortal)}
+                                style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+                            >
+                                <CheckCircle size={16} /> Aprobar y Enviar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showEditMetadata && (
                 <div style={modalOverlay}>
                     <div style={{...modalContent, textAlign: 'left', maxWidth: '450px'}}>
-                        <h3 style={{ color: 'var(--accent-primary)', marginBottom: '15px' }}>✏️ Editar Datos del Proyecto</h3>
-                        
-                        <div style={{ marginBottom: '15px' }}>
-                            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 600 }}>Proyecto (de BC3):</label>
-                            <input 
-                                type="text" 
-                                value={getCleanProjectName(activeProject.Proyecto)} 
-                                disabled
-                                readOnly
-                                style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', backgroundColor: '#f1f5f9', color: '#64748b', cursor: 'not-allowed' }}
-                            />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+                            <span style={{ fontSize: '1.4rem' }}>✏️</span>
+                            <h3 style={{ color: 'var(--primary)', margin: 0, fontSize: '1.15rem', fontWeight: 700 }}>Editar Datos del Proyecto</h3>
                         </div>
-                        
+
+                        <div style={{ marginBottom: '15px' }}>
+                            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 600 }}>
+                                Nombre del Proyecto:
+                                <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: '6px', fontSize: '0.78rem' }}>(aparece en el correo y el portal)</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={metadataForm.nombre_proyecto}
+                                onChange={(e) => setMetadataForm({...metadataForm, nombre_proyecto: e.target.value})}
+                                placeholder="Nombre descriptivo del proyecto..."
+                                style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                            />
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                                Referencia BC3: <code style={{ backgroundColor: '#f1f5f9', padding: '1px 5px', borderRadius: '4px' }}>{activeProject.Proyecto}</code>
+                            </span>
+                        </div>
+
                         <div style={{ marginBottom: '15px' }}>
                             <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 600 }}>Nombre del Cliente:</label>
-                            <input 
-                                type="text" 
-                                value={metadataForm.cliente} 
+                            <input
+                                type="text"
+                                value={metadataForm.cliente}
                                 onChange={(e) => setMetadataForm({...metadataForm, cliente: e.target.value})}
                                 placeholder="Nombre del cliente..."
                                 style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                             />
                         </div>
-                        
-                        <div style={{ marginBottom: '15px' }}>
-                            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 600 }}>Email de Contacto (Para firma digital):</label>
-                            <input 
-                                type="email" 
-                                value={metadataForm.cliente_email} 
+
+                        <div style={{ marginBottom: '20px' }}>
+                            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 600 }}>Email de Contacto <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}>(para firma digital)</span>:</label>
+                            <input
+                                type="email"
+                                value={metadataForm.cliente_email}
                                 onChange={(e) => setMetadataForm({...metadataForm, cliente_email: e.target.value})}
                                 placeholder="ejemplo@correo.com"
                                 style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                             />
                         </div>
+
                         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                             <button className="btn btn-secondary" onClick={() => setShowEditMetadata(false)}>Cancelar</button>
                             <button className="btn btn-primary" onClick={saveMetadata}>Guardar Cambios</button>
