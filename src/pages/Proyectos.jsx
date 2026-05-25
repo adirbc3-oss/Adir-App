@@ -195,10 +195,10 @@ const Proyectos = () => {
     const generarBC3 = (presupuesto) => {
         const allItems = presupuesto.partidas || [];
         const projectId = (presupuesto.propuesta_id || 'PROYECTO').replace(/[|\\]/g, '_');
-        const projectName = getCleanProjectName(presupuesto.propuesta_id).replace(/[|\\]/g, ' ');
+        const projectName = (presupuesto.proyecto_descripcion || getCleanProjectName(presupuesto.propuesta_id)).replace(/[|\\]/g, ' ');
         const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
 
-        const allCodes = new Set(allItems.map(p => p.Capítulo || '').filter(Boolean));
+        const allCodes = new Set(allItems.map(p => (p.Capítulo || p.Capitulo || '')).filter(Boolean));
 
         const findParent = (code) => {
             const base = code.replace(/#$/, '');
@@ -215,29 +215,58 @@ const Proyectos = () => {
         lines.push(`~C|${projectId}||${projectName}|0||`);
 
         allItems.forEach(p => {
-            const code = p.Capítulo || '';
+            const code = (p.Capítulo || p.Capitulo || '').trim();
             if (!code) return;
-            const desc = (p.Descripción || p.texto_partida || '').replace(/\|/g, ' ').replace(/::.*/,'').trim();
+
             const isStructural = code.endsWith('#');
-            const precio = isStructural ? 0 : (parseFloat(p['Precio Total (€)'] || p.precio_base_estimado || 0) || 0);
-            const unidad = isStructural ? '' : (p['Unidad IA'] || p.Unidad || p.unidad || 'ud');
-            lines.push(`~C|${code}|${unidad}|${desc}|${precio.toFixed(2)}||`);
+
+            // Descripción: limpiar prefijos tipo "01.01.01::" y caracteres pipe
+            const rawDesc = (p.Descripción || p.Descripcion || p.texto_partida || '').trim();
+            const desc = rawDesc.includes('::')
+                ? rawDesc.split('::').slice(1).join('::').replace(/\|/g, ' ').trim()
+                : rawDesc.replace(/\|/g, ' ').trim();
+
+            if (isStructural) {
+                // Capítulo/subcapítulo: precio 0, sin unidad (se calcula de sus hijos)
+                lines.push(`~C|${code}||${desc}|0||`);
+            } else {
+                // Partida: precio adjudicado final > original BC3 > base estimado
+                const precioUd = parseFloat(
+                    p.precio_adjudicado ??
+                    p['Precio Total (€)'] ??
+                    p.precio_base_estimado ??
+                    0
+                ) || 0;
+                const cant   = parseFloat(p.Cantidad || p.cantidad || 1) || 1;
+                const unidad = (p['Unidad IA'] || p['Unidad_IA'] || p.unidad || p.Unidad || 'ud').trim();
+                lines.push(`~C|${code}|${unidad}|${desc}|${precioUd.toFixed(2)}||`);
+                // ~T: descripción larga si es muy extensa (>80 chars)
+                if (desc.length > 80) {
+                    lines.push(`~T|${code}|${desc}|`);
+                }
+                void cant; // cant se usa en ~D abajo
+            }
         });
 
+        // Construir árbol de descomposición ~D
         const childrenOf = new Map([[projectId, []]]);
         allItems.forEach(p => {
-            const code = p.Capítulo || '';
+            const code = (p.Capítulo || p.Capitulo || '').trim();
             if (!code) return;
-            const cant = parseFloat(p.Cantidad || p.cantidad) || 1;
+            // La cantidad en ~D es la de la partida en su capítulo padre
+            const cant = parseFloat(p.Cantidad || p.cantidad || 1) || 1;
             const parent = findParent(code);
             if (!childrenOf.has(parent)) childrenOf.set(parent, []);
             childrenOf.get(parent).push({ code, cant });
+            // Aseguramos entrada vacía para caps/subcaps que aún no tienen hijos añadidos
             if (code.endsWith('#') && !childrenOf.has(code)) childrenOf.set(code, []);
         });
 
+        // Emitir ~D para cada padre con hijos
         childrenOf.forEach((children, parent) => {
             if (!children.length) return;
-            const str = children.map(c => `${c.code}\\${c.cant.toFixed(2)}\\1`).join('\\');
+            // Formato: ~D|Padre|Hijo\Cantidad\1\Hijo\Cantidad\1\...\|
+            const str = children.map(c => `${c.code}\\${c.cant.toFixed(3)}\\1`).join('\\');
             lines.push(`~D|${parent}|${str}\\|`);
         });
 

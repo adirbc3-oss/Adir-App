@@ -149,26 +149,32 @@ export function generarPresupuestoPDF(data) {
             const total  = precio * cant;
 
             if (tipo === 'capitulo') {
-                // Capítulo: muestra total acumulado en última columna; cant/ud/precio vacías
+                // Capítulo: 6 celdas explícitas — total acumulado en col 5 (Total €)
                 const totalCapStr = totalCap > 0
                     ? totalCap.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €'
                     : '';
+                const capS = { fontStyle: 'bold', fillColor: CAP_FILL, textColor: AZUL };
                 filas.push([
-                    { content: cap, styles: { fontStyle: 'bold', fillColor: CAP_FILL, textColor: AZUL } },
-                    { content: desc, styles: { fontStyle: 'bold', fillColor: CAP_FILL, textColor: AZUL, colSpan: 3 } },
-                    { content: '', styles: { fillColor: CAP_FILL } }, // Precio/ud vacío
-                    { content: totalCapStr, styles: { fontStyle: 'bold', fillColor: CAP_FILL, textColor: AZUL, halign: 'right' } },
+                    { content: cap,        styles: capS },
+                    { content: desc,       styles: capS },
+                    { content: '',         styles: { fillColor: CAP_FILL } },
+                    { content: '',         styles: { fillColor: CAP_FILL } },
+                    { content: '',         styles: { fillColor: CAP_FILL } },
+                    { content: totalCapStr, styles: { ...capS, halign: 'right' } },
                 ]);
             } else if (tipo === 'subcapitulo') {
-                // Subcapítulo: mismo patrón — total acumulado en última columna
+                // Subcapítulo: mismo patrón con estilo itálico azul medio
                 const totalSubStr = totalCap > 0
                     ? totalCap.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €'
                     : '';
+                const subS = { fontStyle: 'italic', fillColor: SUB_FILL, textColor: SUB_TEXT };
                 filas.push([
-                    { content: cap, styles: { fontStyle: 'italic', fillColor: SUB_FILL, textColor: SUB_TEXT } },
-                    { content: desc, styles: { fontStyle: 'italic', fillColor: SUB_FILL, textColor: SUB_TEXT, colSpan: 3 } },
-                    { content: '', styles: { fillColor: SUB_FILL } }, // Precio/ud vacío
-                    { content: totalSubStr, styles: { fontStyle: 'italic', fillColor: SUB_FILL, textColor: SUB_TEXT, halign: 'right' } },
+                    { content: cap,        styles: subS },
+                    { content: desc,       styles: subS },
+                    { content: '',         styles: { fillColor: SUB_FILL } },
+                    { content: '',         styles: { fillColor: SUB_FILL } },
+                    { content: '',         styles: { fillColor: SUB_FILL } },
+                    { content: totalSubStr, styles: { ...subS, halign: 'right' } },
                 ]);
             } else {
                 totalCalculado += total;
