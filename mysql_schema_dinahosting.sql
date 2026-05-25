@@ -75,7 +75,7 @@ CREATE TABLE `ctcon_propuestas` (
 --  Se mantiene texto_partida como backup temporal.
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE `ctcon_partidas` (
-  `id`                      CHAR(36)       NOT NULL,
+  `id`                      VARCHAR(150)   NOT NULL  COMMENT 'Código BC3 compuesto, no UUID (max real: 62 chars)',
   `propuesta_id`            VARCHAR(200)   NOT NULL,
   -- texto_partida original (backup de migración)
   `texto_partida`           TEXT           DEFAULT NULL COMMENT 'Formato original: COD::Descripción',
@@ -199,19 +199,20 @@ CREATE TABLE `ctcon_solicitudes` (
 --    precio_ofertado, comentarios, created_at
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE `ctcon_respuestas` (
-  `id`              CHAR(36)      NOT NULL,
-  `solicitud_id`    CHAR(36)      NOT NULL,
-  `proveedor_id`    VARCHAR(36)   DEFAULT NULL,
-  `partida_id`      CHAR(36)      NOT NULL,
+  `id`              CHAR(36)       NOT NULL,
+  `solicitud_id`    CHAR(36)       NOT NULL,
+  `proveedor_id`    VARCHAR(36)    DEFAULT NULL,
+  `partida_id`      VARCHAR(150)   NOT NULL  COMMENT 'Referencia a ctcon_partidas.id (no UUID)',
   `precio_ofertado` DECIMAL(12,2) DEFAULT NULL,
   `comentarios`     TEXT          DEFAULT NULL,
   `created_at`      DATETIME      DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   INDEX `idx_resp_solicitud` (`solicitud_id`),
-  INDEX `idx_resp_partida`   (`partida_id`),
+  INDEX `idx_resp_partida`   (`partida_id`(100)),
   CONSTRAINT `fk_resp_solicitud`
     FOREIGN KEY (`solicitud_id`) REFERENCES `ctcon_solicitudes` (`id`)
     ON DELETE CASCADE ON UPDATE CASCADE
+  -- Sin FK en partida_id: en Supabase no existe esa restricción declarada
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
