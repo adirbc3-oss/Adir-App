@@ -72,6 +72,7 @@ const Proyectos = () => {
     const fetchProyectos = async () => {
         setLoading(true);
         try {
+            // 1. Proyectos activos en propuestas
             const { data, error } = await supabase
                 .from('propuestas')
                 .select('Proyecto, cliente, jefe_obra, fecha_recepcion, estado')
@@ -79,9 +80,33 @@ const Proyectos = () => {
                 .order('fecha_recepcion', { ascending: false });
 
             if (error) throw error;
-            if (data) {
-                setProyectos(data);
-                await cargarPresupuestos(data.map(p => p.Proyecto));
+            if (!data || data.length === 0) { setProyectos([]); return; }
+
+            // 2. Presupuestos existentes para esos proyectos
+            const ids = data.map(p => p.Proyecto);
+            const { data: presData } = await supabase
+                .from('presupuestos_cliente')
+                .select('propuesta_id')
+                .in('propuesta_id', ids);
+
+            const idsConPresupuesto = new Set((presData || []).map(p => p.propuesta_id));
+
+            // 3. Proyectos SIN presupuesto → resetear a "En Revisión" automáticamente
+            const sinPresupuesto = data.filter(p => !idsConPresupuesto.has(p.Proyecto));
+            if (sinPresupuesto.length > 0) {
+                console.warn('[Proyectos] Reseteando proyectos sin presupuesto:', sinPresupuesto.map(p => p.Proyecto));
+                await Promise.all(sinPresupuesto.map(p =>
+                    supabase.from('propuestas')
+                        .update({ estado: 'En Revisión' })
+                        .eq('Proyecto', p.Proyecto)
+                ));
+            }
+
+            // 4. Mostrar solo los que SÍ tienen presupuesto
+            const conPresupuesto = data.filter(p => idsConPresupuesto.has(p.Proyecto));
+            setProyectos(conPresupuesto);
+            if (conPresupuesto.length > 0) {
+                await cargarPresupuestos(conPresupuesto.map(p => p.Proyecto));
             }
         } catch (error) {
             console.error('Error fetching projects:', error);
