@@ -30,3 +30,7 @@ Thumbs.db
 # Backup/temp
 *.bak
 *.tmp
+
+# API con credenciales reales (¡NUNCA subir!)
+api_dinahosting/api_DEPLOY.php
+migracion_*.sql
