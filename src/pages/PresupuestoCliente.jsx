@@ -190,7 +190,6 @@ const PresupuestoCliente = () => {
                 .from('presupuestos_cliente')
                 .update({
                     estado: 'rechazado',
-                    detalles_rechazo: rejectReason,
                     fecha_firma: new Date().toISOString()
                 })
                 .eq('token', presupuesto.token);

@@ -246,9 +246,9 @@ const JefesObra = () => {
 
     const saveMetadata = async () => {
         try {
+            // Nota: 'descripcion' no existe aún en propuestas — se guarda solo en estado local
             const { error } = await supabase.from('propuestas')
                 .update({
-                    descripcion: metadataForm.nombre_proyecto,
                     cliente: metadataForm.cliente,
                     direccion: metadataForm.cliente_email
                 })
