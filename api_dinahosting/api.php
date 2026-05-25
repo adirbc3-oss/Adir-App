@@ -209,7 +209,14 @@ function postProcessRow(string $mysqlTable, array $row): array {
     $reverse = $cfg['reverse']     ?? [];
     $hideId  = $cfg['hide_num_id'] ?? false;
 
-    // Renombrar columnas _bc3 → nombre original
+    // 1. Eliminar el id numérico AUTO_INCREMENT ANTES de renombrar
+    //    (así el rename de id_bc3 → id no se borra accidentalmente)
+    if ($hideId) {
+        unset($row['id']);
+    }
+
+    // 2. Renombrar columnas _bc3 / internas → nombres originales Supabase
+    //    ej: id_bc3 → id,  propuesta_bc3 → propuesta_id,  proyecto_bc3 → Proyecto
     foreach ($reverse as $mysqlCol => $sbCol) {
         if (array_key_exists($mysqlCol, $row)) {
             $row[$sbCol] = $row[$mysqlCol];
@@ -217,22 +224,7 @@ function postProcessRow(string $mysqlTable, array $row): array {
         }
     }
 
-    // Ocultar el id numérico auto-increment
-    if ($hideId && isset($row['id']) && !isset($row['Proyecto'])) {
-        // Solo ocultar si no es ya el Proyecto (que ya se mapea desde proyecto_bc3)
-        // Para propuestas, 'id' numérico ya fue removido al mapear proyecto_bc3 → Proyecto
-        // Para el resto de tablas con hide_num_id, el 'id' numérico se oculta aquí
-        // porque ya se ha expuesto como la columna bc3 renombrada
-        if (isset($TABLE_CONFIG[$mysqlTable]['reverse']['id_bc3'])) {
-            unset($row['id']);
-        }
-    }
-    if ($hideId && isset($row['Proyecto'])) {
-        // propuestas: siempre eliminar el id numérico
-        unset($row['id']);
-    }
-
-    // Decodificar JSON en campo partidas
+    // 3. Decodificar JSON en campo partidas (presupuestos_cliente)
     if (isset($row['partidas']) && is_string($row['partidas'])) {
         $decoded = json_decode($row['partidas'], true);
         if (json_last_error() === JSON_ERROR_NONE) {
@@ -328,7 +320,7 @@ try {
             break;
         }
 
-        // ── POST (INSERT) ────────────────────────────────────────────────────
+        // ── POST (INSERT / UPSERT) ───────────────────────────────────────────
         case 'POST': {
             // Traducir claves Supabase → MySQL
             $data = translateKeys($mysqlTable, $body);
@@ -338,35 +330,38 @@ try {
                 $data['partidas'] = json_encode($data['partidas'], JSON_UNESCAPED_UNICODE);
             }
 
-            // No insertar 'id' numérico (AUTO_INCREMENT)
-            $cfg = $TABLE_CONFIG[$mysqlTable] ?? [];
-            if (($cfg['hide_num_id'] ?? false) && isset($data['id'])) {
-                // 'id' aquí sería el bc3 ya mapeado a id_bc3, salvo que la col_map lo haya renombrado
-                // Si 'id' aún está presente (tabla sin mapeo de id), lo eliminamos
-                // Para propuestas: no hay 'id' en el body (usa 'Proyecto' → 'proyecto_bc3')
-                // Para partidas: 'id' → 'id_bc3', así que 'id' ya no está
-                // Este unset es para casos extremos
-            }
-
             if (empty($data)) {
                 http_response_code(400);
                 echo json_encode(['error' => 'Body vacío']);
                 break;
             }
 
-            $colList = implode(', ', array_map(fn($c) => "`$c`", array_keys($data)));
-            $phs     = implode(', ', array_fill(0, count($data), '?'));
-            $stmt    = $pdo->prepare("INSERT INTO `$mysqlTable` ($colList) VALUES ($phs)");
+            $cfg      = $TABLE_CONFIG[$mysqlTable] ?? [];
+            $colList  = implode(', ', array_map(fn($c) => "`$c`", array_keys($data)));
+            $phs      = implode(', ', array_fill(0, count($data), '?'));
+
+            // Detectar UPSERT: header Prefer: resolution=merge-duplicates
+            $prefer = $_SERVER['HTTP_PREFER'] ?? '';
+            $isUpsert = str_contains($prefer, 'merge-duplicates');
+
+            if ($isUpsert) {
+                // INSERT ... ON DUPLICATE KEY UPDATE (todas las columnas menos la PK)
+                $updates = implode(', ', array_map(fn($c) => "`$c`=VALUES(`$c`)", array_keys($data)));
+                $sql = "INSERT INTO `$mysqlTable` ($colList) VALUES ($phs) ON DUPLICATE KEY UPDATE $updates";
+            } else {
+                $sql = "INSERT INTO `$mysqlTable` ($colList) VALUES ($phs)";
+            }
+
+            $stmt = $pdo->prepare($sql);
             $stmt->execute(array_values($data));
-            $newId   = $pdo->lastInsertId();
+            $newId = $pdo->lastInsertId();
 
             http_response_code(201);
-            // Devolver id en formato Supabase: si la tabla tiene bc3_id, devolver ese valor
             $idField = $cfg['reverse']['id_bc3'] ?? null;
             if ($idField && isset($data['id_bc3'])) {
                 echo json_encode([$idField => $data['id_bc3'], 'mysql_id' => $newId]);
             } else {
-                echo json_encode(['id' => $newId]);
+                echo json_encode(['id' => (string)$newId]);
             }
             break;
         }

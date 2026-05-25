@@ -26,7 +26,7 @@ if (!API_URL || !API_KEY) {
 }
 
 // ─── Fetch helper ─────────────────────────────────────────────────────────────
-async function apiFetch(table, method, params = {}, body = null) {
+async function apiFetch(table, method, params = {}, body = null, upsert = false) {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) {
         if (v !== undefined && v !== null) qs.set(k, String(v));
@@ -37,6 +37,8 @@ async function apiFetch(table, method, params = {}, body = null) {
         headers: {
             'Content-Type': 'application/json',
             'X-Api-Key': API_KEY,
+            // Señal para el PHP: usar INSERT ... ON DUPLICATE KEY UPDATE
+            ...(upsert ? { 'Prefer': 'resolution=merge-duplicates' } : {}),
         },
     };
     if (body !== null) opts.body = JSON.stringify(body);
@@ -62,6 +64,7 @@ class QueryBuilder {
         this._order   = null;
         this._limit   = null;
         this._offset  = null;
+        this._upsert  = false;
         this._single  = false;
         this._head    = false;
         this._count   = null;
@@ -105,7 +108,7 @@ class QueryBuilder {
     // ── Escritura ─────────────────────────────────────────────────────────────
     insert(data)             { this._method = 'POST';   this._body = data; return this; }
     update(data)             { this._method = 'PATCH';  this._body = data; return this; }
-    upsert(data, _opts = {}) { this._method = 'POST';   this._body = data; return this; }
+    upsert(data, _opts = {}) { this._method = 'POST';   this._body = data; this._upsert = true; return this; }
     delete(_opts = {})       { this._method = 'DELETE'; return this; }
 
     // ── Real-time (stubs) ─────────────────────────────────────────────────────
@@ -127,7 +130,7 @@ class QueryBuilder {
             return { data: [], count, error: rAll.error };
         }
 
-        const result = await apiFetch(this._table, this._method, params, this._body);
+        const result = await apiFetch(this._table, this._method, params, this._body, this._upsert);
 
         // single / maybeSingle
         if (this._single && Array.isArray(result.data)) {
