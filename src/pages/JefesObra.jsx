@@ -4,7 +4,7 @@ import { N8N_BASE_URL } from '../config';
 import { useModal, useToast } from '../utils/useModal';
 import {
   Loader2, RefreshCw, HardHat, FileText, ArrowLeft, CheckCircle,
-  X, AlertCircle, Trophy, User, Calendar, Briefcase
+  X, AlertCircle, Trophy, User, Calendar, Briefcase, Trash2
 } from 'lucide-react';
 import { TODOS_LOS_OFICIOS, getCleanProjectName } from '../utils/aiAllocation';
 
@@ -30,6 +30,8 @@ const JefesObra = () => {
     
     const [showEditMetadata, setShowEditMetadata] = useState(false);
     const [metadataForm, setMetadataForm] = useState({ nombre_proyecto: '', cliente: '', cliente_email: '' });
+    const [projectToDelete, setProjectToDelete] = useState(null);
+    const [deleting, setDeleting] = useState(false);
     const [rawInputs, setRawInputs] = useState({});
     const [oficiosDinamicos, setOficiosDinamicos] = useState(TODOS_LOS_OFICIOS);
 
@@ -291,6 +293,32 @@ const JefesObra = () => {
             showAlert('Error al denegar proyecto: ' + err.message, { type: 'error', title: 'Error' });
         } finally {
             setLoadingProject(false);
+        }
+    };
+
+    const eliminarProyecto = async () => {
+        if (!projectToDelete) return;
+        setDeleting(true);
+        try {
+            // 1. Solicitudes (y sus respuestas vinculadas)
+            await supabase.from('solicitudes').delete().eq('propuesta_id', projectToDelete.Proyecto);
+            // 2. Partidas
+            await supabase.from('partidas').delete().eq('propuesta_id', projectToDelete.Proyecto);
+            // 3. Propuesta
+            const { error, count } = await supabase
+                .from('propuestas')
+                .delete({ count: 'exact' })
+                .eq('Proyecto', projectToDelete.Proyecto);
+            if (error) throw error;
+            if (count === 0) throw new Error('No se pudo borrar (posible restricción RLS).');
+            showToast(`Proyecto "${getCleanProjectName(projectToDelete.Proyecto)}" eliminado.`, 'success');
+            setProjectToDelete(null);
+            fetchProyectos();
+        } catch (err) {
+            console.error(err);
+            showToast('Error al eliminar: ' + err.message, 'error');
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -969,9 +997,19 @@ const JefesObra = () => {
                                                             </span>
                                                         </td>
                                                         <td style={{ textAlign: 'right' }}>
-                                                            <button className="btn btn-primary btn-sm" onClick={() => openProject(pro)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                                                <FileText size={14} /> Evaluar
-                                                            </button>
+                                                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                                                <button className="btn btn-primary btn-sm" onClick={() => openProject(pro)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                                                    <FileText size={14} /> Evaluar
+                                                                </button>
+                                                                <button
+                                                                    className="btn btn-sm"
+                                                                    onClick={() => setProjectToDelete(pro)}
+                                                                    title="Eliminar proyecto"
+                                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}
+                                                                >
+                                                                    <Trash2 size={13} />
+                                                                </button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 ))
@@ -1089,6 +1127,30 @@ const JefesObra = () => {
                                 style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
                             >
                                 <CheckCircle size={16} /> Aprobar y Enviar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {projectToDelete && (
+                <div style={modalOverlay}>
+                    <div style={modalContent}>
+                        <div style={{ width: '60px', height: '60px', background: '#fee2e2', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                            <Trash2 size={28} color="#dc2626" />
+                        </div>
+                        <h3 style={{ margin: '0 0 10px', fontSize: '1.2rem', color: '#111827' }}>¿Eliminar Proyecto?</h3>
+                        <p style={{ margin: '0 0 6px', fontSize: '0.95rem', color: '#374151', fontWeight: 600 }}>
+                            {getCleanProjectName(projectToDelete.Proyecto)}
+                        </p>
+                        <p style={{ margin: '0 0 24px', fontSize: '0.88rem', color: '#6b7280', lineHeight: 1.5 }}>
+                            Esta acción borrará permanentemente el proyecto, todas sus partidas y solicitudes de la base de datos. <strong>No se puede deshacer.</strong>
+                        </p>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <button onClick={() => setProjectToDelete(null)} style={btnCancel} disabled={deleting}>Cancelar</button>
+                            <button onClick={eliminarProyecto} style={btnDanger} disabled={deleting}>
+                                {deleting ? <Loader2 size={14} className="loader-spinner" /> : <Trash2 size={14} />}
+                                {deleting ? ' Eliminando...' : ' Eliminar definitivamente'}
                             </button>
                         </div>
                     </div>

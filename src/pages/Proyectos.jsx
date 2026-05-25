@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
 import { getCleanProjectName } from '../utils/aiAllocation';
-import {  
+import {
     Loader2, RefreshCw, FolderOpen, CheckCircle, Clock,
-    Download, FileCheck, Eye, X, AlertCircle, AlertTriangle, TrendingUp
-, Files } from 'lucide-react';
+    Download, FileCheck, Eye, X, AlertCircle, AlertTriangle, TrendingUp,
+    Trash2, Files
+} from 'lucide-react';
 
 // ─── Modal Genérico ───
 const Modal = ({ icon, iconBg, title, children, footer }) => (
@@ -51,6 +52,8 @@ const Proyectos = () => {
     // Modales personalizados
     const [modalConfirm, setModalConfirm] = useState(null);  // { title, msg, onConfirm, type }
     const [modalWarn, setModalWarn] = useState(null);         // { title, msg, onConfirm }
+    const [modalDelete, setModalDelete] = useState(null);     // { pro } — confirm eliminar
+    const [deleting, setDeleting] = useState(false);
     const [toast, setToast] = useState(null);
 
     const showToast = (msg, type = 'success') => {
@@ -189,6 +192,35 @@ const Proyectos = () => {
             console.error('Error updating status:', error);
             showToast('Error al cambiar estado.', 'error');
             setLoading(false);
+        }
+    };
+
+    const confirmarEliminar = async () => {
+        if (!modalDelete) return;
+        const { pro } = modalDelete;
+        setDeleting(true);
+        try {
+            // 1. Presupuestos cliente (incluye firma y partidas JSONB)
+            await supabase.from('presupuestos_cliente').delete().eq('propuesta_id', pro.Proyecto);
+            // 2. Solicitudes (y respuestas relacionadas)
+            await supabase.from('solicitudes').delete().eq('propuesta_id', pro.Proyecto);
+            // 3. Partidas
+            await supabase.from('partidas').delete().eq('propuesta_id', pro.Proyecto);
+            // 4. Propuesta
+            const { error, count } = await supabase
+                .from('propuestas')
+                .delete({ count: 'exact' })
+                .eq('Proyecto', pro.Proyecto);
+            if (error) throw error;
+            if (count === 0) throw new Error('No se pudo borrar (restricción RLS o no encontrado).');
+            showToast(`Proyecto "${getCleanProjectName(pro.Proyecto)}" eliminado definitivamente.`);
+            setModalDelete(null);
+            fetchProyectos();
+        } catch (err) {
+            console.error(err);
+            showToast('Error al eliminar: ' + err.message, 'error');
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -455,6 +487,14 @@ const Proyectos = () => {
                                                             Reabrir
                                                         </button>
                                                     )}
+                                                    <button
+                                                        className="btn btn-sm"
+                                                        onClick={() => setModalDelete({ pro })}
+                                                        title="Eliminar proyecto definitivamente"
+                                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -504,6 +544,39 @@ const Proyectos = () => {
                     }
                 >
                     {modalWarn.msg}
+                </Modal>
+            )}
+
+            {/* Modal eliminar proyecto */}
+            {modalDelete && (
+                <Modal
+                    title="¿Eliminar proyecto definitivamente?"
+                    icon={<Trash2 size={30} color="#dc2626" />}
+                    iconBg="rgba(220,38,38,0.1)"
+                    onClose={() => !deleting && setModalDelete(null)}
+                    footer={
+                        <BtnRow>
+                            <button onClick={() => setModalDelete(null)} className="btn btn-secondary" style={{ flex: 1 }} disabled={deleting}>Cancelar</button>
+                            <button
+                                onClick={confirmarEliminar}
+                                disabled={deleting}
+                                style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: '#dc2626', color: 'white', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                            >
+                                {deleting ? <Loader2 size={14} className="loader-spinner" /> : <Trash2 size={14} />}
+                                {deleting ? 'Eliminando...' : 'Eliminar definitivamente'}
+                            </button>
+                        </BtnRow>
+                    }
+                >
+                    <div>
+                        <strong style={{ display: 'block', marginBottom: 8, color: '#111827' }}>
+                            {getCleanProjectName(modalDelete.pro.Proyecto)}
+                        </strong>
+                        {modalDelete.pro.cliente && <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>Cliente: {modalDelete.pro.cliente}</span>}
+                        <p style={{ marginTop: 12 }}>
+                            Se borrarán permanentemente el proyecto, sus partidas, presupuesto de cliente, firma y solicitudes. <strong>Esta acción no se puede deshacer.</strong>
+                        </p>
+                    </div>
                 </Modal>
             )}
 
