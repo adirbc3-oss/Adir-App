@@ -16,10 +16,10 @@
  */
 
 // ─── Configuración ────────────────────────────────────────────────────────────
-define('API_KEY',  'CAMBIA_ESTA_CLAVE_LARGA_Y_ALEATORIA_MIN40CHARS');
-define('DB_HOST',  'localhost');
-define('DB_USER',  'TU_USUARIO_MYSQL');   // ver panel Dinahosting → Bases de datos
-define('DB_PASS',  'TU_PASSWORD_MYSQL');
+define('API_KEY',  '28e9c0b26fbee3225088ab2bd1d889aba39fe2caeee1257700f0ec91184dfa75');
+define('DB_HOST',  'hl1607.dinaserver.com');
+define('DB_USER',  'adirg_user_bd');   // ver panel Dinahosting → Bases de datos
+define('DB_PASS',  'I0qj7n![4.23');
 define('DB_NAME',  'adirg_bbdd');
 define('PREFIX',   'ctcon_');
 
@@ -341,6 +341,67 @@ function buildWhere(string $mysqlTable, array $params, PDO $pdo): array {
     ];
 }
 
+// ─── Resolver Foreign Keys para mantener compatibilidad con UUIDs / id_bc3 ──────
+function resolveForeignKeys(string $mysqlTable, array $data, PDO $pdo): array {
+    // 1. Resolver propuesta_id desde propuesta_bc3 (o proyecto_bc3)
+    if (isset($data['propuesta_bc3'])) {
+        $stmt = $pdo->prepare("SELECT id FROM `ctcon_propuestas` WHERE `proyecto_bc3` = ? LIMIT 1");
+        $stmt->execute([$data['propuesta_bc3']]);
+        $val = $stmt->fetchColumn();
+        if ($val !== false) {
+            $data['propuesta_id'] = $val;
+        }
+    }
+
+    // 2. Resolver proveedor_id en solicitudes / respuestas / partidas
+    if ($mysqlTable === PREFIX . 'solicitudes' && isset($data['proveedor_id']) && !is_numeric($data['proveedor_id'])) {
+        $stmt = $pdo->prepare("SELECT id FROM `ctcon_proveedores` WHERE `id_bc3` = ? LIMIT 1");
+        $stmt->execute([$data['proveedor_id']]);
+        $val = $stmt->fetchColumn();
+        if ($val !== false) {
+            $data['proveedor_id'] = $val;
+        }
+    }
+    
+    if ($mysqlTable === PREFIX . 'partidas' && isset($data['proveedor_adjudicado_id']) && !is_numeric($data['proveedor_adjudicado_id'])) {
+        $stmt = $pdo->prepare("SELECT id FROM `ctcon_proveedores` WHERE `id_bc3` = ? LIMIT 1");
+        $stmt->execute([$data['proveedor_adjudicado_id']]);
+        $val = $stmt->fetchColumn();
+        if ($val !== false) {
+            $data['proveedor_adjudicado_id'] = $val;
+        }
+    }
+
+    if ($mysqlTable === PREFIX . 'respuestas') {
+        if (isset($data['solicitud_bc3'])) {
+            $stmt = $pdo->prepare("SELECT id FROM `ctcon_solicitudes` WHERE `id_bc3` = ? LIMIT 1");
+            $stmt->execute([$data['solicitud_bc3']]);
+            $val = $stmt->fetchColumn();
+            if ($val !== false) {
+                $data['solicitud_id'] = $val;
+            }
+        }
+        if (isset($data['proveedor_bc3'])) {
+            $stmt = $pdo->prepare("SELECT id FROM `ctcon_proveedores` WHERE `id_bc3` = ? LIMIT 1");
+            $stmt->execute([$data['proveedor_bc3']]);
+            $val = $stmt->fetchColumn();
+            if ($val !== false) {
+                $data['proveedor_id'] = $val;
+            }
+        }
+        if (isset($data['partida_bc3'])) {
+            $stmt = $pdo->prepare("SELECT id FROM `ctcon_partidas` WHERE `id_bc3` = ? LIMIT 1");
+            $stmt->execute([$data['partida_bc3']]);
+            $val = $stmt->fetchColumn();
+            if ($val !== false) {
+                $data['partida_id'] = $val;
+            }
+        }
+    }
+
+    return $data;
+}
+
 // ─── Handlers ─────────────────────────────────────────────────────────────────
 try {
     switch ($method) {
@@ -388,6 +449,7 @@ try {
 
             foreach ($rows as $rowRaw) {
                 $data = translateKeys($mysqlTable, $rowRaw);
+                $data = resolveForeignKeys($mysqlTable, $data, $pdo);
 
                 if (isset($data['partidas']) && is_array($data['partidas'])) {
                     $data['partidas'] = json_encode($data['partidas'], JSON_UNESCAPED_UNICODE);
@@ -429,6 +491,7 @@ try {
         // ── PATCH (UPDATE) ───────────────────────────────────────────────────
         case 'PATCH': {
             $data = translateKeys($mysqlTable, $body);
+            $data = resolveForeignKeys($mysqlTable, $data, $pdo);
 
             if (isset($data['partidas']) && is_array($data['partidas'])) {
                 $data['partidas'] = json_encode($data['partidas'], JSON_UNESCAPED_UNICODE);
