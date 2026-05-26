@@ -43,7 +43,11 @@ header('Content-Type: application/json; charset=utf-8');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
-$apiKey = $_SERVER['HTTP_X_API_KEY'] ?? '';
+// Acepta X-Api-Key (React app), apikey (N8N/otros) o apikey como query param
+$apiKey = $_SERVER['HTTP_X_API_KEY']
+       ?? $_SERVER['HTTP_APIKEY']
+       ?? $_GET['apikey']
+       ?? '';
 if ($apiKey !== API_KEY) {
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorized']);
@@ -256,16 +260,65 @@ $body  = json_decode(file_get_contents('php://input'), true) ?? [];
 
 // ─── Construir WHERE desde filtros Supabase ───────────────────────────────────
 function buildWhere(string $mysqlTable, array $params, PDO $pdo): array {
-    $allowedOps = ['eq' => '=', 'neq' => '!=', 'gt' => '>', 'gte' => '>=',
-                   'lt' => '<', 'lte' => '<=', 'like' => 'LIKE', 'in' => 'IN'];
+    $allowedOps = [
+        'eq'    => '=',
+        'neq'   => '!=',
+        'gt'    => '>',
+        'gte'   => '>=',
+        'lt'    => '<',
+        'lte'   => '<=',
+        'like'  => 'LIKE',
+        'ilike' => 'LIKE',   // MySQL LIKE es case-insensitive por defecto
+        'in'    => 'IN',
+    ];
     $conditions = [];
     $binds = [];
 
     foreach ($params as $key => $val) {
         if (in_array($key, ['select', 'limit', 'offset', 'order', 'apikey'])) continue;
+
+        // OR expression: ?or=col1.op.val1,col2.op.val2
+        if ($key === 'or') {
+            $orConds = [];
+            $pieces = explode(',', $val);
+            foreach ($pieces as $piece) {
+                $piece = trim($piece);
+                $d1 = strpos($piece, '.');
+                if ($d1 === false) continue;
+                $col  = substr($piece, 0, $d1);
+                $rest = substr($piece, $d1 + 1);
+                $d2   = strpos($rest, '.');
+                if ($d2 === false) continue;
+                $op = substr($rest, 0, $d2);
+                $v  = substr($rest, $d2 + 1);
+                $mc = colToMySQL($mysqlTable, $col);
+                $sqlOp = $allowedOps[$op] ?? 'LIKE';
+                $orConds[] = "`$mc` $sqlOp ?";
+                $binds[] = $v;
+            }
+            if ($orConds) {
+                $conditions[] = '(' . implode(' OR ', $orConds) . ')';
+            }
+            continue;
+        }
+
         $mysqlCol = colToMySQL($mysqlTable, $key);
 
         if (strpos($val, '.') !== false) {
+            // NOT prefix: not.op.val
+            if (strpos($val, 'not.') === 0) {
+                $rest = substr($val, 4);
+                $dp   = strpos($rest, '.');
+                if ($dp !== false) {
+                    $op    = substr($rest, 0, $dp);
+                    $v     = substr($rest, $dp + 1);
+                    $sqlOp = $allowedOps[$op] ?? '=';
+                    $conditions[] = "NOT (`$mysqlCol` $sqlOp ?)";
+                    $binds[] = $v;
+                }
+                continue;
+            }
+
             [$op, $v] = explode('.', $val, 2);
             $sqlOp = $allowedOps[$op] ?? '=';
             if ($op === 'in') {
@@ -322,46 +375,53 @@ try {
 
         // ── POST (INSERT / UPSERT) ───────────────────────────────────────────
         case 'POST': {
-            // Traducir claves Supabase → MySQL
-            $data = translateKeys($mysqlTable, $body);
-
-            // Codificar partidas como JSON si es array
-            if (isset($data['partidas']) && is_array($data['partidas'])) {
-                $data['partidas'] = json_encode($data['partidas'], JSON_UNESCAPED_UNICODE);
-            }
-
-            if (empty($data)) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Body vacío']);
-                break;
-            }
+            // Soporta inserción individual {} o masiva [{}, {}...]
+            $isBulk = !empty($body) && isset($body[0]) && is_array($body[0]);
+            $rows   = $isBulk ? $body : [$body];
 
             $cfg      = $TABLE_CONFIG[$mysqlTable] ?? [];
-            $colList  = implode(', ', array_map(fn($c) => "`$c`", array_keys($data)));
-            $phs      = implode(', ', array_fill(0, count($data), '?'));
-
-            // Detectar UPSERT: header Prefer: resolution=merge-duplicates
-            $prefer = $_SERVER['HTTP_PREFER'] ?? '';
+            $prefer   = $_SERVER['HTTP_PREFER'] ?? '';
             $isUpsert = (strpos($prefer, 'merge-duplicates') !== false);
 
-            if ($isUpsert) {
-                // INSERT ... ON DUPLICATE KEY UPDATE (todas las columnas menos la PK)
-                $updates = implode(', ', array_map(fn($c) => "`$c`=VALUES(`$c`)", array_keys($data)));
-                $sql = "INSERT INTO `$mysqlTable` ($colList) VALUES ($phs) ON DUPLICATE KEY UPDATE $updates";
-            } else {
-                $sql = "INSERT INTO `$mysqlTable` ($colList) VALUES ($phs)";
+            $lastId   = null;
+            $lastData = null;
+
+            foreach ($rows as $rowRaw) {
+                $data = translateKeys($mysqlTable, $rowRaw);
+
+                if (isset($data['partidas']) && is_array($data['partidas'])) {
+                    $data['partidas'] = json_encode($data['partidas'], JSON_UNESCAPED_UNICODE);
+                }
+
+                if (empty($data)) continue;
+
+                $colList = implode(', ', array_map(fn($c) => "`$c`", array_keys($data)));
+                $phs     = implode(', ', array_fill(0, count($data), '?'));
+
+                if ($isUpsert) {
+                    $updates = implode(', ', array_map(fn($c) => "`$c`=VALUES(`$c`)", array_keys($data)));
+                    $sql = "INSERT INTO `$mysqlTable` ($colList) VALUES ($phs) ON DUPLICATE KEY UPDATE $updates";
+                } else {
+                    $sql = "INSERT INTO `$mysqlTable` ($colList) VALUES ($phs)";
+                }
+
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute(array_values($data));
+                $lastId   = $pdo->lastInsertId();
+                $lastData = $data;
             }
 
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute(array_values($data));
-            $newId = $pdo->lastInsertId();
-
             http_response_code(201);
-            $idField = $cfg['reverse']['id_bc3'] ?? null;
-            if ($idField && isset($data['id_bc3'])) {
-                echo json_encode([$idField => $data['id_bc3'], 'mysql_id' => $newId]);
+            if ($lastData !== null) {
+                $idField = $cfg['reverse']['id_bc3'] ?? null;
+                if ($idField && isset($lastData['id_bc3'])) {
+                    echo json_encode([$idField => $lastData['id_bc3'], 'mysql_id' => $lastId]);
+                } else {
+                    echo json_encode(['id' => (string)$lastId, 'count' => count($rows)]);
+                }
             } else {
-                echo json_encode(['id' => (string)$newId]);
+                http_response_code(400);
+                echo json_encode(['error' => 'Body vacío']);
             }
             break;
         }

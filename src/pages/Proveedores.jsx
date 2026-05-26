@@ -54,15 +54,15 @@ const Proveedores = () => {
         const oficioFinal = newProv.Oficio === 'Otro' ? newProv.OtroOficio : newProv.Oficio;
         if (!newProv.Nombre || !oficioFinal) { showToast('Nombre y Especialidad son obligatorios.', 'error'); return; }
         const newId = Math.random().toString(36).substring(2, 10);
-        const { data, error } = await supabase.from('proveedores').insert([{
+        const { error } = await supabase.from('proveedores').insert([{
             id: newId, nombre_empresa: newProv.Nombre, oficio_principal: oficioFinal, email: newProv.Email, telefono: newProv.Telefono
-        }]).select();
+        }]);
         if (error) { showToast('Error al guardar: ' + error.message, 'error'); }
         else {
-            setProveedores(prev => [...prev, { id: data[0].id, Nombre: data[0].nombre_empresa, Oficio: data[0].oficio_principal, Email: data[0].email, Telefono: data[0].telefono || '' }]);
+            setProveedores(prev => [...prev, { id: newId, Nombre: newProv.Nombre, Oficio: oficioFinal, Email: newProv.Email, Telefono: newProv.Telefono || '' }]);
             setNewProv({ Nombre: '', Oficio: '', OtroOficio: '', Email: '', Telefono: '' });
             setShowAddForm(false);
-            showToast('Proveedor guardado en Supabase.');
+            showToast('Proveedor guardado correctamente.');
         }
     };
 

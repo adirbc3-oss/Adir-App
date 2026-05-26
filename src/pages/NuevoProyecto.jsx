@@ -121,12 +121,11 @@ const NuevoProyecto = () => {
                     if (existing) { idUnico = `${projectName}_${suffix}`; suffix++; }
                     else collision = false;
                 }
-                const { data: propData, error: propError } = await supabase
+                const { error: propError } = await supabase
                     .from('propuestas')
-                    .insert([{ Proyecto: idUnico, cliente: projectName, estado: 'Borrador', fecha_recepcion: new Date().toISOString().split('T')[0] }])
-                    .select();
-                if (propError) throw propError;
-                const propuestaId = propData[0].Proyecto;
+                    .insert([{ Proyecto: idUnico, cliente: projectName, estado: 'Borrador', fecha_recepcion: new Date().toISOString().split('T')[0] }]);
+                if (propError) throw new Error(propError.message || JSON.stringify(propError));
+                const propuestaId = idUnico;
                 await supabase.from('partidas').delete().eq('propuesta_id', propuestaId);
 
                 // Guardar TODOS los items (capítulos, subcapítulos y partidas)
@@ -146,7 +145,7 @@ const NuevoProyecto = () => {
                 setSuccess(true);
                 setFile(null);
                 setPreview(null);
-                showToast("¡Proyecto sincronizado con Supabase!");
+                showToast("¡Proyecto importado correctamente!");
             } catch (error) {
                 console.error(error);
                 showToast("Error procesando fichero: " + error.message, 'error');

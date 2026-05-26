@@ -68,6 +68,7 @@ class QueryBuilder {
         this._single  = false;
         this._head    = false;
         this._count   = null;
+        this._orExpr  = null;
     }
 
     // ── Selección ─────────────────────────────────────────────────────────────
@@ -97,9 +98,13 @@ class QueryBuilder {
     gte(col, val)  { this._filters[col] = `gte.${val}`;  return this; }
     lt(col, val)   { this._filters[col] = `lt.${val}`;   return this; }
     lte(col, val)  { this._filters[col] = `lte.${val}`;  return this; }
-    like(col, val) { this._filters[col] = `like.${val}`; return this; }
-    in(col, vals)  { this._filters[col] = `in.(${vals.join(',')})`; return this; }
-    contains(col, val) { this._filters[col] = `cs.${val}`; return this; }
+    like(col, val)        { this._filters[col] = `like.${val}`;         return this; }
+    ilike(col, val)       { this._filters[col] = `ilike.${val}`;        return this; }
+    in(col, vals)         { this._filters[col] = `in.(${vals.join(',')})`;  return this; }
+    contains(col, val)    { this._filters[col] = `cs.${val}`;           return this; }
+    not(col, op, val)     { this._filters[col] = `not.${op}.${val}`;    return this; }
+    filter(col, op, val)  { this._filters[col] = `${op}.${val}`;        return this; }
+    or(expr)              { this._orExpr = expr;                         return this; }
 
     // ── Single row ────────────────────────────────────────────────────────────
     maybeSingle() { this._single = true; return this; }
@@ -122,6 +127,7 @@ class QueryBuilder {
         if (this._order)          params.order  = this._order;
         if (this._limit  !== null) params.limit  = this._limit;
         if (this._offset !== null) params.offset = this._offset;
+        if (this._orExpr)         params.or     = this._orExpr;
 
         // count=exact con head:true (usado en App.jsx para badges del menú)
         if (this._count === 'exact' && this._head) {
