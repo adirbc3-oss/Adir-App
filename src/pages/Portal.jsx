@@ -55,26 +55,15 @@ const Portal = () => {
 
         setSolicitud(solData);
 
-        // Buscar partidas mediante oficio_necesario (SQL Nuevo) o oficio_asignado (Fallback)
-        let finalPartData = [];
-        const { data: partData } = await supabase
+        // Buscar partidas mediante oficio_asignado
+        const { data: partData, error: partError } = await supabase
           .from('partidas')
           .select('*')
           .eq('propuesta_id', solData.propuesta_id)
-          .eq('oficio_necesario', solData.oficio_solicitado);
+          .eq('oficio_asignado', solData.oficio_solicitado);
 
-        finalPartData = partData || [];
-
-        if (finalPartData.length === 0) {
-            const { data: fallbackData } = await supabase
-                .from('partidas')
-                .select('*')
-                .eq('propuesta_id', solData.propuesta_id)
-                .eq('oficio_asignado', solData.oficio_solicitado);
-            finalPartData = fallbackData || [];
-        }
-
-        setPartidas(finalPartData);
+        if (partError) console.warn("Error cargando partidas por oficio:", partError);
+        setPartidas(partData || []);
       } catch (err) {
         setError(err.message);
       } finally {

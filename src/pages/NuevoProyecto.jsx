@@ -148,7 +148,8 @@ const NuevoProyecto = () => {
                 showToast("¡Proyecto importado correctamente!");
             } catch (error) {
                 console.error(error);
-                showToast("Error procesando fichero: " + error.message, 'error');
+                const errMsg = error.message || error.error || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+                showToast("Error procesando fichero: " + errMsg, 'error');
             } finally {
                 setLoading(false);
             }

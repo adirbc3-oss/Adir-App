@@ -1208,7 +1208,11 @@ export default function Comparativa({ setSessionCache }) {
                 <BarChart2 size={48} color="var(--accent-primary)" style={{ opacity: 0.4, marginBottom: 16 }} />
                 <h3 style={{ margin: '0 0 8px', color: 'var(--text-primary)' }}>No hay datos comparables aún</h3>
                 <h3 style={{ margin: '0 0 4px', fontSize: '1.4rem' }}>
-                    {proyectoData?.cliente ? `${proyectoId.split('_')[0]} - ${proyectoData.cliente}` : proyectoId.split('_')[0]}
+                    {(() => {
+                      const pData = allPropuestas.find(p => p.Proyecto === proyectoSel);
+                      const pId = proyectoSel || '';
+                      return pData?.cliente ? `${pId.split('_')[0]} - ${pData.cliente}` : pId.split('_')[0];
+                    })()}
                 </h3>
                 <p style={{ margin: '0 0 20px', fontSize: '0.9rem' }}>
                   Sube un BC3 de un competidor para ver la comparativa del proyecto <strong>{proyectoSel}</strong>.

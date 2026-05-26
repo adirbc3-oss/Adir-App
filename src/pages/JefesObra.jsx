@@ -106,19 +106,38 @@ const JefesObra = () => {
             // 2. Cargar Respuestas (Precios de proveedores) para este proyecto
             const { data: rData, error: rError } = await supabase
                 .from('respuestas')
-                .select('*, solicitudes(proveedor_id, proveedor_nombre)')
+                .select('*')
                 .in('partida_id', (pData || []).map(p => p.id));
             
             if (rError) console.warn("Error cargando respuestas:", rError);
 
+            // 3. Cargar Solicitudes correspondientes a estas respuestas (para obtener proveedor_nombre/proveedor_id)
+            let solicitudesData = [];
+            if (rData && rData.length > 0) {
+                const uniqueSolicitudIds = [...new Set(rData.map(r => r.solicitud_id).filter(Boolean))];
+                if (uniqueSolicitudIds.length > 0) {
+                    const { data: sData, error: sError } = await supabase
+                        .from('solicitudes')
+                        .select('id, proveedor_id, proveedor_nombre')
+                        .in('id', uniqueSolicitudIds);
+                    if (!sError && sData) {
+                        solicitudesData = sData;
+                    } else if (sError) {
+                        console.warn("Error cargando solicitudes para respuestas:", sError);
+                    }
+                }
+            }
+
             // Organizar respuestas por partida_id
+            const solicitudesMap = new Map(solicitudesData.map(s => [s.id, s]));
             const respMap = {};
             (rData || []).forEach(r => {
+                const sol = solicitudesMap.get(r.solicitud_id);
                 if (!respMap[r.partida_id]) respMap[r.partida_id] = [];
                 respMap[r.partida_id].push({
                     ...r,
-                    proveedor_nombre: r.solicitudes?.proveedor_nombre || 'Prov. Desconocido',
-                    proveedor_id: r.solicitudes?.proveedor_id
+                    proveedor_nombre: sol?.proveedor_nombre || 'Prov. Desconocido',
+                    proveedor_id: sol?.proveedor_id || r.proveedor_id
                 });
             });
             setRespuestasPorPartida(respMap);

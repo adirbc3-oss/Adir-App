@@ -441,8 +441,9 @@ try {
         // ── POST (INSERT / UPSERT) ───────────────────────────────────────────
         case 'POST': {
             // Soporta inserción individual {} o masiva [{}, {}...]
-            $isBulk = is_array($body) && !empty($body) && isset($body[0]) && is_array($body[0]);
-            $rows   = $isBulk ? $body : [$body];
+            $firstVal = (!empty($body) && is_array($body)) ? reset($body) : null;
+            $isBulk   = is_array($body) && !empty($body) && is_array($firstVal);
+            $rows     = $isBulk ? $body : [$body];
 
             $cfg      = $TABLE_CONFIG[$mysqlTable] ?? [];
             $prefer   = $_SERVER['HTTP_PREFER'] ?? '';

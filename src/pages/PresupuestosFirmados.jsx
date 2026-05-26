@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { N8N_BASE_URL } from '../config';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
-import {  FileCheck, Download, Clock, X, CheckCircle, Search, Loader2, Eye , FileSignature } from 'lucide-react';
+import {  FileCheck, Download, Clock, X, CheckCircle, Search, Loader2, Eye , FileSignature, RefreshCw } from 'lucide-react';
 
 const PresupuestosFirmados = () => {
     const [presupuestos, setPresupuestos] = useState([]);
