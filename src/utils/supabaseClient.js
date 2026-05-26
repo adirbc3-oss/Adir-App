@@ -136,6 +136,31 @@ class QueryBuilder {
             return { data: [], count, error: rAll.error };
         }
 
+        // Fix for bulk inserts: the old api.php doesn't support arrays
+        if (this._method === 'POST' && Array.isArray(this._body)) {
+            const results = [];
+            const BATCH_SIZE = 10;
+            for (let i = 0; i < this._body.length; i += BATCH_SIZE) {
+                const batch = this._body.slice(i, i + BATCH_SIZE);
+                const promises = batch.map(item => apiFetch(this._table, this._method, params, item, this._upsert));
+                const batchResults = await Promise.all(promises);
+                
+                for (const res of batchResults) {
+                    if (res.error) {
+                        return { data: null, error: res.error };
+                    }
+                    results.push(res.data);
+                }
+            }
+            
+            // single / maybeSingle applies here too just in case
+            let finalData = results;
+            if (this._single && Array.isArray(finalData)) {
+                finalData = finalData[0] ?? null;
+            }
+            return { data: finalData, error: null };
+        }
+
         const result = await apiFetch(this._table, this._method, params, this._body, this._upsert);
 
         // single / maybeSingle
