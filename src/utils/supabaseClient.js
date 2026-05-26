@@ -46,7 +46,10 @@ async function apiFetch(table, method, params = {}, body = null, upsert = false)
     try {
         const res  = await fetch(url, opts);
         const data = await res.json().catch(() => null);
-        if (!res.ok) return { data: null, error: data ?? { message: `HTTP ${res.status}` } };
+        if (!res.ok) {
+            const errMsg = data && (data.error || data.message) ? (data.error || data.message) : `HTTP ${res.status}`;
+            return { data: null, error: { message: typeof errMsg === 'object' ? JSON.stringify(errMsg) : String(errMsg) } };
+        }
         return { data, error: null };
     } catch (err) {
         return { data: null, error: { message: err.message } };
