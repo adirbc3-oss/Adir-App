@@ -139,30 +139,6 @@ class QueryBuilder {
             return { data: [], count, error: rAll.error };
         }
 
-        // Si es un POST (insert/upsert) y el cuerpo es un array, lo adaptamos
-        // porque la API PHP remota actualmente solo acepta objetos individuales.
-        if (this._method === 'POST' && Array.isArray(this._body)) {
-            if (this._body.length === 0) {
-                return { data: [], error: null };
-            }
-            if (this._body.length === 1) {
-                const res = await apiFetch(this._table, this._method, params, this._body[0], this._upsert);
-                if (res.error) return res;
-                return { data: Array.isArray(res.data) ? res.data : [res.data], error: null };
-            } else {
-                // Inserción masiva secuencial uno a uno
-                const results = [];
-                for (const item of this._body) {
-                    const res = await apiFetch(this._table, this._method, params, item, this._upsert);
-                    if (res.error) {
-                        return { data: null, error: res.error };
-                    }
-                    results.push(res.data);
-                }
-                return { data: results, error: null };
-            }
-        }
-
         const result = await apiFetch(this._table, this._method, params, this._body, this._upsert);
 
         // single / maybeSingle

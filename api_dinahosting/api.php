@@ -437,8 +437,7 @@ try {
         // ── POST (INSERT / UPSERT) ───────────────────────────────────────────
         case 'POST': {
             // Soporta inserción individual {} o masiva [{}, {}...]
-            // Check if array has sequential numeric keys starting from 0 (like a JSON array)
-            $isBulk = !empty($body) && array_keys($body) === range(0, count($body) - 1);
+            $isBulk = is_array($body) && !empty($body) && isset($body[0]) && is_array($body[0]);
             $rows   = $isBulk ? $body : [$body];
 
             $cfg      = $TABLE_CONFIG[$mysqlTable] ?? [];
