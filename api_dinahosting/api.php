@@ -69,6 +69,10 @@ try {
 }
 
 // ─── Tabla whitelist y mapeo de nombres ───────────────────────────────────────
+if (isset($_GET['ping'])) {
+    echo json_encode(['pong' => true, 'version' => '2.1_bulk_fix']);
+    exit;
+}
 // Nombre Supabase → tabla MySQL (con prefijo)
 $TABLE_MAP = [
     'propuestas'           => PREFIX . 'propuestas',
