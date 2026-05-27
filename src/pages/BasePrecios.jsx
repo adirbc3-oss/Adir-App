@@ -720,27 +720,28 @@ const BasePrecios = () => {
   const handleEditClick = (item) => {
     setEditingId(item.codigo);
     setEditValues({
-      precio_total:       item.precio_total || 0,
-      mano_de_obra:       item.mano_de_obra || 0,
-      materiales_y_otros: activeTab === 'adir' ? item.materiales_y_otros : item.materiales,
-      maquinaria:         item.maquinaria || 0,
+      precio_total:       item.precio_total       || 0,
+      mano_de_obra:       item.mano_de_obra       || 0,
+      materiales_y_otros: (activeTab === 'adir' ? item.materiales_y_otros : item.materiales) || 0,
+      maquinaria:         item.maquinaria         || 0,
     });
   };
 
   const handleSaveEdit = async (codigo) => {
     setSaving(true);
     const table = activeTab === 'adir' ? 'base_precios_adir' : 'PreciosCype';
+    const safeFloat = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? 0 : n; };
     const payload = {
-      precio_total: parseFloat(editValues.precio_total),
-      mano_de_obra: parseFloat(editValues.mano_de_obra),
-      maquinaria:   parseFloat(editValues.maquinaria),
+      precio_total: safeFloat(editValues.precio_total),
+      mano_de_obra: safeFloat(editValues.mano_de_obra),
+      maquinaria:   safeFloat(editValues.maquinaria),
     };
-    if (activeTab === 'adir') payload.materiales_y_otros = parseFloat(editValues.materiales_y_otros);
-    else payload.materiales = parseFloat(editValues.materiales_y_otros);
+    if (activeTab === 'adir') payload.materiales_y_otros = safeFloat(editValues.materiales_y_otros);
+    else payload.materiales = safeFloat(editValues.materiales_y_otros);
     try {
       const orig = data.find(d => d.codigo === codigo);
       const { error } = await supabase.from(table).update(payload).eq('codigo', codigo);
-      if (error) throw error;
+      if (error) throw new Error(error.message || JSON.stringify(error));
       await supabase.from('historial_cambios').insert({
         origen_cambio: 'Manual', tipo_entidad: activeTab === 'adir' ? 'Base ADIR' : 'Base CYPE',
         entidad_id: codigo, campo_modificado: 'Precio Total',
@@ -752,7 +753,7 @@ const BasePrecios = () => {
       setEditingId(null);
     } catch (e) {
       console.error(e);
-      showToast('Error al actualizar precio.', 'error');
+      showToast('Error al actualizar precio: ' + (e.message || e), 'error');
     } finally { setSaving(false); }
   };
 
