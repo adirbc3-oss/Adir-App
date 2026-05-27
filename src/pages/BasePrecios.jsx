@@ -6,7 +6,7 @@ import {
   X, CheckCircle, AlertCircle, Upload, Info, FileText, AlertTriangle
 } from 'lucide-react';
 import { bc3ToBasePrecios, getRatio, clasificarTipo } from '../utils/bc3ToBasePrecios';
-import { extraerPartidasDePDF } from '../utils/pdfExtractor';
+import { extraerPartidasDePDF, extraerPartidasDePDFConIA } from '../utils/pdfExtractor';
 import { detectarSimilares, detectarDuplicadosInternos } from '../utils/similarityUtils';
 
 // ── Clasificación client-side ──────────────────────────────────────────────────
@@ -140,6 +140,8 @@ function ModalImport({ onClose, onImportDone, showToast }) {
   const [importing, setImporting]   = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importStats, setImportStats] = useState(null);
+  const [aiProgress, setAiProgress] = useState(0);
+  const [usingAI, setUsingAI]       = useState(false);
   const inputRef = useRef(null);
 
   // ── Manejo de archivo ─────────────────────────────────────────────────────
@@ -162,8 +164,30 @@ function ModalImport({ onClose, onImportDone, showToast }) {
         const text = await readFileAsLatin1(file);
         filas = bc3ToBasePrecios(text);
       } else {
-        // PDF
-        const raw = await extraerPartidasDePDF(file);
+        // PDF — intentar con Mistral IA, fallback a heurístico
+        let apiKey = localStorage.getItem('mistral_api_key');
+        if (!apiKey || apiKey.length < 10) {
+          try {
+            const { data: cfgData } = await supabase
+              .from('configuracion').select('valor')
+              .eq('clave', 'mistral_api_key').maybeSingle();
+            if (cfgData?.valor && cfgData.valor.length > 10) {
+              apiKey = cfgData.valor;
+              localStorage.setItem('mistral_api_key', apiKey);
+            }
+          } catch (_) {}
+        }
+
+        let raw;
+        if (apiKey && apiKey.length > 10) {
+          setUsingAI(true);
+          setAiProgress(0);
+          raw = await extraerPartidasDePDFConIA(file, apiKey, pct => setAiProgress(pct));
+          setUsingAI(false);
+        } else {
+          raw = await extraerPartidasDePDF(file);
+        }
+
         if (raw.length === 0) {
           setError('No se encontraron partidas con precio en el PDF. Asegúrate de que no está escaneado como imagen.');
           setStep('drop');
@@ -362,12 +386,28 @@ function ModalImport({ onClose, onImportDone, showToast }) {
         {step === 'parsing' && (
           <div style={{ textAlign: 'center', padding: '52px 0' }}>
             <Loader2 size={38} className="loader-spinner" style={{ display: 'inline-block', marginBottom: '14px' }} />
-            <p style={{ color: 'var(--text-muted)', margin: 0 }}>
-              {fileType === 'pdf' ? 'Extrayendo partidas del PDF…' : 'Analizando archivo BC3…'}
-            </p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '6px' }}>
-              Comparando con {'>'}5.000 partidas existentes…
-            </p>
+            {usingAI ? (
+              <>
+                <p style={{ color: 'var(--text-muted)', margin: 0, fontWeight: 600 }}>
+                  Analizando PDF con Mistral IA…
+                </p>
+                <div style={{ width: '220px', margin: '14px auto 0', background: '#e5e7eb', borderRadius: '99px', height: '8px' }}>
+                  <div style={{ width: `${aiProgress}%`, background: 'var(--primary)', height: '8px', borderRadius: '99px', transition: 'width 0.4s' }} />
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '8px' }}>
+                  {aiProgress}% — identificando precios y unidades…
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+                  {fileType === 'pdf' ? 'Extrayendo partidas del PDF…' : 'Analizando archivo BC3…'}
+                </p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '6px' }}>
+                  Comparando con {'>'}5.000 partidas existentes…
+                </p>
+              </>
+            )}
           </div>
         )}
 

@@ -273,9 +273,100 @@ function normalizarUnidad(u) {
 }
 
 /**
- * Función principal: recibe un File PDF y devuelve partidas parseadas.
+ * Función principal (heurística): recibe un File PDF y devuelve partidas parseadas.
  */
 export async function extraerPartidasDePDF(file) {
   const lineas = await extraerLineasDePDF(file);
   return parsearPartidasDePDF(lineas);
+}
+
+// ── Extractor IA con Mistral ──────────────────────────────────────────────────
+
+const MISTRAL_CHUNK_LINES = 55; // líneas por llamada a Mistral (~2 000 tokens)
+
+const PROMPT_SISTEMA = `Eres un experto en bases de precios de construcción española.
+Analiza el fragmento de texto extraído de un PDF de tarifa de precios.
+Extrae TODAS las partidas/artículos que encuentres e identifica para cada uno:
+- descripcion: nombre completo del artículo (sin código de referencia ni precio)
+- unidad: unidad de medida (ud, m2, m², ml, m3, kg, L, h, jorn, pa, etc.)
+- precio: precio UNITARIO en euros (si hay columna "precio" e "importe/total", el unitario es el de precio por unidad, NO el total)
+
+REGLAS:
+- Ignora cabeceras, pies de página, totales, descuentos, IVA, referencias internas.
+- Solo incluye ítems con precio numérico válido > 0 y ≤ 50000.
+- Si no puedes identificar el precio unitario con seguridad, omite el ítem.
+- Los decimales pueden ir con coma (12,50) o punto (12.50) — conviértelos siempre a número.
+
+Responde ÚNICAMENTE con JSON válido (sin texto extra):
+{"partidas": [{"descripcion": "...", "unidad": "ud", "precio": 12.50}]}
+Si no hay partidas en este fragmento: {"partidas": []}`;
+
+/**
+ * Extrae partidas de un PDF usando Mistral como motor de comprensión.
+ * @param {File}     file       — archivo PDF
+ * @param {string}   apiKey     — Mistral API key
+ * @param {function} onProgress — callback(pct: 0-100)
+ * @returns {Promise<Array>}    — [{descripcion_corta, unidad, precio_total, pagina}]
+ */
+export async function extraerPartidasDePDFConIA(file, apiKey, onProgress) {
+  const lineas = await extraerLineasDePDF(file);
+
+  // Filtrar líneas vacías o de relleno obvio
+  const textoLineas = lineas
+    .map(l => l.lineText)
+    .filter(t => t.length >= 5 && !SKIP_PATTERNS.some(re => re.test(t.trim())));
+
+  const totalChunks = Math.ceil(textoLineas.length / MISTRAL_CHUNK_LINES);
+  const partidas = [];
+
+  for (let ci = 0; ci < totalChunks; ci++) {
+    const chunk = textoLineas
+      .slice(ci * MISTRAL_CHUNK_LINES, (ci + 1) * MISTRAL_CHUNK_LINES)
+      .join('\n');
+
+    try {
+      const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'mistral-small-latest',
+          messages: [
+            { role: 'system', content: PROMPT_SISTEMA },
+            { role: 'user',   content: `TEXTO DEL PDF (fragmento ${ci + 1}/${totalChunks}):\n${chunk}` },
+          ],
+          temperature: 0.1,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        let content;
+        try { content = JSON.parse(json.choices?.[0]?.message?.content || '{"partidas":[]}'); }
+        catch { content = { partidas: [] }; }
+
+        if (Array.isArray(content.partidas)) {
+          content.partidas.forEach(p => {
+            const precio = parseFloat(String(p.precio).replace(',', '.'));
+            if (!p.descripcion || !precio || precio <= 0 || precio > 50000) return;
+            partidas.push({
+              descripcion_corta: String(p.descripcion).substring(0, 250).trim(),
+              unidad:            normalizarUnidad(String(p.unidad || 'ud').trim()),
+              precio_total:      Math.round(precio * 100) / 100,
+              pagina:            ci + 1,
+            });
+          });
+        }
+      }
+    } catch (e) {
+      console.warn(`[pdfIA] chunk ${ci + 1} error:`, e);
+    }
+
+    onProgress?.(Math.round(((ci + 1) / totalChunks) * 100));
+  }
+
+  return partidas;
 }
