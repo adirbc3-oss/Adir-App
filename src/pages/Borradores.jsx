@@ -788,6 +788,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 const capitulosEmail = getCapitulosParaEmail(tareasOficio, partidas);
                 const htmlEmail = buildSolicitudEmailHTML(prov.Nombre, selectedOficio, clienteNombre, capitulosEmail, portalUrl, anexo_nombre);
                 const payload = {
+                    id: token,  // usar el token como id_bc3 → garantiza id no nulo en DB
                     propuesta_id: activeProject.Proyecto,
                     cliente_nombre: clienteNombre,
                     proveedor_id: String(prov.id),

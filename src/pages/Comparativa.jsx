@@ -65,10 +65,11 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
       return true;
     });
 
-    // Solo solicitudes que tengan al menos una respuesta
+    // Solo solicitudes que tengan al menos una respuesta (fallback al token si id es nulo)
     return solsFiltradas
       .map(sol => {
-        const resps = respuestas.filter(r => r.solicitud_id === sol.id);
+        const solKey = sol.id || sol.token;
+        const resps = respuestas.filter(r => r.solicitud_id === solKey);
         return { sol, resps };
       })
       .filter(({ resps }) => resps.length > 0)
@@ -106,7 +107,7 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
           : '—';
 
         return (
-          <div key={sol.id} style={s.feedCard}>
+          <div key={sol.id || sol.token} style={s.feedCard}>
             {/* Cabecera */}
             <div style={s.feedCardHeader}>
               <div style={s.feedCardLeft}>
@@ -150,7 +151,7 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
                   <Download size={14} />
                 </button>
                 <button
-                  onClick={() => deleteSolicitud(sol.id)}
+                  onClick={() => deleteSolicitud(sol.id || sol.token, sol.token)}
                   style={{ ...s.btnIcon, color: '#ef4444' }}
                   title="Eliminar presupuesto y resetear solicitud"
                 >
@@ -637,12 +638,12 @@ export default function Comparativa({ setSessionCache }) {
         return true;
       });
 
-      const respsMap = {};
-      allRespuestas.forEach(r => { if (r.solicitud_id && r.partida_id) respsMap[`${r.solicitud_id}__${r.partida_id}`] = r; });
+      // Helper: clave efectiva de solicitud (id si existe, si no token)
+      const getSolKey = s => s.id || s.token;
 
       const grupos = {};
       solicsFiltradas
-        .filter(sol => allRespuestas.some(r => r.solicitud_id === sol.id))
+        .filter(sol => allRespuestas.some(r => r.solicitud_id === getSolKey(sol)))
         .forEach(sol => {
         const key = `${sol.oficio_solicitado}__${sol.propuesta_id}`;
         if (!grupos[key]) grupos[key] = { oficio: sol.oficio_solicitado, proyecto: sol.propuesta_id, solicitudes: [] };
@@ -652,13 +653,13 @@ export default function Comparativa({ setSessionCache }) {
       const result = {};
       Object.entries(grupos).forEach(([key, { oficio, proyecto, solicitudes: sols }]) => {
         const partidasGrupo = allPartidas.filter(p => p.propuesta_id === proyecto && (normalize(p.oficio_asignado) === normalize(oficio) || normalize(p.oficio_necesario) === normalize(oficio)));
-        const proveedores = sols.map(s => ({ solicitud_id: s.id, proveedor_id: s.proveedor_id, nombre: s.proveedor_nombre || s.proveedor_email || 'Proveedor', estado: s.estado || 'Pendiente', esLocal: false }));
-        
+        const proveedores = sols.map(s => ({ solicitud_id: getSolKey(s), proveedor_id: s.proveedor_id, nombre: s.proveedor_nombre || s.proveedor_email || 'Proveedor', estado: s.estado || 'Pendiente', esLocal: false }));
+
         if (!proveedores.length) return;
 
         // Construir mapa de respuestas para este grupo para búsqueda rápida
         const groupResps = {};
-        allRespuestas.filter(r => sols.some(s => s.id === r.solicitud_id)).forEach(r => {
+        allRespuestas.filter(r => sols.some(s => getSolKey(s) === r.solicitud_id)).forEach(r => {
             groupResps[`${r.solicitud_id}__${r.partida_id}`] = r;
         });
 
@@ -705,13 +706,17 @@ export default function Comparativa({ setSessionCache }) {
 
       if (!lineasPartidas.length) return {};
 
+      // Helper: clave efectiva de solicitud (id si existe, si no token)
+      const getSolKey = s => s.id || s.token;
+
       // Proveedores: solicitudes reales con respuestas (cualquier oficio) + BC3 locales
       const provMap = new Map();
       allSolicitudes
-        .filter(s => s.propuesta_id === proyectoSel && allRespuestas.some(r => r.solicitud_id === s.id))
+        .filter(s => s.propuesta_id === proyectoSel && allRespuestas.some(r => r.solicitud_id === getSolKey(s)))
         .forEach(s => {
-          if (!provMap.has(s.id))
-            provMap.set(s.id, { solicitud_id: s.id, nombre: s.proveedor_nombre || s.proveedor_email || 'Proveedor', esLocal: false });
+          const sk = getSolKey(s);
+          if (!provMap.has(sk))
+            provMap.set(sk, { solicitud_id: sk, nombre: s.proveedor_nombre || s.proveedor_email || 'Proveedor', esLocal: false });
         });
       competenciasLocales.filter(c => c.proyecto === proyectoSel).forEach(comp => {
         provMap.set(comp.id, { solicitud_id: comp.id, nombre: '(COMP) ' + comp.nombre, esLocal: true, precios: comp.precios });
@@ -721,7 +726,8 @@ export default function Comparativa({ setSessionCache }) {
       if (!proveedores.length) return {};
 
       const respsMap = {};
-      allRespuestas.forEach(r => { if (r.solicitud_id && r.partida_id) respsMap[`${r.solicitud_id}__${r.partida_id}`] = r; });
+      // Incluir también respuestas con solicitud_id nulo (dato antiguo sin id_bc3)
+      allRespuestas.forEach(r => { if (r.partida_id) respsMap[`${r.solicitud_id}__${r.partida_id}`] = r; });
 
       const filas = lineasPartidas.map(p => {
         const precios = {};

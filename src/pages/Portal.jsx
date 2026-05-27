@@ -85,9 +85,11 @@ const Portal = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
+      // Usar id si existe, si no caer al token (que siempre es no-nulo) como clave única
+      const solId = solicitud.id || solicitud.token;
       const payload = {
         token: solicitud.token,
-        solicitud_id: solicitud.id,
+        solicitud_id: solId,
         proveedor_id: solicitud.proveedor_id,
         precios: partidas.map(p => ({
           partida_id: p.id,
@@ -120,7 +122,7 @@ const Portal = () => {
             supabase.from('respuestas')
               .upsert(
                 {
-                  solicitud_id: solicitud.id,
+                  solicitud_id: solId,
                   partida_id: p.id,
                   comentarios: comentarios[p.id].trim()
                 },
@@ -131,11 +133,12 @@ const Portal = () => {
       }
 
       // 2. Anotaciones generales → solicitudes.comentarios_generales
+      //    Usamos token (único garantizado) como clave de búsqueda en lugar de id que puede ser nulo
       if (comentariosGenerales && comentariosGenerales.trim()) {
         await supabase
           .from('solicitudes')
           .update({ comentarios_generales: comentariosGenerales.trim() })
-          .eq('id', solicitud.id);
+          .eq('token', solicitud.token);
       }
 
       setSuccess(true);

@@ -81,11 +81,53 @@ export async function extraerLineasDePDF(file) {
   return allLines;
 }
 
+// ── Helpers de parsing de precio por item ────────────────────────────────────
+
+/**
+ * Intenta parsear un texto de item como precio numérico.
+ * Soporta formatos: "4,75" "4.75" "1.250,00" "1,250.00" "15" (solo si hay € cerca).
+ * Devuelve el número o null si no es un precio válido.
+ */
+function parsePrecioItem(text) {
+  const t = text.trim();
+  // Ignorar textos no numéricos o demasiado cortos
+  if (!t || !/[0-9]/.test(t)) return null;
+
+  // Formato español con miles: "1.250,00" o "12.345,6"
+  if (/^[0-9]{1,3}(\.[0-9]{3})+,[0-9]{1,2}$/.test(t)) {
+    return parseFloat(t.replace(/\./g, '').replace(',', '.'));
+  }
+  // Formato inglés con miles: "1,250.00"
+  if (/^[0-9]{1,3}(,[0-9]{3})+\.[0-9]{1,2}$/.test(t)) {
+    return parseFloat(t.replace(/,/g, ''));
+  }
+  // Decimal simple: "4,75" o "4.75" (sin separador de miles)
+  if (/^[0-9]{1,8}[,.][0-9]{1,4}$/.test(t)) {
+    return parseFloat(t.replace(',', '.'));
+  }
+  // Entero puro: solo si va acompañado de € en el propio texto
+  if (/^[0-9]{1,6}€$/.test(t)) {
+    return parseFloat(t.replace('€', ''));
+  }
+  // Entero con € separado por espacio — se maneja en el bucle del caller
+  if (/^[0-9]{1,6}$/.test(t)) {
+    return null; // enteros solos no son precios sin confirmación de €
+  }
+  return null;
+}
+
 // ── Parser universal de partidas ──────────────────────────────────────────────
 
 /**
  * A partir de las líneas del PDF, extrae partidas {descripcion, unidad, precio, pagina}.
- * Funciona con layouts de tabla (columnas separadas por espacios) y listas de precios simples.
+ *
+ * Estrategia columnar (más robusta que regex en lineText):
+ *  1. Para cada fila, los items ya están ordenados de izquierda a derecha (X creciente).
+ *  2. Escanear items desde la DERECHA: el primer item que sea un número con decimales
+ *     es el precio (la columna de precios siempre está a la derecha en tarifas).
+ *  3. Si el item inmediatamente a su derecha es "€" o "EUR", ignorarlo (es la unidad monetaria).
+ *  4. Los items a la izquierda del precio forman la descripción + unidad.
+ *  5. Si el método columnar no encuentra precio, fallback al regex sobre lineText completo.
  */
 export function parsearPartidasDePDF(lineas) {
   const partidas = [];
@@ -94,33 +136,60 @@ export function parsearPartidasDePDF(lineas) {
     // Descartar líneas de relleno
     if (SKIP_PATTERNS.some(re => re.test(lineText.trim()))) continue;
     if (lineText.length < 5) continue;
+    if (!items || items.length === 0) continue;
 
-    // ── Intentar extraer precio ──────────────────────────────────────────────
+    // ── Estrategia 1: búsqueda columnar (izquierda←derecha desde el final) ──
     let precio = null;
-    let precioRaw = '';
+    let precioItemIdx = -1;
 
-    // Buscar precio con decimales primero
-    const mDec = lineText.match(PRICE_RE);
-    if (mDec) {
-      precioRaw = mDec[1];
-      precio = parseFloat(precioRaw.replace(',', '.'));
-    } else {
-      // Intentar precio entero con €
-      const mInt = lineText.match(PRICE_INTEGER_RE);
-      if (mInt) {
-        precioRaw = mInt[1];
-        precio = parseFloat(precioRaw);
+    // Recorrer items de derecha a izquierda buscando el precio
+    for (let i = items.length - 1; i >= 0; i--) {
+      const t = items[i].text.trim();
+      // Saltar símbolos de moneda puros y textos muy cortos
+      if (/^[€$£]$|^EUR$/i.test(t)) continue;
+      // Saltar si es solo un número entero sin € (podría ser cantidad, referencia…)
+      // EXCEPCIÓN: si el item a su derecha (ignorando €) es € → puede ser precio entero
+      const candidato = parsePrecioItem(t);
+      if (candidato !== null) {
+        precio = candidato;
+        precioItemIdx = i;
+        break;
+      }
+      // Comprobar entero + € a continuación
+      if (/^[0-9]{1,6}$/.test(t)) {
+        const siguientes = items.slice(i + 1).map(x => x.text.trim());
+        const tieneEuro = siguientes.some(s => /^[€$£]$|^EUR$/i.test(s));
+        if (tieneEuro) {
+          precio = parseFloat(t);
+          precioItemIdx = i;
+          break;
+        }
+      }
+      // Si llegamos a un texto de descripción (>2 chars no-numéricos) sin encontrar precio,
+      // no tiene sentido seguir buscando hacia la izquierda
+      if (t.length > 2 && !/^[0-9.,]+$/.test(t) && !UNIDADES_RE.test(t)) break;
+    }
+
+    // ── Estrategia 2 (fallback): regex sobre lineText completo ───────────────
+    if (precio === null) {
+      const mDec = lineText.match(PRICE_RE);
+      if (mDec) {
+        precio = parseFloat(mDec[1].replace(',', '.'));
+      } else {
+        const mInt = lineText.match(PRICE_INTEGER_RE);
+        if (mInt) precio = parseFloat(mInt[1]);
       }
     }
 
-    // Sin precio → probablemente no es una partida
-    if (precio === null || precio <= 0 || precio > 999999) continue;
+    // Sin precio válido → descartar línea
+    if (precio === null || precio <= 0 || precio > 50000) continue;
 
-    // Precio sanity check: filtrar números que no son precios (ej. años, refs)
-    if (precio > 50000) continue; // nadie tiene un material de 50.000 €/ud
+    // ── Construir descripción con los items a la izquierda del precio ────────
+    const descItems = precioItemIdx >= 0
+      ? items.slice(0, precioItemIdx).filter(it => !/^[€$£]$|^EUR$/i.test(it.text.trim()))
+      : items;
 
-    // ── Limpiar la línea quitando el precio detectado ────────────────────────
-    let resto = lineText.replace(precioRaw, '').replace(/€|EUR/gi, '').trim();
+    let resto = descItems.map(it => it.text).join(' ').replace(/€|EUR/gi, '').replace(/\s{2,}/g, ' ').trim();
 
     // ── Detectar unidad ──────────────────────────────────────────────────────
     let unidad = 'ud';
@@ -150,9 +219,6 @@ export function parsearPartidasDePDF(lineas) {
       pagina: pageNum,
     });
   }
-
-  // Post-proceso: combinar líneas consecutivas sin precio que parecen continuación
-  // (descripción larga partida en 2 líneas) — ya está implícito en el agrupado por Y
 
   return partidas;
 }
