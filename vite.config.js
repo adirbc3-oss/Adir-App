@@ -5,4 +5,10 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: './',
+  esbuild: {
+    // Elimina console.* y debugger en el bundle de producción.
+    // console.error y console.warn se conservan para diagnóstico real.
+    drop: ['debugger'],
+    pure: ['console.log', 'console.info', 'console.debug'],
+  },
 })

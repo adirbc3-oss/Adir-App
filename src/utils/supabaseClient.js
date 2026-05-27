@@ -136,9 +136,18 @@ class QueryBuilder {
         if (this._offset !== null) params.offset = this._offset;
         if (this._orExpr)         params.or     = this._orExpr;
 
-        // count=exact con head:true (usado en App.jsx para badges del menú)
+        // count=exact con head:true (usado en App.jsx para badges del menú).
+        // Pedimos solo la columna `id` para minimizar la transferencia. La interfaz
+        // que devolvemos es la misma que la de supabase-js (data:[], count, error).
+        // TODO(server): cuando api.php exponga /count/<tabla>, sustituir por una sola
+        // consulta SELECT COUNT(*) y eliminar este fetch.
         if (this._count === 'exact' && this._head) {
-            const rAll = await apiFetch(this._table, 'GET', { ...this._filters, limit: 5000 }, null);
+            const rAll = await apiFetch(
+                this._table,
+                'GET',
+                { ...this._filters, limit: 5000, select: 'id' },
+                null
+            );
             const count = Array.isArray(rAll.data) ? rAll.data.length : 0;
             return { data: [], count, error: rAll.error };
         }

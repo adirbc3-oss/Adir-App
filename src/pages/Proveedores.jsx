@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { TODOS_LOS_OFICIOS } from '../utils/aiAllocation';
 import { useModal, useToast } from '../utils/useModal';
@@ -21,10 +21,15 @@ const Proveedores = () => {
 
     const [newProv, setNewProv] = useState({ Nombre: '', Oficio: '', OtroOficio: '', Email: '', Telefono: '' });
 
-    const listadoOficiosDinamico = [...new Set([
-        ...TODOS_LOS_OFICIOS,
-        ...proveedores.map(p => p.Oficio).filter(Boolean)
-    ])].sort();
+    // Memoizado: solo recalcula cuando cambia la lista de proveedores (no en cada
+    // pulsación de tecla del buscador o filtro).
+    const listadoOficiosDinamico = useMemo(
+        () => [...new Set([
+            ...TODOS_LOS_OFICIOS,
+            ...proveedores.map(p => p.Oficio).filter(Boolean)
+        ])].sort(),
+        [proveedores]
+    );
 
     const fetchProveedores = async () => {
         setLoading(true);

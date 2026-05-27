@@ -7,7 +7,11 @@ export const useToast = () => {
 
     const showToast = useCallback((msg, type = 'success') => {
         setToast({ msg, type });
-        setTimeout(() => setToast(null), 3500);
+        // Duración proporcional a la longitud del texto: mínimo 3,5 s, máximo 12 s.
+        // ~55 ms por carácter — los errores largos da tiempo a leerlos.
+        const text = String(msg || '');
+        const dur = Math.min(12000, Math.max(3500, text.length * 55));
+        setTimeout(() => setToast(null), dur);
     }, []);
 
     const ToastUI = toast ? (

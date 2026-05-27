@@ -8,7 +8,7 @@ import {
   AlertCircle, Trophy, Download, TrendingDown, TrendingUp, RefreshCw,
   Inbox, List, X, Euro, Calendar, User, Briefcase, Upload, Loader2, FileText
 } from 'lucide-react';
-import { parseBC3 } from '../utils/bc3Parser';
+import Bc3Worker from '../utils/bc3Worker.js?worker';
 import { generarPDFOfertaProveedor, descargarPDF } from '../utils/pdfUtils';
 
 
@@ -968,23 +968,9 @@ export default function Comparativa({ setSessionCache }) {
         reader.readAsText(bc3File, 'windows-1252');
       });
 
-      // 2. Parsear con Worker
-      const workerCode = `
-        const parseBC3Worker = ${parseBC3.toString()};
-        self.onmessage = (e) => {
-          try {
-            const result = parseBC3Worker(e.data.text);
-            self.postMessage({ success: true, data: result });
-          } catch (err) {
-            self.postMessage({ success: false, error: err.message });
-          }
-        };
-      `;
-      const blob = new Blob([workerCode], { type: 'application/javascript' });
-      const workerUrl = URL.createObjectURL(blob);
-
+      // 2. Parsear con Worker (fichero dedicado — Vite resuelve sus imports).
       const itemsBC3 = await new Promise((resolve, reject) => {
-        const worker = new Worker(workerUrl);
+        const worker = new Bc3Worker();
         const timeout = setTimeout(() => {
             worker.terminate();
             reject(new Error('Timeout de procesamiento.'));
@@ -993,14 +979,12 @@ export default function Comparativa({ setSessionCache }) {
         worker.onmessage = (e) => {
           clearTimeout(timeout);
           worker.terminate();
-          URL.revokeObjectURL(workerUrl);
           if (e.data.success) resolve(e.data.data);
           else reject(new Error(e.data.error));
         };
         worker.onerror = () => {
           clearTimeout(timeout);
           worker.terminate();
-          URL.revokeObjectURL(workerUrl);
           reject(new Error('Error en el Worker.'));
         };
         worker.postMessage({ text });

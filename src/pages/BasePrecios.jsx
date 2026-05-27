@@ -292,9 +292,13 @@ function ModalImport({ onClose, onImportDone, showToast }) {
     // ── Crear nuevas (upsert por descripcion_corta si no tienen código) ──
     for (let i = 0; i < toCreate.length; i += UPSERT_BATCH) {
       const lote = toCreate.slice(i, i + UPSERT_BATCH).map(({ desglose_estimado, match, pagina, ...rest }) => {
-        // Si es PDF sin código, generar uno provisional
+        // Si es PDF sin código, generar uno provisional con suficiente entropía
+        // para evitar colisiones en imports grandes (paradoja del cumpleaños).
         if (!rest.codigo) {
-          rest.codigo = 'PDF_' + Math.random().toString(36).slice(2, 8).toUpperCase();
+          const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+            ? crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()
+            : (Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-6)).toUpperCase();
+          rest.codigo = 'PDF_' + uuid;
         }
         return rest;
       });
@@ -319,9 +323,9 @@ function ModalImport({ onClose, onImportDone, showToast }) {
             maquinaria:        p.maquinaria,
           })
           .eq('id', p.match.existente.id);
-        if (error) errores++;
+        if (error) { errores++; console.error('[BasePrecios] update error:', error); }
         else actualizadas++;
-      } catch { errores++; }
+      } catch (e) { errores++; console.error('[BasePrecios] update exception:', e); }
       done++;
       setImportProgress(Math.round((done / total) * 100));
     }

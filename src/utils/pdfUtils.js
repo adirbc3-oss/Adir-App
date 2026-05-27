@@ -537,6 +537,9 @@ export function descargarPDF(doc, filename) {
     const finalName = safeName.endsWith('.pdf') ? safeName : safeName + '.pdf';
 
     // Método 1: dataURIstring (más fiable para el nombre del fichero)
+    // Helper para retirar el <a> de forma segura aunque el componente se haya desmontado.
+    const safeRemove = (el) => { try { el && el.remove && el.remove(); } catch (_) {} };
+
     try {
         const dataUri = doc.output('datauristring');
         const link = document.createElement('a');
@@ -545,7 +548,7 @@ export function descargarPDF(doc, filename) {
         link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
-        setTimeout(() => document.body.removeChild(link), 200);
+        setTimeout(() => safeRemove(link), 200);
         return;
     } catch (_) {}
 
@@ -559,7 +562,7 @@ export function descargarPDF(doc, filename) {
         link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
+        safeRemove(link);
         setTimeout(() => URL.revokeObjectURL(url), 3000);
         return;
     } catch (_) {}

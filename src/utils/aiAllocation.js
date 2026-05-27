@@ -21,6 +21,9 @@ export const getCleanProjectName = (proyectoId) => {
 };
 
 const BATCH_SIZE = 6;
+// Nº de batches que se envían en paralelo a Mistral. 3 es seguro contra rate-limits
+// y reduce el tiempo total ~3× respecto al envío secuencial.
+const PARALLEL_BATCHES = 3;
 
 /**
  * Búsqueda en históricos adjudicados. Devuelve { context, unidad }.
@@ -138,9 +141,14 @@ export const asignarProveedoresIA = async (partidas, proveedores, onProgress) =>
     const asignacionesFinales = {};
     const oficiosConPro = new Set(proveedores.map(prov => prov.Oficio));
 
-        for (let i = 0; i < itemsParaIA.length; i += BATCH_SIZE) {
-        const batch = itemsParaIA.slice(i, i + BATCH_SIZE);
-        
+    // Construir los batches por adelantado para procesarlos en paralelo (con concurrencia limitada).
+    const batches = [];
+    for (let i = 0; i < itemsParaIA.length; i += BATCH_SIZE) {
+        batches.push(itemsParaIA.slice(i, i + BATCH_SIZE));
+    }
+
+    // Procesa un único batch (idéntico al cuerpo del bucle original).
+    const procesarBatch = async (batch) => {
         const contextPromises = batch.map(async (item) => {
             const [adirContext, histResult, cypeContext] = await Promise.all([
                 getAdirContext(item.desc),
@@ -228,7 +236,7 @@ ${bloquesContexto.map(b => b.contextStr).join('\n\n---\n\n')}`;
             const data = await response.json();
             const content = JSON.parse(data.choices?.[0]?.message?.content || '{}');
             const lote = content.asignaciones || {};
-            
+
             batch.forEach((item, batchIdx) => {
                 const info = lote[item.id];
                 if (info && info.oficio && info.oficio !== "Sin asignar") {
@@ -251,7 +259,15 @@ ${bloquesContexto.map(b => b.contextStr).join('\n\n---\n\n')}`;
                 }
             });
         }
-        onProgress?.({ status: 'progress', progress: Math.round(((i + batch.length) / itemsParaIA.length) * 100) });
+    };
+
+    // Ejecuta los batches en grupos de PARALLEL_BATCHES (ventana deslizante).
+    let procesados = 0;
+    for (let i = 0; i < batches.length; i += PARALLEL_BATCHES) {
+        const slice = batches.slice(i, i + PARALLEL_BATCHES);
+        await Promise.all(slice.map(procesarBatch));
+        procesados += slice.reduce((s, b) => s + b.length, 0);
+        onProgress?.({ status: 'progress', progress: Math.round((procesados / itemsParaIA.length) * 100) });
     }
 
     return { asignaciones: asignacionesFinales, sinProveedor: [] };

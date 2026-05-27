@@ -283,6 +283,7 @@ export async function extraerPartidasDePDF(file) {
 // ── Extractor IA con Mistral ──────────────────────────────────────────────────
 
 const MISTRAL_CHUNK_LINES = 55; // líneas por llamada a Mistral (~2 000 tokens)
+const PARALLEL_CHUNKS     = 3;  // chunks que se envían en paralelo (rate-limit seguro)
 
 const PROMPT_SISTEMA = `Eres un experto en bases de precios de construcción española.
 Analiza el fragmento de texto extraído de un PDF de tarifa de precios.
@@ -319,11 +320,13 @@ export async function extraerPartidasDePDFConIA(file, apiKey, onProgress) {
   const totalChunks = Math.ceil(textoLineas.length / MISTRAL_CHUNK_LINES);
   const partidas = [];
 
-  for (let ci = 0; ci < totalChunks; ci++) {
+  // Procesa un chunk individual y devuelve el array de partidas extraídas.
+  const procesarChunk = async (ci) => {
     const chunk = textoLineas
       .slice(ci * MISTRAL_CHUNK_LINES, (ci + 1) * MISTRAL_CHUNK_LINES)
       .join('\n');
 
+    const resultado = [];
     try {
       const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
         method: 'POST',
@@ -352,7 +355,7 @@ export async function extraerPartidasDePDFConIA(file, apiKey, onProgress) {
           content.partidas.forEach(p => {
             const precio = parseFloat(String(p.precio).replace(',', '.'));
             if (!p.descripcion || !precio || precio <= 0 || precio > 50000) return;
-            partidas.push({
+            resultado.push({
               descripcion_corta: String(p.descripcion).substring(0, 250).trim(),
               unidad:            normalizarUnidad(String(p.unidad || 'ud').trim()),
               precio_total:      Math.round(precio * 100) / 100,
@@ -364,8 +367,20 @@ export async function extraerPartidasDePDFConIA(file, apiKey, onProgress) {
     } catch (e) {
       console.warn(`[pdfIA] chunk ${ci + 1} error:`, e);
     }
+    return resultado;
+  };
 
-    onProgress?.(Math.round(((ci + 1) / totalChunks) * 100));
+  // Envía los chunks en ventanas de PARALLEL_CHUNKS para acelerar PDFs largos.
+  let completados = 0;
+  for (let i = 0; i < totalChunks; i += PARALLEL_CHUNKS) {
+    const indices = [];
+    for (let j = i; j < Math.min(i + PARALLEL_CHUNKS, totalChunks); j++) indices.push(j);
+
+    const resultados = await Promise.all(indices.map(procesarChunk));
+    resultados.forEach(arr => partidas.push(...arr));
+
+    completados += indices.length;
+    onProgress?.(Math.round((completados / totalChunks) * 100));
   }
 
   return partidas;

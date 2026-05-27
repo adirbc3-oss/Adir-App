@@ -131,7 +131,16 @@
       "Bash(curl -s -w ' HTTP:%{http_code}' 'https://adirgestion.app/api/api.php/partidas?select=id&limit=1' -H 'apikey: 28e9c0b26fbee3225088ab2bd1d889aba39fe2caeee1257700f0ec91184dfa75')",
       "Bash(curl -s -w ' HTTP:%{http_code}' 'https://adirgestion.app/api/api.php/partidas?select=id&limit=1' -H 'X-Api-Key: 28e9c0b26fbee3225088ab2bd1d889aba39fe2caeee1257700f0ec91184dfa75')",
       "Bash(curl -s -w ' HTTP:%{http_code}\\\\n' 'https://adirgestion.app/api/api.php/partidas?select=id&limit=1&_=__CMDSUB_OUTPUT__' -H 'apikey: 28e9c0b26fbee3225088ab2bd1d889aba39fe2caeee1257700f0ec91184dfa75' -H 'Cache-Control: no-cache, no-store' -H 'Pragma: no-cache')",
-      "Bash(curl -s -I https://adirgestion.app/api/api.php -H 'X-Api-Key: 28e9c0b26fbee3225088ab2bd1d889aba39fe2caeee1257700f0ec91184dfa75')"
+      "Bash(curl -s -I https://adirgestion.app/api/api.php -H 'X-Api-Key: 28e9c0b26fbee3225088ab2bd1d889aba39fe2caeee1257700f0ec91184dfa75')",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\ocanovas\\\\Desktop\\\\Cheques 2026\\\\ADIR\\\\Codigo\\\\n8n-reformas\\\\App_React\" -Recurse -Force)",
+      "Bash(Select-Object FullName, Attributes)",
+      "Bash(ConvertTo-Csv -NoTypeInformation)",
+      "Bash(Out-String)",
+      "Bash(npm run *)",
+      "Bash(grep -ri \"mistral\" src/ --include=\"*.js\" --include=\"*.jsx\" --include=\"*.ts\" -l)",
+      "Bash(grep -ri \"VITE_MISTRAL\\\\|VITE_AI\\\\|VITE_OPENAI\" .env*)",
+      "Bash(cat .env.local)",
+      "Bash(cat .env)"
     ]
   }
 }

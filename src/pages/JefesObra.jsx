@@ -7,6 +7,7 @@ import {
   X, AlertCircle, Trophy, User, Calendar, Briefcase, Trash2
 } from 'lucide-react';
 import { TODOS_LOS_OFICIOS, getCleanProjectName } from '../utils/aiAllocation';
+import { escapeHtml } from '../utils/escape';
 
 const JefesObra = () => {
     const { showAlert, ModalUI } = useModal();
@@ -648,6 +649,11 @@ const JefesObra = () => {
                     `</tr></tfoot>` +
                 `</table>`;
 
+            // Escape de valores dinámicos para evitar inyección HTML en el email.
+            const clienteS    = escapeHtml(activeProject.cliente || 'Cliente');
+            const proyectoNS  = escapeHtml(activeProject.descripcion || getCleanProjectName(activeProject.Proyecto));
+            const portalUrlS  = escapeHtml(portalUrl);
+
             const htmlPresupuesto =
                 `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>` +
                 `<body style="font-family:Arial,sans-serif;background:#f1f5f9;margin:0;padding:20px 0;">` +
@@ -657,20 +663,20 @@ const JefesObra = () => {
                     `<p style="color:rgba(255,255,255,0.65);margin:6px 0 0;font-size:13px;">Presupuesto de Obra</p>` +
                   `</div>` +
                   `<div style="padding:32px;">` +
-                    `<p style="font-size:15px;color:#334155;margin:0 0 8px;">Estimado/a <strong>${activeProject.cliente || 'Cliente'}</strong>,</p>` +
+                    `<p style="font-size:15px;color:#334155;margin:0 0 8px;">Estimado/a <strong>${clienteS}</strong>,</p>` +
                     `<p style="font-size:14px;color:#64748b;margin:0 0 24px;line-height:1.6;">` +
-                      `Le adjuntamos el presupuesto detallado para el proyecto <strong>${activeProject.descripcion || getCleanProjectName(activeProject.Proyecto)}</strong>. ` +
+                      `Le adjuntamos el presupuesto detallado para el proyecto <strong>${proyectoNS}</strong>. ` +
                       `Por favor, revíselo y proceda a firmarlo desde el siguiente enlace.` +
                     `</p>` +
                     tableHtml +
                     `<div style="text-align:center;margin:28px 0 20px;">` +
-                      `<a href="${portalUrl}" style="display:inline-block;padding:16px 36px;background:#002D54;color:white;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;letter-spacing:0.2px;">` +
+                      `<a href="${portalUrlS}" style="display:inline-block;padding:16px 36px;background:#002D54;color:white;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;letter-spacing:0.2px;">` +
                         `→ Revisar y Firmar Presupuesto` +
                       `</a>` +
                     `</div>` +
                     `<p style="font-size:11px;color:#94a3b8;text-align:center;margin:0;">` +
                       `Si el botón no funciona, copie este enlace en su navegador:<br>` +
-                      `<a href="${portalUrl}" style="color:#002D54;word-break:break-all;">${portalUrl}</a>` +
+                      `<a href="${portalUrlS}" style="color:#002D54;word-break:break-all;">${portalUrlS}</a>` +
                     `</p>` +
                   `</div>` +
                   `<div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;text-align:center;">` +
