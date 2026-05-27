@@ -65,10 +65,10 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
       return true;
     });
 
-    // Solo solicitudes que tengan al menos una respuesta (fallback al token si id es nulo)
+    // Solo solicitudes que tengan al menos una respuesta (fallback a _num_id/token si id es nulo)
     return solsFiltradas
       .map(sol => {
-        const solKey = String(sol.id || sol.token || '');
+        const solKey = String(sol.id || sol._num_id || sol.token || '');
         const resps = respuestas.filter(r => String(r.solicitud_id) === solKey);
         return { sol, resps };
       })
@@ -638,8 +638,9 @@ export default function Comparativa({ setSessionCache }) {
         return true;
       });
 
-      // Helper: clave efectiva de solicitud — siempre string para evitar mismatch int/str
-      const getSolKey = s => String(s.id || s.token || '');
+      // Helper: clave efectiva de solicitud — usa id_bc3, si es null cae a _num_id (auto-increment
+      // MySQL que n8n puede haber guardado en solicitud_bc3), y si no al token
+      const getSolKey = s => String(s.id || s._num_id || s.token || '');
 
       const grupos = {};
       solicsFiltradas
@@ -706,8 +707,8 @@ export default function Comparativa({ setSessionCache }) {
 
       if (!lineasPartidas.length) return {};
 
-      // Helper: clave efectiva de solicitud — siempre string para evitar mismatch int/str
-      const getSolKey = s => String(s.id || s.token || '');
+      // Helper: clave efectiva de solicitud — usa id_bc3, si es null cae a _num_id o token
+      const getSolKey = s => String(s.id || s._num_id || s.token || '');
 
       // Proveedores: solicitudes reales con respuestas (cualquier oficio) + BC3 locales
       const provMap = new Map();
@@ -1077,7 +1078,7 @@ export default function Comparativa({ setSessionCache }) {
     return allSolicitudes.filter(s => {
       if (proyectoSel && s.propuesta_id !== proyectoSel) return false;
       if (oficioSel && normalize(s.oficio_solicitado) !== normalize(oficioSel)) return false;
-      return allRespuestas.some(r => String(r.solicitud_id) === String(s.id || s.token || ''));
+      return allRespuestas.some(r => String(r.solicitud_id) === String(s.id || s._num_id || s.token || ''));
     }).length;
   }, [allSolicitudes, allRespuestas, proyectoSel, oficioSel]);
 
