@@ -217,9 +217,15 @@ const Portal = () => {
         <p>Por favor, indica tu precio por cada partida solicitada para <strong>{solicitud.oficio_solicitado}</strong>.</p>
         {solicitud.anexo_url && (
           <p style={{ marginTop: 10, marginBottom: 0 }}>
-            📎 <a href={solicitud.anexo_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600 }}>
-              Descargar anexo del proyecto
-            </a>
+            📎 {solicitud.anexo_url.startsWith('http') ? (
+              <a href={solicitud.anexo_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                Descargar anexo del proyecto
+              </a>
+            ) : (
+              <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
+                Anexo enviado por email: {solicitud.anexo_url}
+              </span>
+            )}
           </p>
         )}
       </div>

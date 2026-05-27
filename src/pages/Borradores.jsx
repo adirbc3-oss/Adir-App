@@ -649,7 +649,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     };
 
     // Email al proveedor: solo muestra capítulos/subcapítulos (el formulario tiene el desglose completo)
-    const buildSolicitudEmailHTML = (provNombre, oficio, clienteNombre, capitulos, portalUrl, anexoUrl) => {
+    const buildSolicitudEmailHTML = (provNombre, oficio, clienteNombre, capitulos, portalUrl, anexoNombre) => {
         const filasHtml = capitulos.length > 0
             ? capitulos.map(c => {
                 const bgColor    = c.isSubcap ? '#eef4fb' : '#dce7f2';
@@ -682,10 +682,8 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
       </thead>
       <tbody>${filasHtml}</tbody>
     </table>
-    ${anexoUrl ? `<div style="padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin-bottom:20px;">
-      <p style="margin:0;font-size:13px;color:#1d4ed8;">📎 <strong>Documentación adjunta:</strong>
-        <a href="${anexoUrl}" style="color:#1d4ed8;font-weight:600;" target="_blank">Descargar documento</a>
-      </p>
+    ${anexoNombre ? `<div style="padding:12px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin-bottom:20px;">
+      <p style="margin:0;font-size:13px;color:#1d4ed8;">📎 <strong>Documentación adjunta por email:</strong> ${anexoNombre}</p>
     </div>` : ''}
     <div style="text-align:center;margin:28px 0 20px;">
       <a href="${portalUrl}" style="display:inline-block;padding:16px 36px;background:#002D54;color:white;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px;letter-spacing:0.2px;">
@@ -729,24 +727,24 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         let errores = 0;
         let saltados = 0;
 
-        // Subir anexo si existe
+        // Procesar anexo si existe (convertir a Base64 para enviar a n8n)
         let anexo_url = null;
+        let anexo_base64 = null;
+        let anexo_nombre = null;
         if (anexoFile) {
             setUploadingAnexo(true);
             try {
-                const ext = anexoFile.name.split('.').pop();
-                const fileName = `${activeProject.Proyecto}_${Date.now()}.${ext}`;
-                const { error: upErr } = await supabase.storage
-                    .from('anexos')
-                    .upload(fileName, anexoFile, { contentType: anexoFile.type, upsert: true });
-                if (!upErr) {
-                    const { data: urlData } = supabase.storage.from('anexos').getPublicUrl(fileName);
-                    anexo_url = urlData?.publicUrl || null;
-                } else {
-                    showToast('Aviso: no se pudo subir el anexo (¿existe el bucket "anexos" en Supabase?). El email se enviará sin adjunto.', 'warning');
-                }
+                anexo_nombre = anexoFile.name;
+                anexo_url = anexoFile.name; // Guardamos el nombre en la BD en la columna anexo_url
+                anexo_base64 = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(anexoFile);
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = error => reject(error);
+                });
             } catch (e) {
-                console.warn('Error subiendo anexo:', e);
+                console.warn('Error procesando anexo a base64:', e);
+                showToast('Aviso: no se pudo procesar el archivo anexo. Se enviará sin adjunto.', 'warning');
             } finally {
                 setUploadingAnexo(false);
             }
@@ -788,7 +786,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 const clienteNombre = `${projName}${clientName}`;
                 // Email: solo capítulos/subcapítulos (resumen); el formulario tiene el desglose completo
                 const capitulosEmail = getCapitulosParaEmail(tareasOficio, partidas);
-                const htmlEmail = buildSolicitudEmailHTML(prov.Nombre, selectedOficio, clienteNombre, capitulosEmail, portalUrl, anexo_url);
+                const htmlEmail = buildSolicitudEmailHTML(prov.Nombre, selectedOficio, clienteNombre, capitulosEmail, portalUrl, anexo_nombre);
                 const payload = {
                     propuesta_id: activeProject.Proyecto,
                     cliente_nombre: clienteNombre,
@@ -799,6 +797,8 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     token,
                     portal_url: portalUrl,
                     anexo_url: anexo_url || '',
+                    anexo_base64: anexo_base64 || '',
+                    anexo_nombre: anexo_nombre || '',
                     html_email: htmlEmail.replace(/"/g, "'").replace(/\s+/g, ' ').trim(),
                     tareas,
                 };
