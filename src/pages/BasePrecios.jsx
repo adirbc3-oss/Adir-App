@@ -26,10 +26,15 @@ const KWTRAB = [
   'canalizacion','tendido de','recibido de','sellado de','rejuntado',
 ];
 const KWMAT = [
-  'cemento','arena ','grava','mortero seco','yeso en polvo','escayola en polvo',
+  'cemento','arena ','grava','mortero seco','yeso','escayola','cal ',
   'silicona ','adhesivo ','cola de','barniz ','disolvente','imprimacion',
   'saco de','kg de','litro de','tablero ','panel ','chapa ','lamina ',
   'perfil ','tubo de ','cable de ','conductor ','tornillo','perno ','anclaje ',
+  'ladrillo','baldosa','azulejo','gres ','porcelanato','teja ','pizarra ',
+  'pintura ','esmalte ','sellador','malla ','fibra ','espuma ',
+  'lana de roca','lana mineral','poliestireno','poliuretano','corcho ',
+  'madera ','tablero de','placa de','pladur','carton yeso',
+  'acero ','hierro ','aluminio ','cobre ','pvc ','polietileno',
 ];
 
 function normDesc(s) {
@@ -194,12 +199,26 @@ function ModalImport({ onClose, onImportDone, showToast }) {
           setParsing(false);
           return;
         }
+        // Extraer nombre del proveedor del nombre del archivo
+        const proveedor = (() => {
+          const nombre = file.name.replace(/\.pdf$/i, '');
+          const limpio = nombre
+            .replace(/^(tarifa\s+de?\s*|lista\s+de?\s*precios?\s*|catalogo\s*|precio[s]?\s+)/i, '')
+            .replace(/\s*[-–]\s*(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s*\d{4}/i, '')
+            .replace(/\s+\d{4}[-/]?\d*\s*$/, '')
+            .trim();
+          return limpio.split(/[\s_]+/).filter(w => w.length > 0).slice(0, 3)
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') || 'Importado PDF';
+        })();
+
         // Para PDF: completar con estimación de desglose
         filas = raw.map(p => {
           const ratio = getRatio(p.descripcion_corta);
           return {
-            codigo:            null, // sin código en PDF
-            categoria:         'Importado PDF',
+            codigo:            null,
+            categoria:         proveedor,
+            fuente:            proveedor,
+            tipo_partida:      'material',
             descripcion_corta: p.descripcion_corta,
             unidad:            p.unidad,
             precio_total:      p.precio_total,

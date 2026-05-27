@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { N8N_BASE_URL } from '../config';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
 import {  FileCheck, Download, Clock, X, CheckCircle, Search, Loader2, Eye , FileSignature, RefreshCw } from 'lucide-react';
 
@@ -33,7 +32,48 @@ const PresupuestosFirmados = () => {
     };
 
     const downloadBC3 = (p) => {
-        window.open(`${N8N_BASE_URL}/webhook/descargar-bc3?propuesta_id=${encodeURIComponent(p.propuesta_id)}`, '_blank');
+        const { propuesta_id, proyecto_descripcion, cliente_nombre, partidas = [], precio_total, fecha_envio } = p;
+        const fecha = fecha_envio
+            ? new Date(fecha_envio).toLocaleDateString('es-ES')
+            : new Date().toLocaleDateString('es-ES');
+
+        const safe = (s) => String(s || '').replace(/[|\\\r\n]/g, ' ');
+        const rootCod = safe(propuesta_id) || 'PROYECTO';
+        const rootDesc = safe(proyecto_descripcion || cliente_nombre || propuesta_id);
+        const rootPrecio = (parseFloat(precio_total) || 0).toFixed(2);
+
+        const lines = [`~V|FIEBDC-3#2016#|ADIR Gestión|${fecha}|`];
+
+        const validas = (partidas || []).filter(pa => pa.Capítulo && pa.Descripción);
+        for (const pa of validas) {
+            const cod   = safe(pa.Capítulo);
+            const ud    = safe(pa['Unidad IA'] || '');
+            const desc  = safe(pa.Descripción);
+            const precio = (parseFloat(pa.precio_adjudicado) || 0).toFixed(2);
+            lines.push(`~C|${cod}|${ud}|${desc}|${precio}|`);
+        }
+
+        lines.push(`~C|${rootCod}||${rootDesc}|${rootPrecio}|`);
+
+        if (validas.length > 0) {
+            const hijos = validas.map(pa => {
+                const cod  = safe(pa.Capítulo);
+                const cant = (parseFloat(pa.Cantidad) || 1).toFixed(3);
+                return `\\${cod}\\${cant}\\1\\`;
+            }).join('');
+            lines.push(`~D|${rootCod}|${hijos}`);
+        }
+
+        const content = lines.join('\r\n');
+        const blob = new Blob([content], { type: 'text/plain;charset=windows-1252' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `BC3_${propuesta_id}.bc3`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     };
 
     const downloadSignedPDF = (p) => {
