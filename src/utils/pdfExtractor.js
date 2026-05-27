@@ -121,16 +121,21 @@ function parsePrecioItem(text) {
 /**
  * A partir de las líneas del PDF, extrae partidas {descripcion, unidad, precio, pagina}.
  *
- * Estrategia columnar (más robusta que regex en lineText):
- *  1. Para cada fila, los items ya están ordenados de izquierda a derecha (X creciente).
- *  2. Escanear items desde la DERECHA: el primer item que sea un número con decimales
- *     es el precio (la columna de precios siempre está a la derecha en tarifas).
- *  3. Si el item inmediatamente a su derecha es "€" o "EUR", ignorarlo (es la unidad monetaria).
- *  4. Los items a la izquierda del precio forman la descripción + unidad.
- *  5. Si el método columnar no encuentra precio, fallback al regex sobre lineText completo.
+ * Estrategia columnar mejorada:
+ *  1. Para cada fila, escanear solo los N items más a la DERECHA (zona numérica).
+ *     No se rompe ante texto descriptivo — así la descripción larga no bloquea el precio.
+ *  2. Recoger hasta 3 candidatos de precio (números con decimales).
+ *  3. Si hay 2+ candidatos (posible columna "Precio/ud" + "Total"):
+ *     - Si entre ellos existe un entero (cantidad), el segundo más a la derecha es precio/ud.
+ *     - De lo contrario usar el más a la derecha.
+ *  4. Fallback al regex sobre lineText → se usa el ÚLTIMO match (no el primero),
+ *     ya que los precios suelen estar en la parte derecha de la línea.
  */
 export function parsearPartidasDePDF(lineas) {
   const partidas = [];
+  // Versiones globales de los regex de precio para usar con matchAll
+  const PRICE_RE_G       = new RegExp(PRICE_RE.source, 'g');
+  const PRICE_INT_RE_G   = new RegExp(PRICE_INTEGER_RE.source, 'g');
 
   for (const { lineText, items, pageNum } of lineas) {
     // Descartar líneas de relleno
@@ -138,60 +143,86 @@ export function parsearPartidasDePDF(lineas) {
     if (lineText.length < 5) continue;
     if (!items || items.length === 0) continue;
 
-    // ── Estrategia 1: búsqueda columnar (izquierda←derecha desde el final) ──
+    // ── Estrategia 1: columnar — solo los N items más a la derecha ───────────
+    // Limitando la búsqueda a la "zona numérica" (columnas de precio/cantidad/unidad)
+    // evitamos que texto largo de descripción interrumpa la detección.
+    const SCAN_LIMIT = Math.min(items.length, 8);
+    const candidates = []; // [{precio, idx}], ordenados de derecha a izquierda
+
+    for (let i = items.length - 1; i >= items.length - SCAN_LIMIT; i--) {
+      const t = items[i].text.trim();
+      if (/^[€$£]$|^EUR$/i.test(t)) continue; // saltar símbolo de moneda
+
+      const candidato = parsePrecioItem(t);
+      if (candidato !== null && candidato > 0 && candidato <= 50000) {
+        candidates.push({ precio: candidato, idx: i });
+        if (candidates.length >= 3) break; // recoger máximo 3 candidatos
+      } else if (/^[0-9]{1,6}$/.test(t)) {
+        // Entero solo: válido como precio si va acompañado de € en items adyacentes
+        const siguientes = items.slice(i + 1).map(x => x.text.trim());
+        const tieneEuro  = siguientes.some(s => /^[€$£]$|^EUR$/i.test(s));
+        if (tieneEuro) {
+          candidates.push({ precio: parseFloat(t), idx: i });
+          if (candidates.length >= 3) break;
+        }
+      }
+    }
+
     let precio = null;
     let precioItemIdx = -1;
 
-    // Recorrer items de derecha a izquierda buscando el precio
-    for (let i = items.length - 1; i >= 0; i--) {
-      const t = items[i].text.trim();
-      // Saltar símbolos de moneda puros y textos muy cortos
-      if (/^[€$£]$|^EUR$/i.test(t)) continue;
-      // Saltar si es solo un número entero sin € (podría ser cantidad, referencia…)
-      // EXCEPCIÓN: si el item a su derecha (ignorando €) es € → puede ser precio entero
-      const candidato = parsePrecioItem(t);
-      if (candidato !== null) {
-        precio = candidato;
-        precioItemIdx = i;
-        break;
+    if (candidates.length === 1) {
+      precio        = candidates[0].precio;
+      precioItemIdx = candidates[0].idx;
+    } else if (candidates.length >= 2) {
+      const rightmost = candidates[0]; // más a la derecha (posible total)
+      const second    = candidates[1]; // segundo (posible precio/ud)
+
+      // Detectar si hay un entero (cantidad) entre los dos candidatos
+      const itemsBetween = items.slice(second.idx + 1, rightmost.idx);
+      const hasQty = itemsBetween.some(it => {
+        const t2 = it.text.trim();
+        return /^[0-9]{1,4}$/.test(t2) && !UNIDADES_RE.test(t2) && parseFloat(t2) > 0;
+      });
+
+      if (hasQty) {
+        // Hay cantidad → el más a la derecha es total, el segundo es precio/ud
+        precio        = second.precio;
+        precioItemIdx = second.idx;
+      } else {
+        // Sin cantidad visible → usar el más a la derecha (columna de precio directa)
+        precio        = rightmost.precio;
+        precioItemIdx = rightmost.idx;
       }
-      // Comprobar entero + € a continuación
-      if (/^[0-9]{1,6}$/.test(t)) {
-        const siguientes = items.slice(i + 1).map(x => x.text.trim());
-        const tieneEuro = siguientes.some(s => /^[€$£]$|^EUR$/i.test(s));
-        if (tieneEuro) {
-          precio = parseFloat(t);
-          precioItemIdx = i;
-          break;
-        }
-      }
-      // Si llegamos a un texto de descripción (>2 chars no-numéricos) sin encontrar precio,
-      // no tiene sentido seguir buscando hacia la izquierda
-      if (t.length > 2 && !/^[0-9.,]+$/.test(t) && !UNIDADES_RE.test(t)) break;
     }
 
-    // ── Estrategia 2 (fallback): regex sobre lineText completo ───────────────
+    // ── Estrategia 2 (fallback): regex → ÚLTIMO match en el texto ────────────
+    // Tomar el último (más a la derecha) para evitar coger cantidades del inicio.
     if (precio === null) {
-      const mDec = lineText.match(PRICE_RE);
-      if (mDec) {
-        precio = parseFloat(mDec[1].replace(',', '.'));
+      const allDec = [...lineText.matchAll(PRICE_RE_G)];
+      if (allDec.length > 0) {
+        const last = allDec[allDec.length - 1];
+        precio = parseFloat(last[1].replace(',', '.'));
       } else {
-        const mInt = lineText.match(PRICE_INTEGER_RE);
-        if (mInt) precio = parseFloat(mInt[1]);
+        const allInt = [...lineText.matchAll(PRICE_INT_RE_G)];
+        if (allInt.length > 0) {
+          const last = allInt[allInt.length - 1];
+          precio = parseFloat(last[1]);
+        }
       }
     }
 
     // Sin precio válido → descartar línea
     if (precio === null || precio <= 0 || precio > 50000) continue;
 
-    // ── Construir descripción con los items a la izquierda del precio ────────
+    // ── Construir descripción con los items a la izquierda del precio ─────────
     const descItems = precioItemIdx >= 0
       ? items.slice(0, precioItemIdx).filter(it => !/^[€$£]$|^EUR$/i.test(it.text.trim()))
       : items;
 
     let resto = descItems.map(it => it.text).join(' ').replace(/€|EUR/gi, '').replace(/\s{2,}/g, ' ').trim();
 
-    // ── Detectar unidad ──────────────────────────────────────────────────────
+    // ── Detectar unidad ───────────────────────────────────────────────────────
     let unidad = 'ud';
     const tokens = resto.split(/\s+/);
     const unidadIdx = tokens.findIndex(t => UNIDADES_RE.test(t));
@@ -200,8 +231,12 @@ export function parsearPartidasDePDF(lineas) {
       tokens.splice(unidadIdx, 1);
     }
 
-    // ── Descripción = lo que queda ───────────────────────────────────────────
-    let descripcion = tokens.join(' ').replace(/\s{2,}/g, ' ').trim();
+    // Eliminar tokens que sean cantidades puras (entero 1-4 dígitos) para que
+    // no aparezcan incrustados en la descripción (ej: "m2  1  Descripción")
+    const cleanTokens = tokens.filter(t => !/^\d{1,4}$/.test(t));
+
+    // ── Descripción = lo que queda ────────────────────────────────────────────
+    let descripcion = cleanTokens.join(' ').replace(/\s{2,}/g, ' ').trim();
 
     // Limpiar referencias/códigos al inicio (ej: "12345 Cemento..." → "Cemento...")
     descripcion = descripcion.replace(/^[A-Z0-9\-\.]{3,15}\s+/i, '').trim();

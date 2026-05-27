@@ -353,12 +353,13 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                 .filter(p => p.id && !p._synthetic)
                 .map(p => {
                     const isAdjudicado = p.estado_adjudicacion === 'Adjudicado';
+                    const precioIA = parseFloat(p["Precio IA"]);
                     const updatePayload = {
                         oficio_asignado: p["Oficio Asignado"] === "Sin asignar" ? null : p["Oficio Asignado"],
-                        precio_ia: parseFloat(p["Precio IA"]) || null,
+                        precio_ia: isNaN(precioIA) ? null : precioIA,
                         unidad: p["Unidad IA"] || null,
                         cantidad: parseFloat(p.Cantidad) || 0,
-                        force_quote: p["Needs Quote"] || false
+                        force_quote: p["Needs Quote"] ? 1 : 0
                     };
                     // Never overwrite precio_base_estimado for adjudicated partidas
                     // — their real price lives in precio_adjudicado

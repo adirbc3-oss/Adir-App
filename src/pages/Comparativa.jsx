@@ -68,8 +68,8 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
     // Solo solicitudes que tengan al menos una respuesta (fallback al token si id es nulo)
     return solsFiltradas
       .map(sol => {
-        const solKey = sol.id || sol.token;
-        const resps = respuestas.filter(r => r.solicitud_id === solKey);
+        const solKey = String(sol.id || sol.token || '');
+        const resps = respuestas.filter(r => String(r.solicitud_id) === solKey);
         return { sol, resps };
       })
       .filter(({ resps }) => resps.length > 0)
@@ -307,7 +307,7 @@ function ComparativaAgrupada({
               </div>
             </div>
 
-            {(isGlobalView ? oficiosAbiertos[key] !== false : oficiosAbiertos[key]) && (
+            {oficiosAbiertos[key] !== false && (
               <div>
                 {!isGlobalView && (
                     <div style={s.adjudicarBar}>
@@ -638,12 +638,12 @@ export default function Comparativa({ setSessionCache }) {
         return true;
       });
 
-      // Helper: clave efectiva de solicitud (id si existe, si no token)
-      const getSolKey = s => s.id || s.token;
+      // Helper: clave efectiva de solicitud — siempre string para evitar mismatch int/str
+      const getSolKey = s => String(s.id || s.token || '');
 
       const grupos = {};
       solicsFiltradas
-        .filter(sol => allRespuestas.some(r => r.solicitud_id === getSolKey(sol)))
+        .filter(sol => allRespuestas.some(r => String(r.solicitud_id) === getSolKey(sol)))
         .forEach(sol => {
         const key = `${sol.oficio_solicitado}__${sol.propuesta_id}`;
         if (!grupos[key]) grupos[key] = { oficio: sol.oficio_solicitado, proyecto: sol.propuesta_id, solicitudes: [] };
@@ -659,8 +659,8 @@ export default function Comparativa({ setSessionCache }) {
 
         // Construir mapa de respuestas para este grupo para búsqueda rápida
         const groupResps = {};
-        allRespuestas.filter(r => sols.some(s => getSolKey(s) === r.solicitud_id)).forEach(r => {
-            groupResps[`${r.solicitud_id}__${r.partida_id}`] = r;
+        allRespuestas.filter(r => sols.some(s => getSolKey(s) === String(r.solicitud_id))).forEach(r => {
+            groupResps[`${String(r.solicitud_id)}__${r.partida_id}`] = r;
         });
 
         const filas = partidasGrupo.map(p => {
@@ -672,7 +672,7 @@ export default function Comparativa({ setSessionCache }) {
             let resp = groupResps[`${prov.solicitud_id}__${p.id}`];
             if (!resp) {
                 const pCode = normalizeCode(p.codigo || (p.texto_partida ? p.texto_partida.split('::')[0] : ''));
-                resp = allRespuestas.find(r => r.solicitud_id === prov.solicitud_id && normalizeCode(r.partida_id) === pCode);
+                resp = allRespuestas.find(r => String(r.solicitud_id) === prov.solicitud_id && normalizeCode(r.partida_id) === pCode);
             }
 
             if (resp) {
@@ -706,13 +706,13 @@ export default function Comparativa({ setSessionCache }) {
 
       if (!lineasPartidas.length) return {};
 
-      // Helper: clave efectiva de solicitud (id si existe, si no token)
-      const getSolKey = s => s.id || s.token;
+      // Helper: clave efectiva de solicitud — siempre string para evitar mismatch int/str
+      const getSolKey = s => String(s.id || s.token || '');
 
       // Proveedores: solicitudes reales con respuestas (cualquier oficio) + BC3 locales
       const provMap = new Map();
       allSolicitudes
-        .filter(s => s.propuesta_id === proyectoSel && allRespuestas.some(r => r.solicitud_id === getSolKey(s)))
+        .filter(s => s.propuesta_id === proyectoSel && allRespuestas.some(r => String(r.solicitud_id) === getSolKey(s)))
         .forEach(s => {
           const sk = getSolKey(s);
           if (!provMap.has(sk))
@@ -727,7 +727,7 @@ export default function Comparativa({ setSessionCache }) {
 
       const respsMap = {};
       // Incluir también respuestas con solicitud_id nulo (dato antiguo sin id_bc3)
-      allRespuestas.forEach(r => { if (r.partida_id) respsMap[`${r.solicitud_id}__${r.partida_id}`] = r; });
+      allRespuestas.forEach(r => { if (r.partida_id) respsMap[`${String(r.solicitud_id)}__${r.partida_id}`] = r; });
 
       const filas = lineasPartidas.map(p => {
         const precios = {};
@@ -741,7 +741,7 @@ export default function Comparativa({ setSessionCache }) {
             let resp = respsMap[`${prov.solicitud_id}__${p.id}`];
             if (!resp) {
               const pCode = normalizeCode(p.codigo || (p.texto_partida ? p.texto_partida.split('::')[0] : ''));
-              resp = allRespuestas.find(r => r.solicitud_id === prov.solicitud_id && normalizeCode(r.partida_id) === pCode);
+              resp = allRespuestas.find(r => String(r.solicitud_id) === prov.solicitud_id && normalizeCode(r.partida_id) === pCode);
             }
             precios[prov.solicitud_id] = resp ? { precio: resp.precio_ofertado } : null;
           }
@@ -1060,7 +1060,7 @@ export default function Comparativa({ setSessionCache }) {
     XLSX.writeFile(wb, `Comparativa_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const toggleGrupo = key => setOficiosAbiertos(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleGrupo = key => setOficiosAbiertos(prev => ({ ...prev, [key]: prev[key] !== false ? false : true }));
 
   const estadoBadge = estado => {
     if (!estado || estado === 'Pendiente' || estado === 'Enviado')
@@ -1077,7 +1077,7 @@ export default function Comparativa({ setSessionCache }) {
     return allSolicitudes.filter(s => {
       if (proyectoSel && s.propuesta_id !== proyectoSel) return false;
       if (oficioSel && normalize(s.oficio_solicitado) !== normalize(oficioSel)) return false;
-      return allRespuestas.some(r => r.solicitud_id === s.id);
+      return allRespuestas.some(r => String(r.solicitud_id) === String(s.id || s.token || ''));
     }).length;
   }, [allSolicitudes, allRespuestas, proyectoSel, oficioSel]);
 
