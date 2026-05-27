@@ -26,7 +26,7 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
     const partidasPDF = resps.map(r => {
       let part = (allPartidas || partidas).find(p => p.id === r.partida_id);
       if (!part) {
-        const rCode = (r.partida_id || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
+        const rCode = String(r.partida_id || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
         part = (allPartidas || partidas).find(p =>
           p.propuesta_id === sol.propuesta_id &&
           (p.texto_partida ? p.texto_partida.split('::')[0].replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '') : '') === rCode
@@ -175,7 +175,7 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
                   {resps.map(r => {
                     let partida = partidas.find(p => p.id === r.partida_id);
                     if (!partida) {
-                        const rCode = (r.partida_id || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
+                        const rCode = String(r.partida_id || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
                         partida = partidas.find(p => p.propuesta_id === sol.propuesta_id && (p.texto_partida ? p.texto_partida.split('::')[0].replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '') : '') === rCode);
                     }
                     const descr = partida
@@ -212,7 +212,7 @@ function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proye
                       <td style={{ ...s.feedTd, textAlign: 'right', fontWeight: 800, fontSize: 15, color: '#002D54' }}>
                         {resps.reduce((sum, r) => {
                           let p2 = partidas.find(p => p.id === r.partida_id);
-                          if (!p2) { const c = (r.partida_id||'').replace(/#/g,'').trim().toLowerCase().replace(/^0+/,''); p2 = partidas.find(p => p.propuesta_id===sol.propuesta_id && (p.texto_partida?p.texto_partida.split('::')[0].replace(/#/g,'').trim().toLowerCase().replace(/^0+/,''):'')===c); }
+                          if (!p2) { const c = String(r.partida_id||'').replace(/#/g,'').trim().toLowerCase().replace(/^0+/,''); p2 = partidas.find(p => p.propuesta_id===sol.propuesta_id && (p.texto_partida?p.texto_partida.split('::')[0].replace(/#/g,'').trim().toLowerCase().replace(/^0+/,''):'')===c); }
                           return sum + (Number(r.precio_ofertado)||0) * (p2?.cantidad||1);
                         }, 0).toFixed(2)} €
                       </td>
@@ -612,7 +612,7 @@ export default function Comparativa({ setSessionCache }) {
   useEffect(() => { cargarTodo(); }, []);
 
   const normalize = str => str ? str.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
-  const normalizeCode = (c) => (c || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
+  const normalizeCode = (c) => String(c || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
 
   // ─── 2. Listas únicas para filtros ────────────────────────────────────────
   const proyectosUnicos = useMemo(() => {
@@ -896,7 +896,7 @@ export default function Comparativa({ setSessionCache }) {
               precios: {}
           };
 
-          const normalizeCode = (c) => (c || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
+          const normalizeCode = (c) => String(c || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
 
           Object.keys(competenciaPrecios).forEach(partidaId => {
               const precio = parseFloat(competenciaPrecios[partidaId]);
@@ -994,7 +994,7 @@ export default function Comparativa({ setSessionCache }) {
       });
 
       // 3. Crear objeto de competencia local (memoria)
-      const normalizeCode = (c) => (c || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
+      const normalizeCode = (c) => String(c || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
       
       const newComp = {
           id: 'bc3-' + Date.now(),

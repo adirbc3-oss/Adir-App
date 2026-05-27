@@ -261,7 +261,7 @@ const Proveedores = () => {
                 {loading ? (
                     <div style={{ padding: '40px', textAlign: 'center' }}>
                         <Loader2 className="loader-spinner" style={{ display: 'inline-block' }} />
-                        <p style={{ marginTop: '12px' }}>Sincronizando con Supabase...</p>
+                        <p style={{ marginTop: '12px' }}>Cargando proveedores...</p>
                     </div>
                 ) : (
                     <div className="table-container">

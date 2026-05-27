@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
-import { FileUp, Files, Users, Settings, BarChart2, Mailbox, HardHat, Database, History, FileCheck } from 'lucide-react';
+import { FileUp, Files, Users, Settings, BarChart2, Mailbox, HardHat, Database, History, FileCheck, LayoutDashboard, FileSignature } from 'lucide-react';
 import { supabase } from './utils/supabaseClient';
 
 import NuevoProyecto from './pages/NuevoProyecto';
@@ -16,6 +16,7 @@ import Proyectos from './pages/Proyectos';
 import BasePrecios from './pages/BasePrecios';
 import Historial from './pages/Historial';
 import PresupuestosFirmados from './pages/PresupuestosFirmados';
+import Dashboard from './pages/Dashboard';
 
 import logoAdir from './assets/adirblanco-header.webp';
 
@@ -51,6 +52,9 @@ const Sidebar = ({ counts = {} }) => {
         <img src={logoAdir} alt="ADIR Logo" className="sidebar-logo" />
       </div>
       <div className="sidebar-nav">
+        <NavLink to="/dashboard" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+          <LayoutDashboard size={20} />Panel de Control
+        </NavLink>
         <NavLink to="/nuevo" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
           <FileUp size={20} />Procesar BC3
         </NavLink>
@@ -71,6 +75,9 @@ const Sidebar = ({ counts = {} }) => {
         </NavLink>
         <NavLink to="/comparativa" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
           <BarChart2 size={20} />Comparativa
+        </NavLink>
+        <NavLink to="/presupuestos-firmados" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+          <FileSignature size={20} />Presupuestos Firmados
         </NavLink>
         <NavLink to="/base-precios" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
           <Database size={20} />Base Precios
@@ -169,7 +176,8 @@ const AppContent = () => {
           </div>
         )}
         <Routes>
-          <Route path="/" element={<Navigate to="/nuevo" replace />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/nuevo" element={<NuevoProyecto />} />
           <Route path="/borradores" element={<Borradores sessionCache={sessionCache} setSessionCache={setSessionCache} />} />
           <Route path="/bandeja" element={<BandejaEntrada />} />
@@ -179,6 +187,7 @@ const AppContent = () => {
           <Route path="/comparativa" element={<Comparativa sessionCache={sessionCache} setSessionCache={setSessionCache} />} />
           <Route path="/base-precios" element={<BasePrecios />} />
           <Route path="/historial" element={<Historial />} />
+          <Route path="/presupuestos-firmados" element={<PresupuestosFirmados />} />
           <Route path="/ajustes" element={<Ajustes />} />
         </Routes>
       </main>
