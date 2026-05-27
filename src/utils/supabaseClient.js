@@ -123,6 +123,10 @@ class QueryBuilder {
     channel()       { return { on: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }) }; }
     removeChannel() {}
 
+    // ── Promise interop ───────────────────────────────────────────────────────
+    catch(onRejected) { return this._execute().catch(onRejected); }
+    finally(onFinally) { return this._execute().finally(onFinally); }
+
     // ── Ejecución ─────────────────────────────────────────────────────────────
     async _execute() {
         const params = { ...this._filters };

@@ -448,10 +448,10 @@ function ComparativaAgrupada({
                                   fontWeight: esMejor || esAdj ? 700 : 400,
                                   color: esAdj ? '#002D54' : esMejor ? '#059669' : undefined
                                 }}>
-                                  {resp === null
+                                  {!resp
                                     ? <span style={{ color: '#c7d5e6' }}>—</span>
                                     : <div>
-                                        <div>{resp.precio !== undefined ? `${Number(resp.precio).toFixed(2)} €` : '—'}</div>
+                                        <div>{resp.precio != null ? `${Number(resp.precio).toFixed(2)} €` : '—'}</div>
                                         {resp.comentario && (
                                           <div style={{ fontSize: '0.68rem', color: '#9ca3af', marginTop: 2, fontStyle: 'italic', textAlign: 'left', maxWidth: 140, whiteSpace: 'normal', lineHeight: 1.3 }}>
                                             {resp.comentario}
@@ -665,21 +665,24 @@ export default function Comparativa({ setSessionCache }) {
         });
 
         const filas = partidasGrupo.map(p => {
-          const precios = {};
+          // Inicializar todos los proveedores a null para evitar undefined en el render
+          const precios = Object.fromEntries(proveedores.map(pr => [pr.solicitud_id, null]));
           let minPrecio = Infinity, minProvId = null;
-          
-          for (const prov of proveedores) {
-            // Intentar match por ID exacto primero, luego por código normalizado
-            let resp = groupResps[`${prov.solicitud_id}__${p.id}`];
-            if (!resp) {
-                const pCode = normalizeCode(p.codigo || (p.texto_partida ? p.texto_partida.split('::')[0] : ''));
-                resp = allRespuestas.find(r => String(r.solicitud_id) === prov.solicitud_id && normalizeCode(r.partida_id) === pCode);
-            }
 
-            if (resp) {
-              precios[prov.solicitud_id] = { precio: resp.precio_ofertado, comentario: resp.comentarios };
-              if (resp.precio_ofertado < minPrecio) { minPrecio = resp.precio_ofertado; minProvId = prov.solicitud_id; }
-            } else { precios[prov.solicitud_id] = null; }
+          for (const prov of proveedores) {
+            try {
+              // Match por ID exacto primero, luego por código normalizado
+              let resp = groupResps[`${prov.solicitud_id}__${p.id}`];
+              if (!resp) {
+                const pCode = normalizeCode(p.codigo || (p.texto_partida ? p.texto_partida.split('::')[0] : ''));
+                if (pCode) resp = allRespuestas.find(r => String(r.solicitud_id) === prov.solicitud_id && normalizeCode(String(r.partida_id || '')) === pCode);
+              }
+              if (resp) {
+                const precio = Number(resp.precio_ofertado) || 0;
+                precios[prov.solicitud_id] = { precio, comentario: resp.comentarios || null };
+                if (precio > 0 && precio < minPrecio) { minPrecio = precio; minProvId = prov.solicitud_id; }
+              }
+            } catch (_) { /* mantener null para este proveedor */ }
           }
           return { partida: p, precios, minProvId };
         });
@@ -731,23 +734,26 @@ export default function Comparativa({ setSessionCache }) {
       allRespuestas.forEach(r => { if (r.partida_id) respsMap[`${String(r.solicitud_id)}__${r.partida_id}`] = r; });
 
       const filas = lineasPartidas.map(p => {
-        const precios = {};
+        // Inicializar todos los proveedores a null para evitar undefined en el render
+        const precios = Object.fromEntries(proveedores.map(pr => [pr.solicitud_id, null]));
         let minPrecio = Infinity, minProvId = null;
         for (const prov of proveedores) {
-          if (prov.esLocal) {
-            const pCode = normalizeCode(p.codigo || (p.texto_partida ? p.texto_partida.split('::')[0] : ''));
-            const precio = prov.precios[pCode];
-            precios[prov.solicitud_id] = precio !== undefined ? { precio } : null;
-          } else {
-            let resp = respsMap[`${prov.solicitud_id}__${p.id}`];
-            if (!resp) {
+          try {
+            if (prov.esLocal) {
               const pCode = normalizeCode(p.codigo || (p.texto_partida ? p.texto_partida.split('::')[0] : ''));
-              resp = allRespuestas.find(r => String(r.solicitud_id) === prov.solicitud_id && normalizeCode(r.partida_id) === pCode);
+              const precio = prov.precios[pCode];
+              if (precio !== undefined) precios[prov.solicitud_id] = { precio: Number(precio) || 0 };
+            } else {
+              let resp = respsMap[`${prov.solicitud_id}__${p.id}`];
+              if (!resp) {
+                const pCode = normalizeCode(p.codigo || (p.texto_partida ? p.texto_partida.split('::')[0] : ''));
+                if (pCode) resp = allRespuestas.find(r => String(r.solicitud_id) === prov.solicitud_id && normalizeCode(String(r.partida_id || '')) === pCode);
+              }
+              if (resp) precios[prov.solicitud_id] = { precio: Number(resp.precio_ofertado) || 0 };
             }
-            precios[prov.solicitud_id] = resp ? { precio: resp.precio_ofertado } : null;
-          }
-          const pr = precios[prov.solicitud_id]?.precio;
-          if (pr !== undefined && pr < minPrecio) { minPrecio = pr; minProvId = prov.solicitud_id; }
+            const pr = precios[prov.solicitud_id]?.precio;
+            if (pr > 0 && pr < minPrecio) { minPrecio = pr; minProvId = prov.solicitud_id; }
+          } catch (_) { /* mantener null */ }
         }
         return { partida: p, precios, minProvId };
       });
