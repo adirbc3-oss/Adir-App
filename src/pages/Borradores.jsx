@@ -38,6 +38,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
 
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [jefeInput, setJefeInput] = useState('');
+    const [jefesObra, setJefesObra] = useState([]);
     
     // Estados para edición de metadatos del proyecto
     const [showEditMetadata, setShowEditMetadata] = useState(false);
@@ -105,6 +106,22 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     useEffect(() => {
         fetchProyectos();
     }, [fetchProyectos]);
+
+    // Cargar jefes de obra (tipo_usuario = 3) para el desplegable de revisión
+    useEffect(() => {
+        (async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('usuarios')
+                    .select('id,nombre,apellido,correo,tipo_usuario')
+                    .eq('tipo_usuario', 3);
+                if (error) throw error;
+                setJefesObra(data || []);
+            } catch (e) {
+                console.warn('No se pudieron cargar los jefes de obra:', e);
+            }
+        })();
+    }, []);
 
     const confirmDelete = async (project) => {
         setLoading(true);
@@ -1071,7 +1088,27 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,45,84,0.6)', backdropFilter: 'blur(6px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <div style={{ maxWidth: '400px', width: '90%', background: 'white', borderRadius: 20, padding: 32, boxShadow: '0 32px 80px rgba(0,45,84,0.18)', border: '1px solid #c7d5e6' }}>
                             <h3>Asignar Jefe de Obra</h3>
-                            <input type="text" value={jefeInput} onChange={(e) => setJefeInput(e.target.value)} style={{ width: '100%', marginBottom: '20px', padding: '10px' }} />
+                            {jefesObra.length === 0 ? (
+                                <p style={{ color: '#b91c1c', marginBottom: '20px', fontSize: '14px' }}>
+                                    No hay jefes de obra registrados. Crea uno en la pestaña Usuarios (tipo "Jefe de Obra").
+                                </p>
+                            ) : (
+                                <select
+                                    value={jefeInput}
+                                    onChange={(e) => setJefeInput(e.target.value)}
+                                    style={{ width: '100%', marginBottom: '20px', padding: '10px' }}
+                                >
+                                    <option value="">— Selecciona un jefe de obra —</option>
+                                    {jefesObra.map((j) => {
+                                        const nombre = `${j.nombre || ''} ${j.apellido || ''}`.trim();
+                                        return (
+                                            <option key={j.id} value={j.correo}>
+                                                {nombre} ({j.correo})
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            )}
                             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                                 <button className="btn btn-secondary" onClick={() => setShowReviewModal(false)}>Cancelar</button>
                                 <button className="btn btn-primary" onClick={confirmSendToReview}>Confirmar</button>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { N8N_BASE_URL } from '../config';
+import { useAuth } from '../context/AuthContext';
 import { useModal, useToast } from '../utils/useModal';
 import {
   Loader2, RefreshCw, HardHat, FileText, ArrowLeft, CheckCircle,
@@ -11,6 +12,7 @@ import { escapeHtml } from '../utils/escape';
 import { normalizarYOrdenarPartidas, getTipoFila } from '../utils/partidas';
 
 const JefesObra = () => {
+    const { user } = useAuth();
     const { showAlert, ModalUI } = useModal();
     const { showToast, ToastUI } = useToast();
 
@@ -52,12 +54,16 @@ const JefesObra = () => {
 
             if (error) throw error;
             if (data) {
-                setProyectos(data);
-                // Extraer lista única de jefes de obra
-                const jefes = [...new Set(data.map(p => p.jefe_obra).filter(Boolean))];
+                // Cada jefe de obra solo ve los proyectos asignados a su correo
+                const mios = user?.correo
+                    ? data.filter(p => p.jefe_obra === user.correo)
+                    : data;
+                setProyectos(mios);
+                const jefes = [...new Set(mios.map(p => p.jefe_obra).filter(Boolean))];
                 setJefesDisponibles(jefes);
-                // Solo auto-seleccionar si no hay ninguno
-                if (jefes.length > 0 && !jefeSeleccionado) {
+                if (user?.correo) {
+                    setJefeSeleccionado(user.correo);
+                } else if (jefes.length > 0 && !jefeSeleccionado) {
                     setJefeSeleccionado(jefes[0]);
                 }
             }
@@ -67,7 +73,7 @@ const JefesObra = () => {
         } finally {
             setLoading(false);
         }
-    }, [showToast]); // Eliminado jefeSeleccionado para evitar bucle infinito
+    }, [showToast, user]); // filtra por el jefe logueado
 
     useEffect(() => {
         fetchProyectos();
