@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Edit2, Trash2, Plus, AlertCircle, LogOut } from 'lucide-react';
+import { Edit2, Trash2, Plus, LogOut } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 
 const TIPOS_USUARIO = {
@@ -10,38 +10,40 @@ const TIPOS_USUARIO = {
   3: 'Jefe de Obra'
 };
 
-const useModal = () => {
-  const [showModal, setShowModal] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  return { showModal, setShowModal, editingItem, setEditingItem };
-};
+// Convierte texto plano a hexadecimal (UTF-8) → "1234" = "31323334"
+const toHex = (str) =>
+  Array.from(new TextEncoder().encode(str))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 
 const useToast = () => {
   const [toast, setToast] = useState(null);
-  const show = (msg, type = 'success') => {
+  // useCallback estable: evita recrear la función en cada render (causaba loop infinito)
+  const show = React.useCallback((msg, type = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
-  };
+  }, []);
   return { toast, show };
+};
+
+const EMPTY_FORM = {
+  nombre: '',
+  apellido: '',
+  correo: '',
+  contrasena: '',
+  tipo_usuario: 0
 };
 
 const Usuarios = () => {
   const { user, logout } = useAuth();
-  const { showModal, setShowModal, editingItem, setEditingItem } = useModal();
   const { toast, show: showToast } = useToast();
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
-  const [expandedId, setExpandedId] = useState(null);
-  const [form, setForm] = useState({
-    nombre: '',
-    apellido: '',
-    correo: '',
-    usuario: '',
-    contraseña: '',
-    tipo_usuario: 0
-  });
+  const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [form, setForm] = useState(EMPTY_FORM);
 
   // Verificar permisos
   useEffect(() => {
@@ -55,7 +57,7 @@ const Usuarios = () => {
     try {
       const { data, error } = await supabase
         .from('usuarios')
-        .select('*')
+        .select('id,nombre,apellido,correo,tipo_usuario')
         .order('nombre', { ascending: true });
 
       if (error) throw error;
@@ -75,24 +77,16 @@ const Usuarios = () => {
   const filteredUsuarios = useMemo(() => {
     if (!search.trim()) return usuarios;
     const q = search.toLowerCase();
-    return usuarios.filter(u =>
+    return usuarios.filter((u) =>
       u.nombre?.toLowerCase().includes(q) ||
       u.apellido?.toLowerCase().includes(q) ||
-      u.correo?.toLowerCase().includes(q) ||
-      u.usuario?.toLowerCase().includes(q)
+      u.correo?.toLowerCase().includes(q)
     );
   }, [usuarios, search]);
 
   const openNew = () => {
     setEditingItem(null);
-    setForm({
-      nombre: '',
-      apellido: '',
-      correo: '',
-      usuario: '',
-      contraseña: '',
-      tipo_usuario: 0
-    });
+    setForm(EMPTY_FORM);
     setShowModal(true);
   };
 
@@ -102,20 +96,19 @@ const Usuarios = () => {
       nombre: u.nombre || '',
       apellido: u.apellido || '',
       correo: u.correo || '',
-      usuario: u.usuario || '',
-      contraseña: '',
-      tipo_usuario: u.tipo_usuario || 0
+      contrasena: '',
+      tipo_usuario: u.tipo_usuario ?? 0
     });
     setShowModal(true);
   };
 
   const handleSave = async () => {
-    if (!form.nombre.trim() || !form.usuario.trim() || !form.correo.trim()) {
-      showToast('Campos requeridos: nombre, usuario, correo', 'error');
+    if (!form.nombre.trim() || !form.correo.trim()) {
+      showToast('Campos requeridos: nombre y correo', 'error');
       return;
     }
 
-    if (!editingItem && !form.contraseña.trim()) {
+    if (!editingItem && !form.contrasena.trim()) {
       showToast('Contraseña requerida para nuevo usuario', 'error');
       return;
     }
@@ -123,8 +116,16 @@ const Usuarios = () => {
     setSaving(true);
     try {
       if (editingItem) {
-        const updateData = { ...form };
-        if (!updateData.contraseña) delete updateData.contraseña;
+        const updateData = {
+          nombre: form.nombre,
+          apellido: form.apellido,
+          correo: form.correo,
+          tipo_usuario: form.tipo_usuario
+        };
+        // Solo cambiar contraseña si se ha escrito una nueva
+        if (form.contrasena.trim()) {
+          updateData.contrasena = toHex(form.contrasena);
+        }
 
         const { error } = await supabase
           .from('usuarios')
@@ -134,9 +135,16 @@ const Usuarios = () => {
         if (error) throw error;
         showToast('Usuario actualizado', 'success');
       } else {
-        const { error } = await supabase
-          .from('usuarios')
-          .insert([form]);
+        const insertData = {
+          nombre: form.nombre,
+          apellido: form.apellido,
+          correo: form.correo,
+          contrasena: toHex(form.contrasena),
+          tipo_usuario: form.tipo_usuario,
+          isActive: 1
+        };
+
+        const { error } = await supabase.from('usuarios').insert([insertData]);
 
         if (error) throw error;
         showToast('Usuario creado', 'success');
@@ -156,10 +164,7 @@ const Usuarios = () => {
     if (!window.confirm(`¿Eliminar usuario "${u.nombre} ${u.apellido}"?`)) return;
 
     try {
-      const { error } = await supabase
-        .from('usuarios')
-        .delete()
-        .eq('id', u.id);
+      const { error } = await supabase.from('usuarios').delete().eq('id', u.id);
 
       if (error) throw error;
       showToast('Usuario eliminado', 'success');
@@ -198,7 +203,7 @@ const Usuarios = () => {
           }}
         >
           <LogOut size={18} />
-          Salir
+          Cerrar Sesión
         </button>
       </div>
 
@@ -271,20 +276,16 @@ const Usuarios = () => {
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Nombre</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Usuario</th>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Correo</th>
                 <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Tipo</th>
                 <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {filteredUsuarios.map((u, idx) => (
+              {filteredUsuarios.map((u) => (
                 <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                   <td style={{ padding: '12px 16px', fontSize: '14px', color: '#1e293b' }}>
                     {u.nombre} {u.apellido}
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: '14px', color: '#64748b', fontFamily: 'monospace' }}>
-                    {u.usuario}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: '14px', color: '#64748b' }}>
                     {u.correo}
@@ -304,27 +305,14 @@ const Usuarios = () => {
                   <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                     <button
                       onClick={() => openEdit(u)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: '#0ea5e9',
-                        padding: '4px'
-                      }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0ea5e9', padding: '4px' }}
                       title="Editar"
                     >
                       <Edit2 size={18} />
                     </button>
                     <button
                       onClick={() => handleDelete(u)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: '#ef4444',
-                        padding: '4px',
-                        marginLeft: 8
-                      }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px', marginLeft: 8 }}
                       title="Eliminar"
                     >
                       <Trash2 size={18} />
@@ -388,18 +376,10 @@ const Usuarios = () => {
               />
 
               <input
-                type="text"
-                placeholder="Usuario"
-                value={form.usuario}
-                onChange={(e) => setForm({ ...form, usuario: e.target.value })}
-                style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
-              />
-
-              <input
                 type="password"
                 placeholder={editingItem ? 'Dejar en blanco para no cambiar' : 'Contraseña'}
-                value={form.contraseña}
-                onChange={(e) => setForm({ ...form, contraseña: e.target.value })}
+                value={form.contrasena}
+                onChange={(e) => setForm({ ...form, contrasena: e.target.value })}
                 style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
               />
 
