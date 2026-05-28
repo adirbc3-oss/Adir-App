@@ -29,13 +29,19 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ usuario, contraseña })
       });
 
+      const text = await response.text();
+
+      if (!text) {
+        setError('Respuesta vacía del servidor');
+        return false;
+      }
+
       let data;
       try {
-        data = await response.json();
+        data = JSON.parse(text);
       } catch (jsonErr) {
-        const text = await response.text();
         console.error('Invalid JSON response:', text);
-        setError('Respuesta inválida del servidor: ' + text.substring(0, 100));
+        setError('Error del servidor: ' + text.substring(0, 150));
         return false;
       }
 
