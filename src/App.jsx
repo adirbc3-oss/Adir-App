@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
-import { FileUp, Files, Users, Settings, BarChart2, Mailbox, HardHat, Database, History, FileCheck, LayoutDashboard, FileSignature, Building2 } from 'lucide-react';
+import { FileUp, Files, Users, Settings, BarChart2, Mailbox, HardHat, Database, History, FileCheck, LayoutDashboard, FileSignature, Building2, LogOut } from 'lucide-react';
 import { supabase } from './utils/supabaseClient';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -103,25 +103,29 @@ const Sidebar = ({ counts = {}, user }) => {
         <NavLink to="/ajustes" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
           <Settings size={20} />Ajustes
         </NavLink>
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 16, paddingTop: 16 }}>
-          <button onClick={logout} style={{
-            width: '100%',
-            padding: '10px 12px',
-            background: 'rgba(255,255,255,0.1)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: '13px',
-            fontWeight: 600,
-            marginBottom: 8
-          }}>
-            Cerrar Sesión
-          </button>
-          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>
-            {user?.nombre} {user?.apellido}
-          </div>
+      </div>
+      <div className="sidebar-footer">
+        <div style={{ fontSize: '12px', color: '#50504d', marginBottom: 8, fontWeight: 600 }}>
+          {user?.nombre} {user?.apellido}
         </div>
+        <button onClick={logout} style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          padding: '10px 12px',
+          background: '#002D54',
+          color: 'white',
+          border: 'none',
+          borderRadius: 6,
+          cursor: 'pointer',
+          fontSize: '13px',
+          fontWeight: 600
+        }}>
+          <LogOut size={18} />
+          Cerrar Sesión
+        </button>
       </div>
     </div>
   );
