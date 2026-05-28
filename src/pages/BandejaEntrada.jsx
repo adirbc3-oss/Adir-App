@@ -35,17 +35,10 @@ const BandejaEntrada = () => {
         })();
     }, []);
 
-    // Al escribir/elegir un cliente: si coincide con uno del directorio, autorrellena su email
-    // SOLO si el campo email está vacío (no pisar el correo del remitente capturado del correo)
+    // Al escribir/elegir un cliente solo se actualiza el NOMBRE.
+    // El cuadro de correo se mantiene intacto (es el correo del remitente).
     const handleClienteChange = (proyectoId, value) => {
         setEditClientes(prev => ({ ...prev, [proyectoId]: value }));
-        const match = clientesDir.find(c => (c.nombre || '').toLowerCase() === value.toLowerCase());
-        if (match && match.email) {
-            setEditEmails(prev => ({
-                ...prev,
-                [proyectoId]: (prev[proyectoId] && prev[proyectoId].trim()) ? prev[proyectoId] : match.email
-            }));
-        }
     };
 
     const fetchPendientes = React.useCallback(async () => {
@@ -260,7 +253,7 @@ const BandejaEntrada = () => {
             {ToastUI}
             <datalist id="clientes-directorio">
                 {clientesDir.map((c) => (
-                    <option key={c.id} value={c.nombre}>{c.email}</option>
+                    <option key={c.id} value={c.nombre} />
                 ))}
             </datalist>
             <div className="glass-card" style={{ marginBottom: '20px' }}>
@@ -389,6 +382,7 @@ const BandejaEntrada = () => {
                                 <input
                                     type="email"
                                     className="input"
+                                    autoComplete="off"
                                     style={{ marginBottom: '12px', backgroundColor: 'rgba(255,255,255,0.5)', border: '1px solid var(--border-color)' }}
                                     value={editEmails[p.Proyecto] || ""}
                                     onChange={(e) => setEditEmails(prev => ({ ...prev, [p.Proyecto]: e.target.value }))}
