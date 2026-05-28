@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { UploadCloud, CheckCircle, Loader2, FileText, Hash, Euro, Layers, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { UploadCloud, CheckCircle, Loader2, FileText, Hash, Euro, Layers, ArrowRight, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { parseBC3 } from '../utils/bc3Parser';
@@ -13,6 +13,26 @@ const NuevoProyecto = () => {
     const [success, setSuccess] = useState(false);
     const { showToast, ToastUI } = useToast();
     const navigate = useNavigate();
+
+    // ── Cliente ──────────────────────────────────────────────────────────────
+    const [clientes, setClientes] = useState([]);
+    const [clienteId, setClienteId] = useState('');        // id del cliente existente, o 'nuevo'
+    const [nuevoCliente, setNuevoCliente] = useState({ nombre: '', email: '' });
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('clientes')
+                    .select('id,nombre,email')
+                    .order('nombre', { ascending: true });
+                if (error) throw error;
+                setClientes(data || []);
+            } catch (e) {
+                console.warn('No se pudieron cargar los clientes:', e);
+            }
+        })();
+    }, []);
 
     const handleDrop = (e) => {
         e.preventDefault();
@@ -105,6 +125,17 @@ const NuevoProyecto = () => {
 
     const processFile = () => {
         if (!file) return;
+
+        // Validar selección de cliente
+        if (!clienteId) {
+            showToast('Selecciona un cliente o crea uno nuevo.', 'warning');
+            return;
+        }
+        if (clienteId === 'nuevo' && !nuevoCliente.nombre.trim()) {
+            showToast('Indica el nombre del nuevo cliente.', 'warning');
+            return;
+        }
+
         setLoading(true);
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -112,6 +143,23 @@ const NuevoProyecto = () => {
                 const text = e.target.result;
                 const allItems = parseBC3(text);
                 const projectName = file.name.replace(/\.bc3$/i, '');
+
+                // ── Resolver cliente (existente o nuevo) ──────────────────────
+                let clienteNombre = '';
+                let clienteEmail = '';
+                if (clienteId === 'nuevo') {
+                    clienteNombre = nuevoCliente.nombre.trim();
+                    clienteEmail = nuevoCliente.email.trim();
+                    const { error: cliError } = await supabase
+                        .from('clientes')
+                        .insert([{ nombre: clienteNombre, email: clienteEmail }]);
+                    if (cliError) throw new Error('Error al crear cliente: ' + (cliError.message || JSON.stringify(cliError)));
+                } else {
+                    const c = clientes.find((x) => String(x.id) === String(clienteId));
+                    clienteNombre = c?.nombre || projectName;
+                    clienteEmail = c?.email || '';
+                }
+
                 let idUnico = projectName;
                 let suffix = 1;
                 let collision = true;
@@ -123,7 +171,7 @@ const NuevoProyecto = () => {
                 }
                 const { error: propError } = await supabase
                     .from('propuestas')
-                    .insert([{ Proyecto: idUnico, cliente: projectName, estado: 'Borrador', fecha_recepcion: new Date().toISOString().split('T')[0] }]);
+                    .insert([{ Proyecto: idUnico, cliente: clienteNombre, cliente_email: clienteEmail, estado: 'Borrador', fecha_recepcion: new Date().toISOString().split('T')[0] }]);
                 if (propError) throw new Error(propError.message || JSON.stringify(propError));
                 const propuestaId = idUnico;
                 await supabase.from('partidas').delete().eq('propuesta_id', propuestaId);
@@ -145,6 +193,13 @@ const NuevoProyecto = () => {
                 setSuccess(true);
                 setFile(null);
                 setPreview(null);
+                setClienteId('');
+                setNuevoCliente({ nombre: '', email: '' });
+                // Refrescar lista de clientes por si se creó uno nuevo
+                if (clienteId === 'nuevo') {
+                    supabase.from('clientes').select('id,nombre,email').order('nombre', { ascending: true })
+                        .then(({ data }) => setClientes(data || []));
+                }
                 showToast("¡Proyecto importado correctamente!");
             } catch (error) {
                 console.error(error);
@@ -296,8 +351,46 @@ const NuevoProyecto = () => {
                 )}
 
                 {file && !loading && (
+                    <div className="animate-fade-in" style={{ marginTop: '24px', background: 'var(--bg-secondary)', borderRadius: '10px', padding: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                            <Building2 size={18} color="var(--primary)" />
+                            <span style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.9rem' }}>Asignar cliente</span>
+                        </div>
+                        <select
+                            value={clienteId}
+                            onChange={(e) => setClienteId(e.target.value)}
+                            style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: '0.9rem', marginBottom: clienteId === 'nuevo' ? 12 : 0 }}
+                        >
+                            <option value="">— Selecciona un cliente —</option>
+                            {clientes.map((c) => (
+                                <option key={c.id} value={c.id}>{c.nombre}{c.email ? ` (${c.email})` : ''}</option>
+                            ))}
+                            <option value="nuevo">➕ Nuevo cliente…</option>
+                        </select>
+                        {clienteId === 'nuevo' && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                <input
+                                    type="text"
+                                    placeholder="Nombre del cliente"
+                                    value={nuevoCliente.nombre}
+                                    onChange={(e) => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })}
+                                    style={{ padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: '0.9rem' }}
+                                />
+                                <input
+                                    type="email"
+                                    placeholder="Correo (opcional)"
+                                    value={nuevoCliente.email}
+                                    onChange={(e) => setNuevoCliente({ ...nuevoCliente, email: e.target.value })}
+                                    style={{ padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: '0.9rem' }}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {file && !loading && (
                     <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                        <button className="btn btn-secondary" onClick={() => { setFile(null); setPreview(null); }}>
+                        <button className="btn btn-secondary" onClick={() => { setFile(null); setPreview(null); setClienteId(''); setNuevoCliente({ nombre: '', email: '' }); }}>
                             Cancelar
                         </button>
                         <button className="btn btn-primary" onClick={processFile} disabled={previewing}>

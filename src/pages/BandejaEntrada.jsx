@@ -17,6 +17,32 @@ const BandejaEntrada = () => {
     const [notificaciones, setNotificaciones] = useState([]);
     // IDs de proyectos aceptados cuyo cliente aún no está en BD (para ofrecer guardarlo)
     const [ofrecerGuardarCliente, setOfrecerGuardarCliente] = useState({});
+    // Directorio completo de clientes (para el combobox de selección)
+    const [clientesDir, setClientesDir] = useState([]);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('clientes')
+                    .select('id,nombre,email')
+                    .order('nombre', { ascending: true });
+                if (error) throw error;
+                setClientesDir(data || []);
+            } catch (e) {
+                console.warn('No se pudo cargar el directorio de clientes:', e);
+            }
+        })();
+    }, []);
+
+    // Al escribir/elegir un cliente: si coincide con uno del directorio, autorrellena su email
+    const handleClienteChange = (proyectoId, value) => {
+        setEditClientes(prev => ({ ...prev, [proyectoId]: value }));
+        const match = clientesDir.find(c => (c.nombre || '').toLowerCase() === value.toLowerCase());
+        if (match && match.email) {
+            setEditEmails(prev => ({ ...prev, [proyectoId]: match.email }));
+        }
+    };
 
     const fetchPendientes = React.useCallback(async () => {
         setLoading(true);
@@ -228,6 +254,11 @@ const BandejaEntrada = () => {
     return (
         <div className="animate-fade-in" style={{ padding: '0 20px 40px', maxWidth: '1200px', margin: '0 auto' }}>
             {ToastUI}
+            <datalist id="clientes-directorio">
+                {clientesDir.map((c) => (
+                    <option key={c.id} value={c.nombre}>{c.email}</option>
+                ))}
+            </datalist>
             <div className="glass-card" style={{ marginBottom: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -341,10 +372,11 @@ const BandejaEntrada = () => {
                                 <input
                                     type="text"
                                     className="input"
+                                    list="clientes-directorio"
                                     style={{ marginBottom: '10px', backgroundColor: 'white', border: '1px solid var(--border-color)' }}
                                     value={editClientes[p.Proyecto] || ""}
-                                    onChange={(e) => setEditClientes(prev => ({ ...prev, [p.Proyecto]: e.target.value }))}
-                                    placeholder="Nombre del cliente..."
+                                    onChange={(e) => handleClienteChange(p.Proyecto, e.target.value)}
+                                    placeholder="Selecciona o escribe un cliente..."
                                 />
 
                                 <label style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
