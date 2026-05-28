@@ -23,7 +23,8 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     setLoading(true);
     try {
-      const response = await fetch('/api/api.php?endpoint=auth&action=login', {
+      const apiUrl = import.meta.env.VITE_API_URL || '/api.php';
+      const response = await fetch(`${apiUrl}?endpoint=auth&action=login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ correo, contrasena })
