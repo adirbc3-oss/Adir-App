@@ -19,14 +19,14 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = useCallback(async (usuario, contraseña) => {
+  const login = useCallback(async (correo, contrasena) => {
     setError(null);
     setLoading(true);
     try {
       const response = await fetch('/api/api.php?endpoint=auth&action=login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario, contraseña })
+        body: JSON.stringify({ correo, contrasena })
       });
 
       const text = await response.text();

@@ -5,20 +5,20 @@ import logoAdir from '../assets/adirblanco-header.webp';
 
 const Login = () => {
   const { login, loading, error } = useAuth();
-  const [usuario, setUsuario] = useState('');
-  const [contraseña, setContraseña] = useState('');
+  const [correo, setCorreo] = useState('');
+  const [contrasena, setContrasena] = useState('');
   const [localError, setLocalError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLocalError('');
 
-    if (!usuario.trim() || !contraseña.trim()) {
-      setLocalError('Usuario y contraseña requeridos');
+    if (!correo.trim() || !contrasena.trim()) {
+      setLocalError('Correo y contraseña requeridos');
       return;
     }
 
-    const success = await login(usuario, contraseña);
+    const success = await login(correo, contrasena);
     if (!success) {
       setLocalError(error || 'Error al iniciar sesión');
     }
@@ -72,7 +72,7 @@ const Login = () => {
             </div>
           )}
 
-          {/* Usuario Input */}
+          {/* Correo Input */}
           <div>
             <label style={{
               display: 'block',
@@ -81,13 +81,13 @@ const Login = () => {
               color: '#475569',
               marginBottom: 8
             }}>
-              Usuario
+              Correo
             </label>
             <input
-              type="text"
-              value={usuario}
-              onChange={(e) => setUsuario(e.target.value)}
-              placeholder="Nombre de usuario"
+              type="email"
+              value={correo}
+              onChange={(e) => setCorreo(e.target.value)}
+              placeholder="correo@ejemplo.com"
               style={{
                 width: '100%',
                 padding: '12px 16px',
@@ -117,8 +117,8 @@ const Login = () => {
             </label>
             <input
               type="password"
-              value={contraseña}
-              onChange={(e) => setContraseña(e.target.value)}
+              value={contrasena}
+              onChange={(e) => setContrasena(e.target.value)}
               placeholder="••••••••"
               style={{
                 width: '100%',
