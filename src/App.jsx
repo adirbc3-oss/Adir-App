@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
-import { FileUp, Files, Users, Settings, BarChart2, Mailbox, HardHat, Database, History, FileCheck, LayoutDashboard, FileSignature } from 'lucide-react';
+import { FileUp, Files, Users, Settings, BarChart2, Mailbox, HardHat, Database, History, FileCheck, LayoutDashboard, FileSignature, Building2 } from 'lucide-react';
 import { supabase } from './utils/supabaseClient';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 import NuevoProyecto from './pages/NuevoProyecto';
 import Borradores from './pages/Borradores';
@@ -17,6 +18,9 @@ import BasePrecios from './pages/BasePrecios';
 import Historial from './pages/Historial';
 import PresupuestosFirmados from './pages/PresupuestosFirmados';
 import Dashboard from './pages/Dashboard';
+import Clientes from './pages/Clientes';
+import Login from './pages/Login';
+import Usuarios from './pages/Usuarios';
 
 import logoAdir from './assets/adirblanco-header.webp';
 
@@ -45,7 +49,8 @@ const NavBadge = ({ count }) => {
   );
 };
 
-const Sidebar = ({ counts = {} }) => {
+const Sidebar = ({ counts = {}, user }) => {
+  const { logout } = useAuth();
   return (
     <div className="sidebar">
       <div className="sidebar-header animate-fade-in">
@@ -64,11 +69,16 @@ const Sidebar = ({ counts = {} }) => {
         <NavLink to="/bandeja" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
           <Mailbox size={20} />Buzón Entrada<NavBadge count={counts.bandeja} />
         </NavLink>
-        <NavLink to="/jefes-obra" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
-          <HardHat size={20} />Jefes de Obra<NavBadge count={counts.jefes} />
-        </NavLink>
+        {user?.tipo_usuario === 3 && (
+          <NavLink to="/jefes-obra" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+            <HardHat size={20} />Jefes de Obra<NavBadge count={counts.jefes} />
+          </NavLink>
+        )}
         <NavLink to="/proyectos" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
           <Files size={20} />Obras y Proyectos
+        </NavLink>
+        <NavLink to="/clientes" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+          <Building2 size={20} />Clientes
         </NavLink>
         <NavLink to="/proveedores" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
           <Users size={20} />Proveedores
@@ -85,19 +95,48 @@ const Sidebar = ({ counts = {} }) => {
         <NavLink to="/historial" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
           <History size={20} />Historial
         </NavLink>
+        {(user?.tipo_usuario === 1 || user?.tipo_usuario === 2) && (
+          <NavLink to="/usuarios" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+            <Users size={20} />Usuarios
+          </NavLink>
+        )}
         <NavLink to="/ajustes" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
           <Settings size={20} />Ajustes
         </NavLink>
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 16, paddingTop: 16 }}>
+          <button onClick={logout} style={{
+            width: '100%',
+            padding: '10px 12px',
+            background: 'rgba(255,255,255,0.1)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: '13px',
+            fontWeight: 600,
+            marginBottom: 8
+          }}>
+            Cerrar Sesión
+          </button>
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>
+            {user?.nombre} {user?.apellido}
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
 const AppContent = () => {
+  const { user, loading } = useAuth();
   const location = useLocation();
   const [sessionCache, setSessionCache] = React.useState({});
   const [notification, setNotification] = useState(null);
   const [sidebarCounts, setSidebarCounts] = useState({ borradores: 0, bandeja: 0, jefes: 0 });
+
+  const isPortalPath = location.pathname.startsWith('/portal') || location.pathname.startsWith('/presupuesto-cliente');
+  const isLoginPath = location.pathname.startsWith('/login');
+  const isUsuariosPath = location.pathname.startsWith('/usuarios');
 
   const fetchCounts = React.useCallback(async () => {
     try {
@@ -111,36 +150,43 @@ const AppContent = () => {
   }, []);
 
   useEffect(() => {
-    fetchCounts();
-    const interval = setInterval(fetchCounts, 30000);
-    return () => clearInterval(interval);
-  }, [fetchCounts]);
-
-  const isPortal = location.pathname.startsWith('/portal') || location.pathname.startsWith('/presupuesto-cliente');
+    if (user) {
+      fetchCounts();
+      const interval = setInterval(fetchCounts, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [fetchCounts, user]);
 
   useEffect(() => {
-    const channel = supabase
-      .channel('presupuestos_firmados_realtime')
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'presupuestos_cliente',
-        filter: 'estado=eq.firmado'
-      }, (payload) => {
-        const p = payload.new;
-        setNotification({
-          msg: `✅ ${p.cliente_nombre || 'Un cliente'} ha firmado el presupuesto del proyecto ${p.propuesta_id}`,
-          type: 'success',
-          id: p.id
-        });
-        setTimeout(() => setNotification(null), 8000);
-        fetchCounts();
-      })
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [fetchCounts]);
+    if (!user) {
+      const channel = supabase
+        .channel('presupuestos_firmados_realtime')
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'presupuestos_cliente',
+          filter: 'estado=eq.firmado'
+        }, (payload) => {
+          const p = payload.new;
+          setNotification({
+            msg: `✅ ${p.cliente_nombre || 'Un cliente'} ha firmado el presupuesto del proyecto ${p.propuesta_id}`,
+            type: 'success',
+            id: p.id
+          });
+          setTimeout(() => setNotification(null), 8000);
+          fetchCounts();
+        })
+        .subscribe();
+      return () => supabase.removeChannel(channel);
+    }
+  }, [fetchCounts, user]);
 
-  if (isPortal) {
+  if (loading) {
+    return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>Cargando...</div>;
+  }
+
+  // Portal routes (sin autenticación requerida)
+  if (isPortalPath) {
     return (
       <Routes>
         <Route path="/portal" element={<Portal />} />
@@ -149,12 +195,32 @@ const AppContent = () => {
     );
   }
 
+  // Si no hay usuario autenticado, mostrar login
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
+  // Usuarios solo para admin/administración
+  if (isUsuariosPath && user.tipo_usuario !== 1 && user.tipo_usuario !== 2) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // Jefes de obra solo para Jefe de Obra
+  if (location.pathname.startsWith('/jefes-obra') && user.tipo_usuario !== 3) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   const toastBg = 'linear-gradient(135deg, #15803d, #16a34a)';
   const toastShadow = '0 8px 32px rgba(22,163,74,0.4)';
 
   return (
     <div className="app-container">
-      <Sidebar counts={sidebarCounts} />
+      <Sidebar counts={sidebarCounts} user={user} />
       <main className="main-content">
         {notification && (
           <div style={{
@@ -181,13 +247,15 @@ const AppContent = () => {
           <Route path="/nuevo" element={<NuevoProyecto />} />
           <Route path="/borradores" element={<Borradores sessionCache={sessionCache} setSessionCache={setSessionCache} />} />
           <Route path="/bandeja" element={<BandejaEntrada />} />
-          <Route path="/jefes-obra" element={<JefesObra />} />
+          {user.tipo_usuario === 3 && <Route path="/jefes-obra" element={<JefesObra />} />}
           <Route path="/proyectos" element={<Proyectos />} />
+          <Route path="/clientes" element={<Clientes />} />
           <Route path="/proveedores" element={<Proveedores />} />
           <Route path="/comparativa" element={<Comparativa sessionCache={sessionCache} setSessionCache={setSessionCache} />} />
           <Route path="/base-precios" element={<BasePrecios />} />
           <Route path="/historial" element={<Historial />} />
           <Route path="/presupuestos-firmados" element={<PresupuestosFirmados />} />
+          {(user.tipo_usuario === 1 || user.tipo_usuario === 2) && <Route path="/usuarios" element={<Usuarios />} />}
           <Route path="/ajustes" element={<Ajustes />} />
         </Routes>
       </main>
@@ -197,9 +265,11 @@ const AppContent = () => {
 
 function App() {
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <AuthProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </AuthProvider>
   );
 }
 

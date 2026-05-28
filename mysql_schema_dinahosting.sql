@@ -37,6 +37,7 @@ CREATE TABLE `ctcon_propuestas` (
   `descripcion`      TEXT          DEFAULT NULL,
   `created_at`       DATETIME      DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  -- NOTA: `direccion` almacena el EMAIL del cliente (nombre heredado de Supabase legacy)
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_proyecto_bc3`  (`proyecto_bc3`),
   INDEX `idx_prop_estado`       (`estado`),
@@ -273,6 +274,29 @@ CREATE TABLE `ctcon_configuracion` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO `ctcon_configuracion` (`clave`, `valor`) VALUES ('mistral_api_key', '');
+
+
+-- ─────────────────────────────────────────────────────────────
+--  11. ctcon_clientes
+--  Directorio de clientes/empresas.
+--  email = clave de asociación automática cuando llegan BC3
+--  por correo (se compara con ctcon_propuestas.cliente/direccion).
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `ctcon_clientes` (
+  `id`         BIGINT        NOT NULL AUTO_INCREMENT,
+  `nombre`     VARCHAR(255)  NOT NULL,
+  `email`      VARCHAR(255)  DEFAULT NULL,
+  `telefono`   VARCHAR(30)   DEFAULT NULL,
+  `nif`        VARCHAR(20)   DEFAULT NULL,
+  `direccion`  VARCHAR(500)  DEFAULT NULL,
+  `notas`      TEXT          DEFAULT NULL,
+  `created_at` DATETIME      DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_cli_email` (`email`),
+  INDEX `idx_cli_nombre` (`nombre`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Directorio de clientes/empresas. email = clave de asociación con BC3 entrantes.';
 
 
 SET FOREIGN_KEY_CHECKS = 1;

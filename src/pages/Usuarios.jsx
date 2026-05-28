@@ -1,0 +1,459 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { Edit2, Trash2, Plus, AlertCircle, LogOut } from 'lucide-react';
+import { supabase } from '../utils/supabaseClient';
+
+const TIPOS_USUARIO = {
+  0: 'Usuario / Resp. Obra',
+  1: 'Administrador',
+  2: 'Administración',
+  3: 'Jefe de Obra'
+};
+
+const useModal = () => {
+  const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  return { showModal, setShowModal, editingItem, setEditingItem };
+};
+
+const useToast = () => {
+  const [toast, setToast] = useState(null);
+  const show = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+  return { toast, show };
+};
+
+const Usuarios = () => {
+  const { user, logout } = useAuth();
+  const { showModal, setShowModal, editingItem, setEditingItem } = useModal();
+  const { toast, show: showToast } = useToast();
+  const [usuarios, setUsuarios] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+  const [form, setForm] = useState({
+    nombre: '',
+    apellido: '',
+    correo: '',
+    usuario: '',
+    contraseña: '',
+    tipo_usuario: 0
+  });
+
+  // Verificar permisos
+  useEffect(() => {
+    if (!user || (user.tipo_usuario !== 1 && user.tipo_usuario !== 2)) {
+      window.location.href = '/#/dashboard';
+    }
+  }, [user]);
+
+  const fetchUsuarios = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('*')
+        .order('nombre', { ascending: true });
+
+      if (error) throw error;
+      setUsuarios(data || []);
+    } catch (err) {
+      console.error('Error fetching usuarios:', err);
+      showToast('Error al cargar usuarios', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    fetchUsuarios();
+  }, [fetchUsuarios]);
+
+  const filteredUsuarios = useMemo(() => {
+    if (!search.trim()) return usuarios;
+    const q = search.toLowerCase();
+    return usuarios.filter(u =>
+      u.nombre?.toLowerCase().includes(q) ||
+      u.apellido?.toLowerCase().includes(q) ||
+      u.correo?.toLowerCase().includes(q) ||
+      u.usuario?.toLowerCase().includes(q)
+    );
+  }, [usuarios, search]);
+
+  const openNew = () => {
+    setEditingItem(null);
+    setForm({
+      nombre: '',
+      apellido: '',
+      correo: '',
+      usuario: '',
+      contraseña: '',
+      tipo_usuario: 0
+    });
+    setShowModal(true);
+  };
+
+  const openEdit = (u) => {
+    setEditingItem(u);
+    setForm({
+      nombre: u.nombre || '',
+      apellido: u.apellido || '',
+      correo: u.correo || '',
+      usuario: u.usuario || '',
+      contraseña: '',
+      tipo_usuario: u.tipo_usuario || 0
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.nombre.trim() || !form.usuario.trim() || !form.correo.trim()) {
+      showToast('Campos requeridos: nombre, usuario, correo', 'error');
+      return;
+    }
+
+    if (!editingItem && !form.contraseña.trim()) {
+      showToast('Contraseña requerida para nuevo usuario', 'error');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingItem) {
+        const updateData = { ...form };
+        if (!updateData.contraseña) delete updateData.contraseña;
+
+        const { error } = await supabase
+          .from('usuarios')
+          .update(updateData)
+          .eq('id', editingItem.id);
+
+        if (error) throw error;
+        showToast('Usuario actualizado', 'success');
+      } else {
+        const { error } = await supabase
+          .from('usuarios')
+          .insert([form]);
+
+        if (error) throw error;
+        showToast('Usuario creado', 'success');
+      }
+
+      setShowModal(false);
+      fetchUsuarios();
+    } catch (err) {
+      console.error('Error saving usuario:', err);
+      showToast(err.message || 'Error al guardar', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (u) => {
+    if (!window.confirm(`¿Eliminar usuario "${u.nombre} ${u.apellido}"?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('usuarios')
+        .delete()
+        .eq('id', u.id);
+
+      if (error) throw error;
+      showToast('Usuario eliminado', 'success');
+      fetchUsuarios();
+    } catch (err) {
+      console.error('Error deleting usuario:', err);
+      showToast('Error al eliminar', 'error');
+    }
+  };
+
+  return (
+    <div style={{ padding: '24px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
+        <div>
+          <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b', margin: '0 0 8px' }}>
+            Gestión de Usuarios
+          </h1>
+          <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>
+            Administra usuarios del sistema
+          </p>
+        </div>
+        <button
+          onClick={logout}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 16px',
+            background: '#f1f5f9',
+            border: '1px solid #e2e8f0',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: '14px',
+            color: '#64748b'
+          }}
+        >
+          <LogOut size={18} />
+          Salir
+        </button>
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          zIndex: 99999,
+          background: toast.type === 'error' ? '#fee2e2' : '#dcfce7',
+          color: toast.type === 'error' ? '#b91c1c' : '#166534',
+          padding: '16px 24px',
+          borderRadius: 8,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          animation: 'fadeIn 0.3s ease'
+        }}>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Search & Create */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
+        <input
+          type="text"
+          placeholder="Buscar usuario..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            flex: 1,
+            padding: '10px 16px',
+            border: '1px solid #e2e8f0',
+            borderRadius: 6,
+            fontSize: '14px',
+            outline: 'none'
+          }}
+        />
+        <button
+          onClick={openNew}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 16px',
+            background: '#06b6d4',
+            color: 'white',
+            border: 'none',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 600
+          }}
+        >
+          <Plus size={18} />
+          Nuevo Usuario
+        </button>
+      </div>
+
+      {/* Tabla */}
+      <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Cargando...</div>
+        ) : filteredUsuarios.length === 0 ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No hay usuarios</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Nombre</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Usuario</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Correo</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Tipo</th>
+                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsuarios.map((u, idx) => (
+                <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                  <td style={{ padding: '12px 16px', fontSize: '14px', color: '#1e293b' }}>
+                    {u.nombre} {u.apellido}
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: '14px', color: '#64748b', fontFamily: 'monospace' }}>
+                    {u.usuario}
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: '14px', color: '#64748b' }}>
+                    {u.correo}
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: '13px' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '4px 12px',
+                      background: '#e0f2fe',
+                      color: '#0369a1',
+                      borderRadius: 4,
+                      fontWeight: 600
+                    }}>
+                      {TIPOS_USUARIO[u.tipo_usuario] || 'Desconocido'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                    <button
+                      onClick={() => openEdit(u)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#0ea5e9',
+                        padding: '4px'
+                      }}
+                      title="Editar"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(u)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#ef4444',
+                        padding: '4px',
+                        marginLeft: 8
+                      }}
+                      title="Eliminar"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: 12,
+            width: '100%',
+            maxWidth: '480px',
+            padding: '32px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+          }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#1e293b', marginBottom: 24 }}>
+              {editingItem ? 'Editar Usuario' : 'Nuevo Usuario'}
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <input
+                  type="text"
+                  placeholder="Nombre"
+                  value={form.nombre}
+                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
+                />
+                <input
+                  type="text"
+                  placeholder="Apellido"
+                  value={form.apellido}
+                  onChange={(e) => setForm({ ...form, apellido: e.target.value })}
+                  style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
+                />
+              </div>
+
+              <input
+                type="email"
+                placeholder="Correo"
+                value={form.correo}
+                onChange={(e) => setForm({ ...form, correo: e.target.value })}
+                style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
+              />
+
+              <input
+                type="text"
+                placeholder="Usuario"
+                value={form.usuario}
+                onChange={(e) => setForm({ ...form, usuario: e.target.value })}
+                style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
+              />
+
+              <input
+                type="password"
+                placeholder={editingItem ? 'Dejar en blanco para no cambiar' : 'Contraseña'}
+                value={form.contraseña}
+                onChange={(e) => setForm({ ...form, contraseña: e.target.value })}
+                style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
+              />
+
+              <select
+                value={form.tipo_usuario}
+                onChange={(e) => setForm({ ...form, tipo_usuario: parseInt(e.target.value) })}
+                style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
+              >
+                {Object.entries(TIPOS_USUARIO).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+              <button
+                onClick={() => setShowModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '10px 16px',
+                  background: '#f1f5f9',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#64748b'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                style={{
+                  flex: 1,
+                  padding: '10px 16px',
+                  background: saving ? '#cbd5e1' : '#06b6d4',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600
+                }}
+              >
+                {saving ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Usuarios;

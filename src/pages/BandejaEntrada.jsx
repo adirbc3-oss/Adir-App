@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { Loader2, Mailbox, CheckCircle, Trash2, Clock, Bell, Archive, Mail, User } from 'lucide-react';
+import { Loader2, Mailbox, CheckCircle, Trash2, Clock, Bell, Archive, Mail, User, Building2 } from 'lucide-react';
 import { useToast } from '../utils/useModal';
 import { getCleanProjectName } from '../utils/aiAllocation';
 
@@ -15,6 +15,8 @@ const BandejaEntrada = () => {
     const [editEmails, setEditEmails] = useState({});
     const { showToast, ToastUI } = useToast();
     const [notificaciones, setNotificaciones] = useState([]);
+    // IDs de proyectos aceptados cuyo cliente aún no está en BD (para ofrecer guardarlo)
+    const [ofrecerGuardarCliente, setOfrecerGuardarCliente] = useState({});
 
     const fetchPendientes = React.useCallback(async () => {
         setLoading(true);
@@ -28,21 +30,47 @@ const BandejaEntrada = () => {
             if (error) throw error;
             setPendientes(data || []);
 
-            const initialTitles = {};
+            // Extraer emails únicos para buscar clientes asociados en BD
+            const emails = [...new Set(
+                (data || []).map(p => isEmailFormat(p.cliente) ? p.cliente : (isEmailFormat(p.direccion) ? p.direccion : null)).filter(Boolean)
+            )];
+
+            // Mapa email → nombre desde ctcon_clientes
+            let emailToNombre = {};
+            if (emails.length > 0) {
+                const { data: clis } = await supabase
+                    .from('clientes')
+                    .select('nombre,email')
+                    .in('email', emails);
+                (clis || []).forEach(c => { if (c.email) emailToNombre[c.email] = c.nombre; });
+            }
+
+            const initialTitles  = {};
             const initialClientes = {};
-            const initialEmails = {};
+            const initialEmails  = {};
             (data || []).forEach(p => {
                 // Título: extraer nombre limpio del ID del proyecto
                 initialTitles[p.Proyecto] = getCleanProjectName(p.Proyecto);
 
-                // Si cliente es un email, usarlo como email y dejar nombre vacío
+                let emailUsado = '';
+                let nombreUsado = '';
+
                 if (isEmailFormat(p.cliente)) {
-                    initialEmails[p.Proyecto] = p.cliente;
-                    initialClientes[p.Proyecto] = '';
+                    // BC3 llegó con el remitente como "cliente"
+                    emailUsado   = p.cliente;
+                    // Si el email está en el directorio → auto-rellenar nombre
+                    nombreUsado  = emailToNombre[p.cliente] || '';
                 } else {
-                    initialClientes[p.Proyecto] = p.cliente || '';
-                    initialEmails[p.Proyecto] = p.direccion || '';
+                    nombreUsado  = p.cliente || '';
+                    emailUsado   = isEmailFormat(p.direccion) ? p.direccion : (p.direccion || '');
+                    // Si tenemos email y no tenemos nombre, intentar lookup
+                    if (!nombreUsado && emailUsado && emailToNombre[emailUsado]) {
+                        nombreUsado = emailToNombre[emailUsado];
+                    }
                 }
+
+                initialClientes[p.Proyecto] = nombreUsado;
+                initialEmails[p.Proyecto]   = emailUsado;
             });
             setEditTitles(initialTitles);
             setEditClientes(initialClientes);
@@ -96,17 +124,17 @@ const BandejaEntrada = () => {
     const handleAccept = async (proyectoId) => {
         if (!proyectoId) return;
 
-        const finalTitle = editTitles[proyectoId] || "Sin Título";
+        const finalTitle   = editTitles[proyectoId]   || "Sin Título";
         const finalCliente = editClientes[proyectoId] || '';
-        const finalEmail = editEmails[proyectoId] || '';
+        const finalEmail   = editEmails[proyectoId]   || '';
 
         setActionLoading(prev => ({ ...prev, [proyectoId]: true }));
         try {
             const { error } = await supabase
                 .from('propuestas')
                 .update({
-                    estado: 'Borrador',
-                    cliente: finalCliente.trim() || null,
+                    estado:    'Borrador',
+                    cliente:   finalCliente.trim() || null,
                     direccion: finalEmail
                 })
                 .eq('Proyecto', proyectoId);
@@ -115,11 +143,40 @@ const BandejaEntrada = () => {
 
             showToast(`✅ Proyecto "${finalTitle}" aceptado.`);
             setPendientes(prev => prev.filter(p => p.Proyecto !== proyectoId));
+
+            // Si hay email y nombre pero no estaba en el directorio → ofrecer guardarlo
+            if (finalEmail && finalCliente.trim()) {
+                const { data: existe } = await supabase
+                    .from('clientes')
+                    .select('id')
+                    .eq('email', finalEmail)
+                    .maybeSingle();
+                if (!existe) {
+                    setOfrecerGuardarCliente(prev => ({
+                        ...prev,
+                        [proyectoId]: { nombre: finalCliente.trim(), email: finalEmail }
+                    }));
+                }
+            }
         } catch (error) {
             console.error("Error aceptando el proyecto:", error);
             showToast("Error al aceptar: " + error.message, "error");
         } finally {
             setActionLoading(prev => ({ ...prev, [proyectoId]: false }));
+        }
+    };
+
+    const handleGuardarCliente = async (proyectoId) => {
+        const info = ofrecerGuardarCliente[proyectoId];
+        if (!info) return;
+        try {
+            const { error } = await supabase.from('clientes').insert([{ nombre: info.nombre, email: info.email }]);
+            if (error) throw error;
+            showToast(`👤 "${info.nombre}" guardado en el directorio de Clientes.`);
+        } catch (err) {
+            showToast('Error al guardar cliente: ' + err.message, 'error');
+        } finally {
+            setOfrecerGuardarCliente(prev => { const n = { ...prev }; delete n[proyectoId]; return n; });
         }
     };
 
@@ -221,6 +278,25 @@ const BandejaEntrada = () => {
                     </div>
                 </div>
             )}
+
+            {/* Banner: ofrecer guardar cliente nuevo tras aceptar */}
+            {Object.entries(ofrecerGuardarCliente).map(([proyId, info]) => (
+                <div key={proyId} className="glass-card animate-fade-in" style={{ marginBottom: '16px', borderLeft: '4px solid var(--primary)', display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', padding: '14px 20px' }}>
+                    <Building2 size={20} color="var(--primary)" style={{ flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontSize: '0.9rem' }}>
+                        <strong>{info.nombre}</strong> ({info.email}) no está en el directorio de clientes.
+                        ¿Quieres guardarlo?
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="btn btn-secondary" style={{ fontSize: '0.82rem', padding: '5px 12px' }} onClick={() => setOfrecerGuardarCliente(prev => { const n = { ...prev }; delete n[proyId]; return n; })}>
+                            No ahora
+                        </button>
+                        <button className="btn btn-primary" style={{ fontSize: '0.82rem', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: '5px' }} onClick={() => handleGuardarCliente(proyId)}>
+                            <Building2 size={13} /> Guardar cliente
+                        </button>
+                    </div>
+                </div>
+            ))}
 
             {loading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
