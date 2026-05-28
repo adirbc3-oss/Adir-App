@@ -29,7 +29,15 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ usuario, contraseña })
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonErr) {
+        const text = await response.text();
+        console.error('Invalid JSON response:', text);
+        setError('Respuesta inválida del servidor: ' + text.substring(0, 100));
+        return false;
+      }
 
       if (!response.ok || data.error) {
         setError(data.error || 'Credenciales inválidas');
