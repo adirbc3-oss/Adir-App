@@ -257,6 +257,7 @@ const AppContent = () => {
           <Route path="/presupuestos-firmados" element={<PresupuestosFirmados />} />
           {(user.tipo_usuario === 1 || user.tipo_usuario === 2) && <Route path="/usuarios" element={<Usuarios />} />}
           <Route path="/ajustes" element={<Ajustes />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
     </div>
