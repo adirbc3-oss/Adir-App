@@ -36,11 +36,15 @@ const BandejaEntrada = () => {
     }, []);
 
     // Al escribir/elegir un cliente: si coincide con uno del directorio, autorrellena su email
+    // SOLO si el campo email está vacío (no pisar el correo del remitente capturado del correo)
     const handleClienteChange = (proyectoId, value) => {
         setEditClientes(prev => ({ ...prev, [proyectoId]: value }));
         const match = clientesDir.find(c => (c.nombre || '').toLowerCase() === value.toLowerCase());
         if (match && match.email) {
-            setEditEmails(prev => ({ ...prev, [proyectoId]: match.email }));
+            setEditEmails(prev => ({
+                ...prev,
+                [proyectoId]: (prev[proyectoId] && prev[proyectoId].trim()) ? prev[proyectoId] : match.email
+            }));
         }
     };
 

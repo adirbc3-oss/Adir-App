@@ -171,7 +171,7 @@ const NuevoProyecto = () => {
                 }
                 const { error: propError } = await supabase
                     .from('propuestas')
-                    .insert([{ Proyecto: idUnico, cliente: clienteNombre, cliente_email: clienteEmail, estado: 'Borrador', fecha_recepcion: new Date().toISOString().split('T')[0] }]);
+                    .insert([{ Proyecto: idUnico, cliente: clienteNombre, direccion: clienteEmail, estado: 'Borrador', fecha_recepcion: new Date().toISOString().split('T')[0] }]);
                 if (propError) throw new Error(propError.message || JSON.stringify(propError));
                 const propuestaId = idUnico;
                 await supabase.from('partidas').delete().eq('propuesta_id', propuestaId);
