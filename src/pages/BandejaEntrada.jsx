@@ -370,6 +370,8 @@ const BandejaEntrada = () => {
                                     type="text"
                                     className="input"
                                     list="clientes-directorio"
+                                    autoComplete="off"
+                                    name={`cliente-${p.Proyecto}`}
                                     style={{ marginBottom: '10px', backgroundColor: 'white', border: '1px solid var(--border-color)' }}
                                     value={editClientes[p.Proyecto] || ""}
                                     onChange={(e) => handleClienteChange(p.Proyecto, e.target.value)}

@@ -105,19 +105,22 @@ const Clientes = () => {
     };
 
     // ── Eliminar ──────────────────────────────────────────────────────────────
-    const handleDelete = async (c) => {
-        const ok = await showConfirm(
-            `¿Eliminar a "${c.nombre}"?\n\nSus proyectos en BD no se verán afectados.`
+    // showConfirm usa patrón de callback: (mensaje, onConfirm, opts)
+    const handleDelete = (c) => {
+        showConfirm(
+            `¿Eliminar a "${c.nombre}"?\n\nSus proyectos en BD no se verán afectados.`,
+            async () => {
+                try {
+                    const { error } = await supabase.from('clientes').delete().eq('id', c.id);
+                    if (error) throw error;
+                    setClientes(prev => prev.filter(x => x.id !== c.id));
+                    showToast('🗑️ Cliente eliminado.');
+                } catch (err) {
+                    showToast('Error: ' + err.message, 'error');
+                }
+            },
+            { type: 'danger', confirmLabel: 'Eliminar' }
         );
-        if (!ok) return;
-        try {
-            const { error } = await supabase.from('clientes').delete().eq('id', c.id);
-            if (error) throw error;
-            setClientes(prev => prev.filter(x => x.id !== c.id));
-            showToast('🗑️ Cliente eliminado.');
-        } catch (err) {
-            showToast('Error: ' + err.message, 'error');
-        }
     };
 
     // ── Helpers UI ────────────────────────────────────────────────────────────

@@ -50,6 +50,17 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     const [anexoFileName, setAnexoFileName] = useState('');
     const [uploadingAnexo, setUploadingAnexo] = useState(false);
 
+    // Formatea "YYYY-MM-DD HH:MM:SS" → "DD/MM/YYYY HH:MM"
+    const formatFechaHora = (val) => {
+        if (!val) return '';
+        const d = new Date(String(val).replace(' ', 'T'));
+        if (isNaN(d.getTime())) return String(val);
+        return d.toLocaleString('es-ES', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    };
+
     const formatDecimal = (val) =>
         (parseFloat(val) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const parseDecimal = (str) =>
@@ -1256,7 +1267,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                         <Hash size={14} /> <span>ID: {pro.Proyecto}</span>
                                     </div>
                                     <div className="info-item">
-                                        <Calendar size={14} /> <span>Recibido: {pro.fecha_recepcion || "Fecha no disponible"}</span>
+                                        <Calendar size={14} /> <span>Creado: {formatFechaHora(pro.created_at) || pro.fecha_recepcion || "Fecha no disponible"}</span>
                                     </div>
                                 </div>
                                 <div className="badge badge-blue">Borrador</div>
