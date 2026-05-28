@@ -1,9 +1,5 @@
 {
   "routes": [
-    {
-      "src": "/api\\.php(.*)",
-      "dest": "https://adirgestion.app/api.php$1"
-    },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
