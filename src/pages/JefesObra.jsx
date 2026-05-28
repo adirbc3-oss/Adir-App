@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { TODOS_LOS_OFICIOS, getCleanProjectName } from '../utils/aiAllocation';
 import { escapeHtml } from '../utils/escape';
+import { normalizarYOrdenarPartidas, getTipoFila } from '../utils/partidas';
 
 const JefesObra = () => {
     const { showAlert, ModalUI } = useModal();
@@ -72,17 +73,6 @@ const JefesObra = () => {
         fetchProyectos();
     }, [fetchProyectos]);
 
-    const formatCapitulo = (cap) => {
-        if (!cap) return "";
-        const s = cap.toString().trim();
-        if (s.includes('T') && s.includes('-')) {
-            const date = new Date(s);
-            if (!isNaN(date)) {
-                return `${date.getMonth() + 1}.${String(date.getDate()).padStart(2, '0')}`;
-            }
-        }
-        return s;
-    };
 
     const openProject = async (project) => {
         setActiveProject(project);
@@ -166,77 +156,15 @@ const JefesObra = () => {
                 };
             });
 
-            // ── Normalización: eliminar título raíz y agrupar sueltas en EXTRAS ──
-            // (misma lógica que Borradores)
-            const esTituloRaiz = (cap) => {
-                const base = (cap || '').replace(/#$/, '');
-                if (!cap.endsWith('#')) return false;
-                if (/^\d+(\.\d+)*$/.test(base)) return false;
-                if (/^[A-Z0-9]+$/.test(base) && base.length <= 4) return false;
-                return base.includes('__') || (/[A-Za-z]/.test(base) && base.length > 6);
-            };
-
-            const filteredPartidas = mapped.filter(p => !esTituloRaiz(p.Capítulo));
-
-            const capitulosValidos = new Set(
-                filteredPartidas
-                    .filter(p => (p.Capítulo || '').endsWith('#'))
-                    .map(p => p.Capítulo.replace(/#$/, ''))
-            );
-
-            const esPartidaSuelta = (p) => {
-                const cap = (p.Capítulo || '').trim();
-                if (cap.endsWith('#')) return false;
-                const segmentos = cap.split('.');
-                if (capitulosValidos.has(segmentos[0])) return false;
-                return true;
-            };
-
-            const partidasSueltas = filteredPartidas.filter(esPartidaSuelta);
-            const partidasNormales = filteredPartidas.filter(p => !esPartidaSuelta(p));
-
-            const sortFn = (a, b) => {
-                const capA = formatCapitulo(a.Capítulo);
-                const capB = formatCapitulo(b.Capítulo);
-                const isRootA = capA.endsWith('##');
-                const isRootB = capB.endsWith('##');
-                if (isRootA && !isRootB) return -1;
-                if (!isRootA && isRootB) return 1;
-                const partsA = capA.split('.').map(x => parseInt(x.replace(/\D/g, '')) || 0);
-                const partsB = capB.split('.').map(x => parseInt(x.replace(/\D/g, '')) || 0);
-                const hasNumA = /\d/.test(capA);
-                const hasNumB = /\d/.test(capB);
-                if (!hasNumA && hasNumB) return 1;
-                if (hasNumA && !hasNumB) return -1;
-                for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
-                    const valA = i < partsA.length ? partsA[i] : -1;
-                    const valB = i < partsB.length ? partsB[i] : -1;
-                    if (valA !== valB) return valA - valB;
-                }
-                if (capA.endsWith('#') && !capB.endsWith('#')) return -1;
-                if (!capA.endsWith('#') && capB.endsWith('#')) return 1;
-                return 0;
-            };
-
-            const normalesSorted = [...partidasNormales].sort(sortFn);
-
-            const extrasHeader = {
-                id: '__extras_header__',
-                Capítulo: '99_EXTRAS#',
-                Descripción: 'PARTIDAS ADICIONALES / EXTRAS',
-                'Oficio Asignado': 'Sin asignar',
-                'Precio Total (€)': 0,
-                Cantidad: 0,
-                'Unidad IA': '',
-                _synthetic: true,
+            // Normalización compartida: elimina título raíz, agrupa partidas sueltas
+            // bajo "99_EXTRAS" y ordena por código. Los campos extra del header de
+            // EXTRAS (aprobado/isModified/solicitud_seleccionada_id) son específicos
+            // de esta vista. (lógica común → src/utils/partidas.js)
+            const sorted = normalizarYOrdenarPartidas(mapped, {
                 aprobado: false,
                 isModified: false,
-                solicitud_seleccionada_id: null
-            };
-
-            const sorted = partidasSueltas.length > 0
-                ? [...normalesSorted, extrasHeader, ...partidasSueltas]
-                : normalesSorted;
+                solicitud_seleccionada_id: null,
+            });
 
             setPartidas(sorted);
         } catch (err) {
@@ -246,15 +174,6 @@ const JefesObra = () => {
         } finally {
             setLoadingProject(false);
         }
-    };
-    // Clasificar fila: 'capitulo' | 'subcapitulo' | 'partida' (igual que Borradores)
-    const getTipoFila = (p) => {
-        const cap = (p.Capítulo || '').trim();
-        if (!cap.endsWith('#')) return 'partida';
-        const codLimpio = cap.replace(/#$/, '');
-        if (codLimpio === '99_EXTRAS') return 'capitulo';
-        if (codLimpio.includes('.')) return 'subcapitulo';
-        return 'capitulo';
     };
 
     const openEditMetadata = () => {

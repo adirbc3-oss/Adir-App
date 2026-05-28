@@ -6,6 +6,8 @@ import { useModal, useToast } from '../utils/useModal';
 import { Loader2, Bot, ArrowLeft, ArrowRight, Hash, Save, Trash2, Send, RefreshCw, Mail, Search, FileDown, ClipboardCheck, Folder, Calendar, User, Users, CheckSquare, Square, Check, X, Trophy, Paperclip, HardHat, Files } from 'lucide-react';
 import { asignarProveedoresIA, TODOS_LOS_OFICIOS, getCleanProjectName } from '../utils/aiAllocation';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
+import { escapeHtml } from '../utils/escape';
+import { normalizarYOrdenarPartidas, getTipoFila } from '../utils/partidas';
 
 const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     const { showConfirm, ModalUI } = useModal();
@@ -137,19 +139,6 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         }
     };
 
-    const formatCapitulo = (cap) => {
-        if (!cap) return "";
-        const s = cap.toString().trim();
-        if (s.includes('T') && s.includes('-')) {
-            const date = new Date(s);
-            if (!isNaN(date)) {
-                const month = date.getMonth() + 1;
-                const day = String(date.getDate()).padStart(2, '0');
-                return `${month}.${day}`;
-            }
-        }
-        return s;
-    };
 
     const openEditMetadata = () => {
         if (!activeProject) return;
@@ -247,108 +236,10 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                         "Needs Quote": p.force_quote !== undefined ? p.force_quote : needsQuote
                     };
                 });
-                // ── Normalización: eliminar título raíz y agrupar sueltas en EXTRAS ──
-
-                // 1. Detectar fila de título raíz: única fila con '#' que sea ancestro
-                //    de todos los demás capítulos (ej: '25007__REFORM#').
-                //    Criterio: es capítulo (termina en #), sin punto, y su código base
-                //    no coincide con ningún patrón numérico puro (01, 02.01, etc.)
-                const capitulosConHash = mappedPartidas
-                    .filter(p => (p.Capítulo || '').endsWith('#'))
-                    .map(p => p.Capítulo.replace(/#$/, ''));
-
-                const esTituloRaiz = (cap) => {
-                    const base = (cap || '').replace(/#$/, '');
-                    // Un título raíz tiene caracteres especiales, letras y números mezclados
-                    // o guiones bajos — distinto a los capítulos numerados tipo '01', '01.01'
-                    if (!cap.endsWith('#')) return false;
-                    if (/^\d+(\.\d+)*$/.test(base)) return false; // patrón numérico puro → NO es título
-                    if (/^[A-Z0-9]+$/.test(base) && base.length <= 4) return false; // código corto alfanum OK
-                    // Si contiene '__' o tiene mezcla de letras+números largos → probablemente título
-                    return base.includes('__') || (/[A-Za-z]/.test(base) && base.length > 6);
-                };
-
-                const filteredPartidas = mappedPartidas.filter(p => !esTituloRaiz(p.Capítulo));
-
-                // 2. Detectar partidas sueltas: no tienen '#' en su Capítulo
-                //    y el código no coincide con ningún capítulo existente
-                const capitulosValidos = new Set(
-                    filteredPartidas
-                        .filter(p => (p.Capítulo || '').endsWith('#'))
-                        .map(p => p.Capítulo.replace(/#$/, ''))
-                );
-
-                const esPartidaSuelta = (p) => {
-                    const cap = (p.Capítulo || '').trim();
-                    if (cap.endsWith('#')) return false; // es capítulo/subcapítulo
-                    // Verificar si el código base pertenece a algún capítulo conocido
-                    const segmentos = cap.split('.');
-                    // Si el primer segmento numérico corresponde a un capítulo → está bien asignada
-                    if (capitulosValidos.has(segmentos[0])) return false;
-                    // Si ningún prefijo coincide con un capítulo → es suelta
-                    return true;
-                };
-
-                const partidasSueltas = filteredPartidas.filter(esPartidaSuelta);
-                const partidasNormales = filteredPartidas.filter(p => !esPartidaSuelta(p));
-
-                // 3. Construir array final: normales + fila de capítulo EXTRAS + sueltas
-                let finalPartidas = [...partidasNormales];
-                if (partidasSueltas.length > 0) {
-                    const filaExtras = {
-                        id: '__extras_header__',
-                        Capítulo: '99_EXTRAS#',
-                        Descripción: 'PARTIDAS ADICIONALES / EXTRAS',
-                        'Oficio Asignado': 'Sin asignar',
-                        'Precio Total (€)': 0,
-                        Cantidad: 0,
-                        'Precio IA': 0,
-                        'Unidad IA': '',
-                        _synthetic: true
-                    };
-                    finalPartidas = [...partidasNormales, filaExtras, ...partidasSueltas];
-                }
-
-                // Ordenar solo las partidas normales numéricamente
-                const sortFn = (a, b) => {
-                    const capA = formatCapitulo(a.Capítulo);
-                    const capB = formatCapitulo(b.Capítulo);
-                    const isRootA = capA.endsWith('##');
-                    const isRootB = capB.endsWith('##');
-                    if (isRootA && !isRootB) return -1;
-                    if (!isRootA && isRootB) return 1;
-                    const partsA = capA.split('.').map(x => parseInt(x.replace(/\D/g, '')) || 0);
-                    const partsB = capB.split('.').map(x => parseInt(x.replace(/\D/g, '')) || 0);
-                    const hasNumA = /\d/.test(capA);
-                    const hasNumB = /\d/.test(capB);
-                    if (!hasNumA && hasNumB) return 1;
-                    if (hasNumA && !hasNumB) return -1;
-                    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
-                        const valA = i < partsA.length ? partsA[i] : -1;
-                        const valB = i < partsB.length ? partsB[i] : -1;
-                        if (valA !== valB) return valA - valB;
-                    }
-                    if (capA.endsWith('#') && !capB.endsWith('#')) return -1;
-                    if (!capA.endsWith('#') && capB.endsWith('#')) return 1;
-                    return 0;
-                };
-
-                const normalesSorted = [...partidasNormales].sort(sortFn);
-
-                // Resultado final: normales ordenadas → cabecera EXTRAS → sueltas
-                const sorted = partidasSueltas.length > 0
-                    ? [...normalesSorted, {
-                        id: '__extras_header__',
-                        Capítulo: '99_EXTRAS#',
-                        Descripción: 'PARTIDAS ADICIONALES / EXTRAS',
-                        'Oficio Asignado': 'Sin asignar',
-                        'Precio Total (€)': 0,
-                        Cantidad: 0,
-                        'Precio IA': 0,
-                        'Unidad IA': '',
-                        _synthetic: true
-                    }, ...partidasSueltas]
-                    : normalesSorted;
+                // Normalización compartida: elimina título raíz, agrupa partidas
+                // sueltas bajo "99_EXTRAS" y ordena por código de capítulo.
+                // (lógica común con JefesObra → src/utils/partidas.js)
+                const sorted = normalizarYOrdenarPartidas(mappedPartidas);
 
                 setPartidas(sorted);
             }
@@ -908,20 +799,6 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             fetchProyectos(true);
         } catch (err) { showToast("Error al enviar.", "error"); }
         finally { setLoadingProject(false); setShowReviewModal(false); }
-    };
-
-    // Clasificar fila: 'capitulo' | 'subcapitulo' | 'partida'
-    const getTipoFila = (p) => {
-        const cap = (p.Capítulo || '').trim();
-        // Capítulos y subcapítulos tienen '#' al final (marca del parser)
-        if (!cap.endsWith('#')) return 'partida';
-        const codLimpio = cap.replace(/#$/, '');
-        // Capítulo sintético de extras
-        if (codLimpio === '99_EXTRAS') return 'capitulo';
-        // Si tiene punto => probablemente subcapítulo (ej: '01.01')
-        // Si no tiene punto => capítulo raíz (ej: '01')
-        if (codLimpio.includes('.')) return 'subcapitulo';
-        return 'capitulo';
     };
 
     const budgetTotal = (partidas || []).reduce((acc, p) => {
