@@ -35,3 +35,6 @@ Thumbs.db
 api_dinahosting/api_DEPLOY.php
 migracion_*.sql
 .vercel
+
+# Claude Code
+.claude/
