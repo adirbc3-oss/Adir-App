@@ -692,6 +692,24 @@ const JefesObra = () => {
             showToast('Error al reasignar jefe de obra.', 'error');
         } else {
             showToast('✅ Jefe de obra reasignado.', 'success');
+            if (nuevoCorreo) {
+                const jefeData = todosLosJefes.find(j => j.correo === nuevoCorreo);
+                const proyecto = proyectos.find(p => p.Proyecto === proyectoId);
+                const n8nBase = import.meta.env.VITE_N8N_BASE_URL;
+                if (n8nBase) {
+                    fetch(`${n8nBase}/webhook/notificar-jefe-obra`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            proyectoId,
+                            proyectoNombre: proyecto?.cliente || proyectoId,
+                            jefeCorreo: nuevoCorreo,
+                            jefeNombre: jefeData ? `${jefeData.nombre} ${jefeData.apellido}` : nuevoCorreo,
+                            tipo: 'reasignacion'
+                        })
+                    }).catch(() => {});
+                }
+            }
             fetchProyectos();
         }
     };
@@ -940,9 +958,14 @@ const JefesObra = () => {
                                     style={{ width: '100%', maxWidth: '340px', padding: '10px', borderRadius: 'var(--radius-md)' }}
                                 >
                                     <option value="">— Todos los proyectos —</option>
-                                    {jefesDisponibles.map(jefe => (
-                                        <option key={jefe} value={jefe}>{jefe}</option>
-                                    ))}
+                                    {jefesDisponibles.map(jefe => {
+                                        const j = todosLosJefes.find(t => t.correo === jefe);
+                                        return (
+                                            <option key={jefe} value={jefe}>
+                                                {j ? `${j.nombre} ${j.apellido}` : jefe}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </div>
                         )}

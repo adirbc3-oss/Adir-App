@@ -822,6 +822,21 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         try {
             if (hasUnsavedChanges) await saveAssignments();
             await supabase.from('propuestas').update({ estado: 'En Revisión', jefe_obra: jefeInput.trim() }).eq('Proyecto', activeProject.Proyecto);
+            const jefeData = jefesObra.find(j => j.correo === jefeInput.trim());
+            const n8nBase = import.meta.env.VITE_N8N_BASE_URL;
+            if (n8nBase && jefeInput.trim()) {
+                fetch(`${n8nBase}/webhook/notificar-jefe-obra`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        proyectoId: activeProject.Proyecto,
+                        proyectoNombre: activeProject.cliente || activeProject.Proyecto,
+                        jefeCorreo: jefeInput.trim(),
+                        jefeNombre: jefeData ? `${jefeData.nombre} ${jefeData.apellido}` : jefeInput.trim(),
+                        tipo: 'revision'
+                    })
+                }).catch(() => {});
+            }
             showToast("Enviado a revisión.", "success");
             setActiveProject(null);
             fetchProyectos(true);
