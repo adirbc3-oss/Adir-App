@@ -243,7 +243,7 @@ const Proyectos = () => {
         };
 
         const lines = [];
-        lines.push(`~V|FIEBDC-3/95|${fecha}||`);
+        lines.push(`~V|FIEBDC-3/95|ADIR Reformas|${fecha}||`);
         lines.push(`~C|${projectId}||${projectName}|0||`);
 
         allItems.forEach(p => {
