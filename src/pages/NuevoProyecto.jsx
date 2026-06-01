@@ -189,7 +189,11 @@ const NuevoProyecto = () => {
                     precio_base_estimado: Number(p['Precio Total (€)']) || 0
                 }));
                 const { error: partError } = await supabase.from('partidas').insert(mappedPartidas);
-                if (partError) throw partError;
+                if (partError) {
+                    // Rollback: eliminar la propuesta recién creada para no dejarla huérfana
+                    await supabase.from('propuestas').delete().eq('Proyecto', propuestaId);
+                    throw partError;
+                }
                 setSuccess(true);
                 setFile(null);
                 setPreview(null);
@@ -401,7 +405,7 @@ const NuevoProyecto = () => {
 
                 {loading && (
                     <div style={{ marginTop: '24px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)' }}>
-                        <Loader2 className="loader-spinner" /> <strong>Analizando y sincronizando con Supabase...</strong>
+                        <Loader2 className="loader-spinner" /> <strong>Analizando e importando proyecto...</strong>
                     </div>
                 )}
             </div>

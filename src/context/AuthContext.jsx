@@ -47,16 +47,18 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (!response.ok || data.error) {
-        setError(data.error || 'Credenciales inválidas');
-        return false;
+        const msg = data.error || 'Credenciales inválidas';
+        setError(msg);
+        return { ok: false, msg };
       }
 
       localStorage.setItem('adir_user', JSON.stringify(data.user));
       setUser(data.user);
-      return true;
+      return { ok: true };
     } catch (err) {
-      setError(err.message || 'Error al conectar');
-      return false;
+      const msg = err.message || 'Error al conectar';
+      setError(msg);
+      return { ok: false, msg };
     } finally {
       setLoading(false);
     }

@@ -139,7 +139,6 @@ const AppContent = () => {
   const [sidebarCounts, setSidebarCounts] = useState({ borradores: 0, bandeja: 0, jefes: 0 });
 
   const isPortalPath = location.pathname.startsWith('/portal') || location.pathname.startsWith('/presupuesto-cliente');
-  const isLoginPath = location.pathname.startsWith('/login');
   const isUsuariosPath = location.pathname.startsWith('/usuarios');
 
   const fetchCounts = React.useCallback(async () => {
@@ -162,7 +161,7 @@ const AppContent = () => {
   }, [fetchCounts, user]);
 
   useEffect(() => {
-    if (!user) {
+    if (user) {
       const channel = supabase
         .channel('presupuestos_firmados_realtime')
         .on('postgres_changes', {

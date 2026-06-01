@@ -233,8 +233,7 @@ const BandejaEntrada = () => {
             if (errorPropuesta) throw errorPropuesta;
 
             if (count === 0) {
-                // Si llegamos aquí y count es 0, es probable que RLS esté bloqueando el borrado
-                throw new Error("Suapbase denegó el borrado (posible falta de permisos RLS en la tabla 'propuestas')");
+                throw new Error("El servidor no eliminó el registro. Verifica los permisos en la API.");
             }
 
             showToast(`🗑️ Proyecto "${proyectoNombre}" eliminado permanentemente.`);

@@ -18,9 +18,9 @@ const Login = () => {
       return;
     }
 
-    const success = await login(correo, contrasena);
-    if (!success) {
-      setLocalError(error || 'Error al iniciar sesión');
+    const result = await login(correo, contrasena);
+    if (!result?.ok) {
+      setLocalError(result?.msg || 'Error al iniciar sesión');
     }
   };
 
