@@ -5,13 +5,7 @@ import { supabase } from '../utils/supabaseClient';
 import { N8N_BASE_URL } from '../config';
 import { useToast } from '../utils/useModal';
 import { generarPDFOfertaProveedor, descargarPDF } from '../utils/pdfUtils';
-
-// Helper para limpiar descripciones en el portal (eliminar prefijo de capítulo y caracteres de tubería '|')
-const cleanText = (text) => {
-  if (!text) return "";
-  const str = text.includes('::') ? text.split('::').slice(1).join('::') : text;
-  return str.replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim();
-};
+import { cleanText } from '../utils/escape';
 
 const Portal = () => {
   const [searchParams] = useSearchParams();

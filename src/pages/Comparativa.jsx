@@ -10,14 +10,7 @@ import {
 } from 'lucide-react';
 import Bc3Worker from '../utils/bc3Worker.js?worker';
 import { generarPDFOfertaProveedor, descargarPDF } from '../utils/pdfUtils';
-
-
-// Helper para limpiar descripciones (eliminar prefijo de capítulo y caracteres de tubería '|')
-const cleanText = (text) => {
-  if (!text) return "";
-  const str = text.includes('::') ? text.split('::').slice(1).join('::') : text;
-  return str.replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim();
-};
+import { cleanText } from '../utils/escape';
 
 // ─── Vista: FEED GLOBAL de respuestas recibidas ──────────────────────────────
 function FeedPresupuestos({ solicitudes, respuestas, partidas, propuestas, proyectoSel, oficioSel, deleteSolicitud, allPartidas }) {
@@ -901,15 +894,13 @@ export default function Comparativa({ setSessionCache }) {
       setGuardandoCompetencia(true);
       try {
           const { proyecto } = comparativa[modalCompetencia];
-          
+
           const newComp = {
               id: 'local-' + Date.now(),
               nombre: competenciaNombre.trim(),
               proyecto: proyecto,
               precios: {}
           };
-
-          const normalizeCode = (c) => String(c || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
 
           Object.keys(competenciaPrecios).forEach(partidaId => {
               const precio = parseFloat(competenciaPrecios[partidaId]);
@@ -991,8 +982,6 @@ export default function Comparativa({ setSessionCache }) {
       });
 
       // 3. Crear objeto de competencia local (memoria)
-      const normalizeCode = (c) => String(c || '').replace(/#/g, '').trim().toLowerCase().replace(/^0+/, '');
-      
       const newComp = {
           id: 'bc3-' + Date.now(),
           nombre: bc3Name.trim(),

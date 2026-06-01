@@ -5,13 +5,7 @@ import { N8N_BASE_URL } from '../config';
 import { useModal } from '../utils/useModal';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
 import { Download, PenLine, CheckCircle, X, Loader2 } from 'lucide-react';
-
-// Helper para limpiar descripciones en el portal del cliente
-const cleanText = (text) => {
-  if (!text) return "";
-  const str = text.includes('::') ? text.split('::').slice(1).join('::') : text;
-  return str.replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim();
-};
+import { cleanText } from '../utils/escape';
 
 const PresupuestoCliente = () => {
     const location = useLocation();

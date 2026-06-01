@@ -19,3 +19,13 @@ export function escapeHtml(s) {
 export function escapeHtmlInline(s) {
   return escapeHtml(s).replace(/\s+/g, ' ').trim();
 }
+
+/**
+ * Strips the "CODIGO::" prefix from BC3 texto_partida strings and cleans pipe
+ * characters. Used consistently across Portal, Comparativa and PresupuestoCliente.
+ */
+export function cleanText(text) {
+  if (!text) return '';
+  const str = text.includes('::') ? text.split('::').slice(1).join('::') : text;
+  return str.replace(/\|/g, ' ').replace(/\s{2,}/g, ' ').trim();
+}

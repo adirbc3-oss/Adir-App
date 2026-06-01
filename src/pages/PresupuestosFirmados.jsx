@@ -42,7 +42,7 @@ const PresupuestosFirmados = () => {
         const rootDesc = safe(proyecto_descripcion || cliente_nombre || propuesta_id);
         const rootPrecio = (parseFloat(precio_total) || 0).toFixed(2);
 
-        const lines = [`~V|FIEBDC-3#2016#|ADIR Gestión|${fecha}|`];
+        const lines = [`~V|FIEBDC-3/2016|ADIR Gestión|${fecha}|`];
 
         const validas = (partidas || []).filter(pa => pa.Capítulo && pa.Descripción);
         for (const pa of validas) {
