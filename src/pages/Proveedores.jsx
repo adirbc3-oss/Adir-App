@@ -154,6 +154,7 @@ const Proveedores = () => {
     return (
         <div className="animate-fade-in">
             {ModalUI}
+            {ToastUI}
             <div className="glass-card" style={{ marginBottom: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
