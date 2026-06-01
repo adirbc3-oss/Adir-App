@@ -718,7 +718,8 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                     continue;
                 }
                 const token = crypto.randomUUID();
-                const portalUrl = `${window.location.origin}/#/portal?token=${token}`;
+                const baseOrigin = window.location.origin + window.location.pathname.replace(/\/$/, '');
+                const portalUrl = `${baseOrigin}/#/portal?token=${token}`;
                 const tareas = tareasOficio.map(t => ({
                     cap: t.Capítulo,
                     descripcion: t.Descripción || t.texto_partida || '',

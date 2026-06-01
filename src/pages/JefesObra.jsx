@@ -493,7 +493,8 @@ const JefesObra = () => {
                 precio_total: precioTotal
             });
 
-            const portalUrl = `${window.location.origin}/#/presupuesto-cliente?token=${token}`;
+            const baseOrigin = window.location.origin + window.location.pathname.replace(/\/$/, '');
+            const portalUrl = `${baseOrigin}/#/presupuesto-cliente?token=${token}`;
 
             // ─── Construir HTML del email según formato elegido ───
             let filasHtml = '';
