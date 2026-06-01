@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useModal } from '../utils/useModal';
 import { Edit2, Trash2, Plus, LogOut } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 
@@ -37,6 +39,8 @@ const EMPTY_FORM = {
 const Usuarios = () => {
   const { user, logout } = useAuth();
   const { toast, show: showToast } = useToast();
+  const { showConfirm, ModalUI } = useModal();
+  const navigate = useNavigate();
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -48,9 +52,9 @@ const Usuarios = () => {
   // Verificar permisos
   useEffect(() => {
     if (!user || (user.tipo_usuario !== 1 && user.tipo_usuario !== 2)) {
-      window.location.href = '/#/dashboard';
+      navigate('/dashboard', { replace: true });
     }
-  }, [user]);
+  }, [user, navigate]);
 
   const fetchUsuarios = React.useCallback(async () => {
     setLoading(true);
@@ -160,23 +164,27 @@ const Usuarios = () => {
     }
   };
 
-  const handleDelete = async (u) => {
-    if (!window.confirm(`¿Eliminar usuario "${u.nombre} ${u.apellido}"?`)) return;
-
-    try {
-      const { error } = await supabase.from('usuarios').delete().eq('id', u.id);
-
-      if (error) throw error;
-      showToast('Usuario eliminado', 'success');
-      fetchUsuarios();
-    } catch (err) {
-      console.error('Error deleting usuario:', err);
-      showToast('Error al eliminar', 'error');
-    }
+  const handleDelete = (u) => {
+    showConfirm(
+      `¿Eliminar al usuario "${u.nombre} ${u.apellido}"?`,
+      async () => {
+        try {
+          const { error } = await supabase.from('usuarios').delete().eq('id', u.id);
+          if (error) throw error;
+          showToast('Usuario eliminado', 'success');
+          fetchUsuarios();
+        } catch (err) {
+          console.error('Error deleting usuario:', err);
+          showToast('Error al eliminar', 'error');
+        }
+      },
+      { type: 'danger', confirmLabel: 'Eliminar', title: 'Eliminar Usuario' }
+    );
   };
 
   return (
     <div style={{ padding: '24px' }}>
+      {ModalUI}
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <div>

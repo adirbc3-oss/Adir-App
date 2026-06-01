@@ -324,7 +324,6 @@ const Proveedores = () => {
                     </div>
                 )}
             </div>
-            {ToastUI}
         </div>
     );
 };

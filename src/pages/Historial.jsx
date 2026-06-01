@@ -13,10 +13,8 @@ const Historial = () => {
     const [filtroOrigen, setFiltroOrigen] = useState('');
     const [filtroEntidad, setFiltroEntidad] = useState('');
 
-    useEffect(() => {
-        fetchHistorial();
-        fetchPropuestas();
-    }, [filtroOrigen, filtroEntidad]);
+    useEffect(() => { fetchPropuestas(); }, []);
+    useEffect(() => { fetchHistorial(); }, [filtroOrigen, filtroEntidad]);
 
     const fetchPropuestas = async () => {
         try {
