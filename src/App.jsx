@@ -69,7 +69,7 @@ const Sidebar = ({ counts = {}, user }) => {
         <NavLink to="/bandeja" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
           <Mailbox size={20} />Buzón Entrada<NavBadge count={counts.bandeja} />
         </NavLink>
-        {user?.tipo_usuario === 3 && (
+        {(user?.tipo_usuario === 1 || user?.tipo_usuario === 3) && (
           <NavLink to="/jefes-obra" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
             <HardHat size={20} />Jefes de Obra<NavBadge count={counts.jefes} />
           </NavLink>
@@ -214,8 +214,8 @@ const AppContent = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Jefes de obra solo para Jefe de Obra
-  if (location.pathname.startsWith('/jefes-obra') && user.tipo_usuario !== 3) {
+  // Jefes de obra: Jefe de Obra (3) y Administrador (1)
+  if (location.pathname.startsWith('/jefes-obra') && user.tipo_usuario !== 3 && user.tipo_usuario !== 1) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -251,7 +251,7 @@ const AppContent = () => {
           <Route path="/nuevo" element={<NuevoProyecto />} />
           <Route path="/borradores" element={<Borradores sessionCache={sessionCache} setSessionCache={setSessionCache} />} />
           <Route path="/bandeja" element={<BandejaEntrada />} />
-          {user.tipo_usuario === 3 && <Route path="/jefes-obra" element={<JefesObra />} />}
+          {(user.tipo_usuario === 1 || user.tipo_usuario === 3) && <Route path="/jefes-obra" element={<JefesObra />} />}
           <Route path="/proyectos" element={<Proyectos />} />
           <Route path="/clientes" element={<Clientes />} />
           <Route path="/proveedores" element={<Proveedores />} />

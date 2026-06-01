@@ -16,10 +16,13 @@ const JefesObra = () => {
     const { showAlert, ModalUI } = useModal();
     const { showToast, ToastUI } = useToast();
 
+    const esAdmin = user?.tipo_usuario === 1;
+
     const [proyectos, setProyectos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [jefeSeleccionado, setJefeSeleccionado] = useState('');
     const [jefesDisponibles, setJefesDisponibles] = useState([]);
+    const [todosLosJefes, setTodosLosJefes] = useState([]);
 
     const [activeProject, setActiveProject] = useState(null);
     const [partidas, setPartidas] = useState([]);
@@ -54,17 +57,18 @@ const JefesObra = () => {
 
             if (error) throw error;
             if (data) {
-                // Cada jefe de obra solo ve los proyectos asignados a su correo
-                const mios = user?.correo
-                    ? data.filter(p => p.jefe_obra === user.correo)
-                    : data;
-                setProyectos(mios);
-                const jefes = [...new Set(mios.map(p => p.jefe_obra).filter(Boolean))];
+                // Admin ve todos; jefe de obra solo los asignados a su correo
+                const filtrados = (user?.tipo_usuario === 1)
+                    ? data
+                    : (user?.correo ? data.filter(p => p.jefe_obra === user.correo) : data);
+
+                setProyectos(filtrados);
+                // jefesDisponibles siempre del total (para el filtro del admin)
+                const jefes = [...new Set(data.map(p => p.jefe_obra).filter(Boolean))];
                 setJefesDisponibles(jefes);
-                if (user?.correo) {
+                // Jefe de obra: auto-selecciona su propio correo
+                if (user?.tipo_usuario === 3 && user?.correo) {
                     setJefeSeleccionado(user.correo);
-                } else if (jefes.length > 0 && !jefeSeleccionado) {
-                    setJefeSeleccionado(jefes[0]);
                 }
             }
         } catch (error) {
@@ -73,11 +77,23 @@ const JefesObra = () => {
         } finally {
             setLoading(false);
         }
-    }, [showToast, user]); // filtra por el jefe logueado
+    }, [showToast, user]);
 
     useEffect(() => {
         fetchProyectos();
     }, [fetchProyectos]);
+
+    // Cargar todos los jefes de obra registrados (para reasignación)
+    useEffect(() => {
+        const cargarTodosJefes = async () => {
+            const { data } = await supabase
+                .from('usuarios')
+                .select('nombre,apellido,correo')
+                .eq('tipo_usuario', 3);
+            if (data) setTodosLosJefes(data);
+        };
+        cargarTodosJefes();
+    }, []);
 
 
     const openProject = async (project) => {
@@ -667,7 +683,20 @@ const JefesObra = () => {
         }
     };
 
-    const proyectosFiltrados = jefeSeleccionado 
+    const reasignarJefe = async (proyectoId, nuevoCorreo) => {
+        const { error } = await supabase
+            .from('propuestas')
+            .update({ jefe_obra: nuevoCorreo || null })
+            .eq('Proyecto', proyectoId);
+        if (error) {
+            showToast('Error al reasignar jefe de obra.', 'error');
+        } else {
+            showToast('✅ Jefe de obra reasignado.', 'success');
+            fetchProyectos();
+        }
+    };
+
+    const proyectosFiltrados = jefeSeleccionado
         ? proyectos.filter(p => p.jefe_obra === jefeSeleccionado)
         : proyectos;
 
@@ -899,22 +928,24 @@ const JefesObra = () => {
                             </div>
                         </div>
 
-                        <div className="glass-card" style={{ marginTop: '24px', marginBottom: '24px' }}>
-                            <h3>👤 Selecciona tu perfil</h3>
-                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
-                                Filtra los proyectos que tienes asignados para revisión.
-                            </p>
-                            <select 
-                                value={jefeSeleccionado} 
-                                onChange={(e) => setJefeSeleccionado(e.target.value)}
-                                style={{ width: '100%', maxWidth: '300px', padding: '10px', borderRadius: 'var(--radius-md)' }}
-                            >
-                                <option value="">-- Todos los Jefes de Obra --</option>
-                                {jefesDisponibles.map(jefe => (
-                                    <option key={jefe} value={jefe}>{jefe}</option>
-                                ))}
-                            </select>
-                        </div>
+                        {esAdmin && (
+                            <div className="glass-card" style={{ marginTop: '24px', marginBottom: '24px' }}>
+                                <h3>🔍 Filtrar por Jefe de Obra</h3>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
+                                    Como administrador ves todos los proyectos. Filtra por jefe si lo necesitas.
+                                </p>
+                                <select
+                                    value={jefeSeleccionado}
+                                    onChange={(e) => setJefeSeleccionado(e.target.value)}
+                                    style={{ width: '100%', maxWidth: '340px', padding: '10px', borderRadius: 'var(--radius-md)' }}
+                                >
+                                    <option value="">— Todos los proyectos —</option>
+                                    {jefesDisponibles.map(jefe => (
+                                        <option key={jefe} value={jefe}>{jefe}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         <div className="glass-card">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
@@ -954,9 +985,29 @@ const JefesObra = () => {
                                                         </td>
                                                         <td>{new Date(pro.fecha_recepcion).toLocaleDateString()}</td>
                                                         <td>
-                                                            <span className="badge" style={{ backgroundColor: '#e5edf7', color: '#002D54', border: '1px solid #c7d5e6' }}>
-                                                                {pro.jefe_obra || 'Sin Asignar'}
-                                                            </span>
+                                                            {esAdmin ? (
+                                                                <select
+                                                                    value={pro.jefe_obra || ''}
+                                                                    onChange={(e) => reasignarJefe(pro.Proyecto, e.target.value)}
+                                                                    style={{
+                                                                        padding: '5px 8px', borderRadius: 6,
+                                                                        border: '1px solid var(--border-color)',
+                                                                        backgroundColor: 'var(--bg-card)',
+                                                                        fontSize: '0.82rem', minWidth: '180px'
+                                                                    }}
+                                                                >
+                                                                    <option value="">— Sin asignar —</option>
+                                                                    {todosLosJefes.map(j => (
+                                                                        <option key={j.correo} value={j.correo}>
+                                                                            {j.nombre} {j.apellido}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            ) : (
+                                                                <span className="badge" style={{ backgroundColor: '#e5edf7', color: '#002D54', border: '1px solid #c7d5e6' }}>
+                                                                    {pro.jefe_obra || 'Sin Asignar'}
+                                                                </span>
+                                                            )}
                                                         </td>
                                                         <td style={{ textAlign: 'right' }}>
                                                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
