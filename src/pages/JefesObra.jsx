@@ -695,9 +695,8 @@ const JefesObra = () => {
             if (nuevoCorreo) {
                 const jefeData = todosLosJefes.find(j => j.correo === nuevoCorreo);
                 const proyecto = proyectos.find(p => p.Proyecto === proyectoId);
-                const n8nBase = import.meta.env.VITE_N8N_BASE_URL;
-                if (n8nBase) {
-                    fetch(`${n8nBase}/webhook/notificar-jefe-obra`, {
+                if (N8N_BASE_URL) {
+                    fetch(`${N8N_BASE_URL}/webhook/notificar-jefe-obra`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({

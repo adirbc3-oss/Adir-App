@@ -42,7 +42,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     
     // Estados para edición de metadatos del proyecto
     const [showEditMetadata, setShowEditMetadata] = useState(false);
-    const [metadataForm, setMetadataForm] = useState({ cliente: '', cliente_email: '', descripcion: '' });
+    const [metadataForm, setMetadataForm] = useState({ cliente: '', cliente_email: '' });
 
     const [showLicitationModal, setShowLicitationModal] = useState(false);
     const [rawInputs, setRawInputs] = useState({});
@@ -154,7 +154,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             if (error) throw error;
             
             if (count === 0) {
-                throw new Error("No se pudo borrar de la base de datos (posible restricción de permisos RLS).");
+                throw new Error("El servidor no eliminó el registro. Verifica que el proyecto exista.");
             }
 
             showToast(`Proyecto "${getCleanProjectName(project.Proyecto)}" eliminado correctamente.`);
@@ -578,8 +578,8 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             .map(h => {
                 const limpio = (h.Capítulo || '').replace(/#$/, '');
                 const raw = h.Descripción || h.texto_partida || h.Capítulo || '-';
-                const desc = (raw.includes('::') ? raw.split('::').slice(1).join('::') : raw)
-                    .replace(/</g, '&lt;').replace(/>/g, '&gt;').trim();
+                const rawClean = (raw.includes('::') ? raw.split('::').slice(1).join('::') : raw).trim();
+                const desc = escapeHtml(rawClean);
                 return { limpio, desc, isSubcap: limpio.includes('.') };
             });
     };
@@ -823,9 +823,8 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             if (hasUnsavedChanges) await saveAssignments();
             await supabase.from('propuestas').update({ estado: 'En Revisión', jefe_obra: jefeInput.trim() }).eq('Proyecto', activeProject.Proyecto);
             const jefeData = jefesObra.find(j => j.correo === jefeInput.trim());
-            const n8nBase = import.meta.env.VITE_N8N_BASE_URL;
-            if (n8nBase && jefeInput.trim()) {
-                fetch(`${n8nBase}/webhook/notificar-jefe-obra`, {
+            if (N8N_BASE_URL && jefeInput.trim()) {
+                fetch(`${N8N_BASE_URL}/webhook/notificar-jefe-obra`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -840,7 +839,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             showToast("Enviado a revisión.", "success");
             setActiveProject(null);
             fetchProyectos(true);
-        } catch (err) { showToast("Error al enviar.", "error"); }
+        } catch (err) { showToast("Error al enviar: " + (err.message || err), "error"); }
         finally { setLoadingProject(false); setShowReviewModal(false); }
     };
 

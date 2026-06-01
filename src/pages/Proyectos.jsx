@@ -212,7 +212,7 @@ const Proyectos = () => {
                 .delete({ count: 'exact' })
                 .eq('Proyecto', pro.Proyecto);
             if (error) throw error;
-            if (count === 0) throw new Error('No se pudo borrar (restricción RLS o no encontrado).');
+            if (count === 0) throw new Error('El servidor no eliminó el registro. Verifica que el proyecto exista.');
             showToast(`Proyecto "${getCleanProjectName(pro.Proyecto)}" eliminado definitivamente.`);
             setModalDelete(null);
             fetchProyectos();
