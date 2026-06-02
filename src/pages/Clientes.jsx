@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useModal, useToast } from '../utils/useModal';
+import { esNifValido, normalizarNif } from '../utils/nif';
 import {
     Building2, Plus, Edit2, Trash2, Search, Mail, Phone,
     FileText, MapPin, Loader2, ChevronDown, ChevronUp, StickyNote
@@ -78,9 +79,13 @@ const Clientes = () => {
             showToast('El nombre o empresa es obligatorio.', 'error');
             return;
         }
-        const nifNorm = form.nif.replace(/[-\s]/g, '').toUpperCase();
+        const nifNorm = normalizarNif(form.nif);
         if (!nifNorm) {
             showToast('El NIF / CIF es obligatorio.', 'error');
+            return;
+        }
+        if (!esNifValido(nifNorm)) {
+            showToast('El NIF / CIF no es válido. Debe incluir la letra de control correcta (ej. 49970504Z).', 'error');
             return;
         }
         const formFinal = { ...form, nif: nifNorm };
