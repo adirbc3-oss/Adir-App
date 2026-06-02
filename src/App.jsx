@@ -43,14 +43,14 @@ const PerfilModal = ({ user, onClose, onSaved }) => {
           <UserCog size={22} color="var(--primary)" /> Mi Perfil
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minWidth: 0 }}>
+            <div style={{ minWidth: 0 }}>
               <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 5 }}>Nombre *</label>
-              <input className="input" value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
+              <input className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 5 }}>Apellido</label>
-              <input className="input" value={form.apellido} onChange={e => setForm(f => ({ ...f, apellido: e.target.value }))} />
+              <input className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.apellido} onChange={e => setForm(f => ({ ...f, apellido: e.target.value }))} />
             </div>
           </div>
           <div>

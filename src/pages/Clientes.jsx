@@ -78,20 +78,26 @@ const Clientes = () => {
             showToast('El nombre o empresa es obligatorio.', 'error');
             return;
         }
+        const nifNorm = form.nif.replace(/[-\s]/g, '').toUpperCase();
+        if (!nifNorm) {
+            showToast('El NIF / CIF es obligatorio.', 'error');
+            return;
+        }
+        const formFinal = { ...form, nif: nifNorm };
         setSaving(true);
         try {
             if (editingCliente) {
                 const { error } = await supabase
                     .from('clientes')
-                    .update(form)
+                    .update(formFinal)
                     .eq('id', editingCliente.id);
                 if (error) throw error;
                 setClientes(prev =>
-                    prev.map(c => c.id === editingCliente.id ? { ...c, ...form } : c)
+                    prev.map(c => c.id === editingCliente.id ? { ...c, ...formFinal } : c)
                 );
                 showToast('✅ Cliente actualizado.');
             } else {
-                const { error } = await supabase.from('clientes').insert([form]);
+                const { error } = await supabase.from('clientes').insert([formFinal]);
                 if (error) throw error;
                 await fetchClientes();
                 showToast('✅ Cliente creado correctamente.');
@@ -124,14 +130,18 @@ const Clientes = () => {
     };
 
     // ── Helpers UI ────────────────────────────────────────────────────────────
-    const setField = (key) => (e) => setForm(prev => ({ ...prev, [key]: e.target.value }));
+    const setField = (key) => (e) => {
+        let val = e.target.value;
+        if (key === 'nif') val = val.replace(/[-\s]/g, '').toUpperCase();
+        setForm(prev => ({ ...prev, [key]: val }));
+    };
 
     const formFields = [
-        { key: 'nombre',    label: 'Nombre / Empresa *', type: 'text',  icon: <Building2 size={13} /> },
-        { key: 'email',     label: 'Email',              type: 'email', icon: <Mail      size={13} /> },
-        { key: 'telefono',  label: 'Teléfono',           type: 'tel',   icon: <Phone     size={13} /> },
-        { key: 'nif',       label: 'NIF / CIF',          type: 'text',  icon: <FileText  size={13} /> },
-        { key: 'direccion', label: 'Dirección',          type: 'text',  icon: <MapPin    size={13} /> },
+        { key: 'nombre',    label: 'Nombre / Empresa *',      type: 'text',  icon: <Building2 size={13} /> },
+        { key: 'email',     label: 'Email',                   type: 'email', icon: <Mail      size={13} /> },
+        { key: 'telefono',  label: 'Teléfono',                type: 'tel',   icon: <Phone     size={13} /> },
+        { key: 'nif',       label: 'NIF / CIF * (sin guion)', type: 'text',  icon: <FileText  size={13} />, required: true },
+        { key: 'direccion', label: 'Dirección',               type: 'text',  icon: <MapPin    size={13} /> },
     ];
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -184,7 +194,7 @@ const Clientes = () => {
             </div>
 
             {/* ── Lista ── */}
-            <div className="glass-card" style={{ padding: 0, overflowX: 'auto', overflowY: 'visible' }}>
+            <div className="glass-card" style={{ padding: 0 }}>
                 {loading ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
                         <Loader2 className="loader-spinner" size={32} />
@@ -202,7 +212,8 @@ const Clientes = () => {
                         )}
                     </div>
                 ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <div style={{ overflowX: 'auto', width: '100%' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
                         <thead>
                             <tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border-color)' }}>
                                 {['', 'Nombre / Empresa', 'Email', 'Teléfono', 'NIF', 'Acciones'].map((h, i) => (
@@ -305,6 +316,7 @@ const Clientes = () => {
                             })}
                         </tbody>
                     </table>
+                    </div>
                 )}
             </div>
 

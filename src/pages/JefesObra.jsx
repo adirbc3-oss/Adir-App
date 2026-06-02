@@ -483,11 +483,23 @@ const JefesObra = () => {
                 : partidasParaCliente
             ).map(sanitizarPartidaParaBD); // ← solo los campos necesarios, sin estado React
 
+            // Buscar cliente_id por email, y si no existe por nombre
+            let clienteId = null;
+            if (activeProject.direccion) {
+                const { data: cd } = await supabase.from('clientes').select('id').eq('email', activeProject.direccion).maybeSingle();
+                clienteId = cd?.id ?? null;
+            }
+            if (!clienteId && activeProject.cliente) {
+                const { data: cd } = await supabase.from('clientes').select('id').eq('nombre', activeProject.cliente).maybeSingle();
+                clienteId = cd?.id ?? null;
+            }
+
             await supabase.from('presupuestos_cliente').insert({
                 token,
                 propuesta_id: activeProject.Proyecto,
                 cliente_nombre: activeProject.cliente || '',
                 cliente_email: activeProject.direccion || '',
+                cliente_id: clienteId,
                 proyecto_descripcion: activeProject.descripcion || getCleanProjectName(activeProject.Proyecto),
                 partidas: partidasGuardar,
                 precio_total: precioTotal

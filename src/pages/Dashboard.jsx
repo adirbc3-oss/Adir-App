@@ -121,6 +121,7 @@ const Dashboard = () => {
     const [recientes, setRecientes] = useState([]);
     const [firmados, setFirmados] = useState([]);
     const [borradoresDash, setBorradoresDash] = useState([]);
+    const [solicitudesVencidas, setSolicitudesVencidas] = useState([]);
     const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
 
     const fetchDashboard = async () => {
@@ -173,7 +174,19 @@ const Dashboard = () => {
                 .limit(4);
             setFirmados(pFirmados || []);
 
-            // 5. Borradores + En Revisión con solicitudes (independiente)
+            // 5. Solicitudes a proveedores sin respuesta hace >7 días
+            try {
+                const hace7dias = new Date(Date.now() - 7 * 86400000).toISOString();
+                const { data: solsVencidas } = await supabase
+                    .from('solicitudes')
+                    .select('id, propuesta_id, proveedor_nombre, oficio_solicitado, created_at')
+                    .eq('estado_solicitud', 'Pendiente')
+                    .lt('created_at', hace7dias)
+                    .order('created_at', { ascending: true });
+                setSolicitudesVencidas(solsVencidas || []);
+            } catch (_) {}
+
+            // 6. Borradores + En Revisión con solicitudes (independiente)
             try {
                 const { data: pendientes } = await supabase
                     .from('propuestas')
@@ -284,6 +297,14 @@ const Dashboard = () => {
                             color="#059669"
                             bg="rgba(5,150,105,0.1)"
                             sublabel={`${totalProyectos} total`}
+                        />
+                        <KpiCard
+                            icon={<AlertTriangle size={22} color="#b45309" />}
+                            label="Sin respuesta >7d"
+                            value={solicitudesVencidas.length}
+                            color="#b45309"
+                            bg="rgba(180,83,9,0.1)"
+                            sublabel={solicitudesVencidas.length > 0 ? 'Proveedores pendientes' : 'Todo al día'}
                         />
                     </div>
 
@@ -423,6 +444,28 @@ const Dashboard = () => {
                             )}
                         </div>
                     </div>
+
+                    {/* ── Solicitudes sin respuesta >7 días ── */}
+                    {solicitudesVencidas.length > 0 && (
+                        <div className="glass-card" style={{ padding: '18px 22px', marginTop: 20, borderLeft: '4px solid #b45309' }}>
+                            <h3 style={{ margin: '0 0 12px', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#b45309' }}>
+                                <AlertTriangle size={16} /> Proveedores sin respuesta hace más de 7 días
+                            </h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {solicitudesVencidas.map(s => {
+                                    const dias = Math.round((Date.now() - new Date(s.created_at)) / 86400000);
+                                    return (
+                                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 8, background: 'rgba(180,83,9,0.06)', border: '1px solid rgba(180,83,9,0.2)', fontSize: '0.83rem' }}>
+                                            <span style={{ fontWeight: 700, color: '#b45309', minWidth: 48 }}>{dias}d</span>
+                                            <span style={{ fontWeight: 600, flex: 1 }}>{s.proveedor_nombre}</span>
+                                            <span style={{ color: 'var(--text-muted)' }}>{s.oficio_solicitado}</span>
+                                            <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.75rem' }}>{s.propuesta_id}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     {/* ── Borradores en plazo + solicitudes a proveedores ── */}
                     <div className="glass-card" style={{ padding: '20px 22px', marginTop: 20 }}>
