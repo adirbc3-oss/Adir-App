@@ -216,7 +216,7 @@ const Clientes = () => {
                     </div>
                 ) : (
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 580 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 460 }}>
                             <thead>
                                 <tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border-color)' }}>
                                     {['', 'Nombre / Empresa', 'Email', 'Telefono', 'NIF', 'Acciones'].map((h, i) => (

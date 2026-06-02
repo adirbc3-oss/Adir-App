@@ -122,12 +122,26 @@ body {
 /* Main Content Area */
 .main-content {
   flex: 1;
-  padding: 40px 60px;
+  min-width: 0;          /* evita desbordamiento en flex row */
+  padding: 32px 40px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  max-width: 1400px;
-  margin: 0 auto;
+}
+
+@media (max-width: 1200px) {
+  .main-content {
+    padding: 24px 28px;
+  }
+}
+
+@media (max-width: 900px) {
+  .main-content {
+    padding: 16px 16px;
+  }
+  .sidebar {
+    width: 220px;
+  }
 }
 
 /* Corporate Cards */

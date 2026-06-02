@@ -305,13 +305,13 @@ const AppContent = () => {
   return (
     <div className="app-container">
       <Sidebar counts={sidebarCounts} user={currentUser || user} onOpenPerfil={() => setShowPerfil(true)} />
+      <main className="main-content">
       {showPerfil && currentUser && (
         <PerfilModal
           user={currentUser}
           onClose={() => setShowPerfil(false)}
           onSaved={(updated) => {
             setCurrentUser(updated);
-            // Actualizar localStorage para que el nombre persista al recargar
             const stored = localStorage.getItem('adir_user');
             if (stored) {
               try { localStorage.setItem('adir_user', JSON.stringify({ ...JSON.parse(stored), nombre: updated.nombre, apellido: updated.apellido })); } catch (_) {}
@@ -319,7 +319,6 @@ const AppContent = () => {
           }}
         />
       )}
-      <main className="main-content">
         {notification && (
           <div style={{
             position: 'fixed', bottom: 24, right: 24, zIndex: 99999,
