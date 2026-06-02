@@ -45,14 +45,24 @@ export const Modal = ({ title, icon, onClose, maxWidth = 520, children, footer }
         return () => window.removeEventListener('keydown', onKey);
     }, [onClose]);
 
+    // Overlay que hace scroll cuando el modal es más alto que el viewport.
+    // margin:'auto' en el hijo lo centra cuando hay espacio, y lo ancla
+    // arriba (sin recortar) cuando el contenido supera el alto de pantalla.
+    const scrollableOverlay = {
+        ...overlayStyle,
+        alignItems: 'flex-start',   // nunca recortar por arriba
+        overflowY: 'auto',          // el overlay scrollea, no el modal
+        padding: '24px 20px',
+    };
+
     return (
         <div
-            style={overlayStyle}
+            style={scrollableOverlay}
             onClick={(e) => { if (e.target === e.currentTarget && onClose) onClose(); }}
         >
             <div
                 className="glass-card animate-fade-in"
-                style={{ width: '100%', maxWidth, maxHeight: '90vh', overflowY: 'auto', textAlign: 'left' }}
+                style={{ width: '100%', maxWidth, margin: 'auto', textAlign: 'left', flexShrink: 0 }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {(title || icon) && (
