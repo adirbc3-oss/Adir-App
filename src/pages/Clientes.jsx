@@ -184,7 +184,7 @@ const Clientes = () => {
             </div>
 
             {/* ── Lista ── */}
-            <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="glass-card" style={{ padding: 0, overflowX: 'auto', overflowY: 'visible' }}>
                 {loading ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
                         <Loader2 className="loader-spinner" size={32} />

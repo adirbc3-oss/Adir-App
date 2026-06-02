@@ -129,7 +129,7 @@ const Dashboard = () => {
             // 1. Contar proyectos por estado
             const { data: propuestas, error: e1 } = await supabase
                 .from('propuestas')
-                .select('Proyecto, estado, cliente, precio_total, fecha_recepcion');
+                .select('Proyecto, estado, cliente, fecha_recepcion');
             if (!e1) {
                 const conteo = {};
                 (propuestas || []).forEach(p => {
