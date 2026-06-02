@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useModal } from '../utils/useModal';
-import { Edit2, Trash2, Plus, LogOut } from 'lucide-react';
+import { useModal, useToast, Modal } from '../utils/useModal';
+import { Edit2, Trash2, Plus, Users, Search, Loader2, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
 
 const TIPOS_USUARIO = {
@@ -18,16 +18,6 @@ const toHex = (str) =>
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 
-const useToast = () => {
-  const [toast, setToast] = useState(null);
-  // useCallback estable: evita recrear la función en cada render (causaba loop infinito)
-  const show = React.useCallback((msg, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 4000);
-  }, []);
-  return { toast, show };
-};
-
 const EMPTY_FORM = {
   nombre: '',
   apellido: '',
@@ -37,8 +27,8 @@ const EMPTY_FORM = {
 };
 
 const Usuarios = () => {
-  const { user, logout } = useAuth();
-  const { toast, show: showToast } = useToast();
+  const { user } = useAuth();
+  const { showToast, ToastUI } = useToast();
   const { showConfirm, ModalUI } = useModal();
   const navigate = useNavigate();
   const [usuarios, setUsuarios] = useState([]);
@@ -46,6 +36,7 @@ const Usuarios = () => {
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showPass, setShowPass] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
@@ -91,6 +82,7 @@ const Usuarios = () => {
   const openNew = () => {
     setEditingItem(null);
     setForm(EMPTY_FORM);
+    setShowPass(false);
     setShowModal(true);
   };
 
@@ -103,6 +95,7 @@ const Usuarios = () => {
       contrasena: '',
       tipo_usuario: u.tipo_usuario ?? 0
     });
+    setShowPass(false);
     setShowModal(true);
   };
 
@@ -111,7 +104,6 @@ const Usuarios = () => {
       showToast('Campos requeridos: nombre y correo', 'error');
       return;
     }
-
     if (!editingItem && !form.contrasena.trim()) {
       showToast('Contraseña requerida para nuevo usuario', 'error');
       return;
@@ -126,7 +118,6 @@ const Usuarios = () => {
           correo: form.correo,
           tipo_usuario: form.tipo_usuario
         };
-        // Solo cambiar contraseña si se ha escrito una nueva
         if (form.contrasena.trim()) {
           updateData.contrasena = toHex(form.contrasena);
         }
@@ -182,268 +173,196 @@ const Usuarios = () => {
     );
   };
 
+  const setField = (key) => (e) =>
+    setForm((prev) => ({ ...prev, [key]: key === 'tipo_usuario' ? parseInt(e.target.value, 10) : e.target.value }));
+
+  const labelStyle = { fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 5 };
+
   return (
-    <div style={{ padding: '24px' }}>
+    <div className="animate-fade-in">
+      {ToastUI}
       {ModalUI}
+
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-        <div>
-          <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#1e293b', margin: '0 0 8px' }}>
-            Gestión de Usuarios
-          </h1>
-          <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>
-            Administra usuarios del sistema
-          </p>
+      <div className="glass-card" style={{ marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h1 style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: 0 }}>
+              <Users size={32} color="var(--primary)" /> Gestión de Usuarios
+            </h1>
+            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              Administra los usuarios del sistema y sus permisos.
+            </p>
+          </div>
+          <button className="btn btn-primary" onClick={openNew} style={{ display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+            <Plus size={16} /> Nuevo Usuario
+          </button>
         </div>
-        <button
-          onClick={logout}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '8px 16px',
-            background: '#f1f5f9',
-            border: '1px solid #e2e8f0',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: '14px',
-            color: '#64748b'
-          }}
-        >
-          <LogOut size={18} />
-          Cerrar Sesión
-        </button>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          zIndex: 99999,
-          background: toast.type === 'error' ? '#fee2e2' : '#dcfce7',
-          color: toast.type === 'error' ? '#b91c1c' : '#166534',
-          padding: '16px 24px',
-          borderRadius: 8,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          animation: 'fadeIn 0.3s ease'
-        }}>
-          {toast.msg}
+      {/* Buscador */}
+      <div className="glass-card" style={{ marginBottom: '16px', padding: '14px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 280px', maxWidth: '440px' }}>
+            <Search size={15} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <input
+              type="text"
+              className="input"
+              placeholder="Buscar por nombre o correo..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ paddingLeft: '34px' }}
+            />
+          </div>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+            {filteredUsuarios.length} / {usuarios.length} usuarios
+          </span>
         </div>
-      )}
-
-      {/* Search & Create */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-        <input
-          type="text"
-          placeholder="Buscar usuario..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            flex: 1,
-            padding: '10px 16px',
-            border: '1px solid #e2e8f0',
-            borderRadius: 6,
-            fontSize: '14px',
-            outline: 'none'
-          }}
-        />
-        <button
-          onClick={openNew}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '10px 16px',
-            background: '#06b6d4',
-            color: 'white',
-            border: 'none',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: 600
-          }}
-        >
-          <Plus size={18} />
-          Nuevo Usuario
-        </button>
       </div>
 
-      {/* Tabla */}
-      <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+      {/* Lista */}
+      <div className="glass-card" style={{ padding: 0 }}>
         {loading ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Cargando...</div>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '60px' }}>
+            <Loader2 className="loader-spinner" size={32} />
+          </div>
         ) : filteredUsuarios.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No hay usuarios</div>
+          <div style={{ textAlign: 'center', padding: '64px 20px', color: 'var(--text-muted)' }}>
+            <Users size={52} style={{ opacity: 0.2, display: 'block', margin: '0 auto 16px' }} />
+            <p>{search ? 'No se encontraron usuarios.' : 'Aún no hay usuarios registrados.'}</p>
+          </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Nombre</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Correo</th>
-                <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Tipo</th>
-                <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#64748b' }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsuarios.map((u) => (
-                <tr key={u.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '12px 16px', fontSize: '14px', color: '#1e293b' }}>
-                    {u.nombre} {u.apellido}
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: '14px', color: '#64748b' }}>
-                    {u.correo}
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: '13px' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '4px 12px',
-                      background: '#e0f2fe',
-                      color: '#0369a1',
-                      borderRadius: 4,
-                      fontWeight: 600
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border-color)' }}>
+                  {['Nombre', 'Correo', 'Tipo', 'Acciones'].map((h, i) => (
+                    <th key={i} style={{
+                      padding: '12px 16px',
+                      textAlign: i === 3 ? 'center' : 'left',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      color: 'var(--text-muted)',
+                      letterSpacing: '0.5px',
+                      whiteSpace: 'nowrap'
                     }}>
-                      {TIPOS_USUARIO[u.tipo_usuario] || 'Desconocido'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                    <button
-                      onClick={() => openEdit(u)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0ea5e9', padding: '4px' }}
-                      title="Editar"
-                    >
-                      <Edit2 size={18} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(u)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px', marginLeft: 8 }}
-                      title="Eliminar"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </td>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredUsuarios.map((u, i) => {
+                  const rowBg = i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.018)';
+                  return (
+                    <tr key={u.id}
+                      style={{ borderBottom: '1px solid var(--border-color)', background: rowBg }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,45,84,0.04)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = rowBg)}
+                    >
+                      <td style={{ padding: '10px 16px', fontWeight: 600, fontSize: '0.95rem' }}>
+                        {u.nombre} {u.apellido}
+                      </td>
+                      <td style={{ padding: '10px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {u.correo}
+                      </td>
+                      <td style={{ padding: '10px 16px' }}>
+                        <span style={{ display: 'inline-block', padding: '3px 10px', background: 'rgba(0,45,84,0.08)', color: 'var(--primary)', borderRadius: 12, fontSize: '0.72rem', fontWeight: 700 }}>
+                          {TIPOS_USUARIO[u.tipo_usuario] || 'Desconocido'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 16px' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => openEdit(u)}
+                            style={{ padding: '5px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            title="Editar usuario"
+                          >
+                            <Edit2 size={12} /> Editar
+                          </button>
+                          <button
+                            className="btn"
+                            onClick={() => handleDelete(u)}
+                            style={{ padding: '5px 10px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'rgba(239,68,68,0.08)', color: 'var(--error)', border: '1px solid var(--error)' }}
+                            title="Eliminar usuario"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* Modal */}
+      {/* Modal crear/editar */}
       {showModal && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 999,
-          padding: '20px'
-        }}>
-          <div style={{
-            background: 'white',
-            borderRadius: 12,
-            width: '100%',
-            maxWidth: '480px',
-            padding: '32px',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-          }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#1e293b', marginBottom: 24 }}>
-              {editingItem ? 'Editar Usuario' : 'Nuevo Usuario'}
-            </h2>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <input
-                  type="text"
-                  placeholder="Nombre"
-                  value={form.nombre}
-                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                  style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
-                />
-                <input
-                  type="text"
-                  placeholder="Apellido"
-                  value={form.apellido}
-                  onChange={(e) => setForm({ ...form, apellido: e.target.value })}
-                  style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
-                />
+        <Modal
+          title={editingItem ? 'Editar Usuario' : 'Nuevo Usuario'}
+          icon={<Users size={22} color="var(--primary)" />}
+          onClose={() => setShowModal(false)}
+          maxWidth={480}
+          footer={
+            <>
+              <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {saving && <Loader2 className="loader-spinner" size={14} />}
+                {editingItem ? 'Guardar cambios' : 'Crear usuario'}
+              </button>
+            </>
+          }
+        >
+          <div style={{ display: 'grid', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minWidth: 0 }}>
+              <div style={{ minWidth: 0 }}>
+                <label style={labelStyle}>Nombre *</label>
+                <input className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.nombre} onChange={setField('nombre')} autoFocus />
               </div>
-
-              <input
-                type="email"
-                placeholder="Correo"
-                value={form.correo}
-                onChange={(e) => setForm({ ...form, correo: e.target.value })}
-                style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
-              />
-
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>
-                  {editingItem ? 'Nueva contraseña (dejar en blanco para no cambiar)' : 'Contraseña *'}
-                </label>
+              <div style={{ minWidth: 0 }}>
+                <label style={labelStyle}>Apellido</label>
+                <input className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.apellido} onChange={setField('apellido')} />
+              </div>
+            </div>
+            <div>
+              <label style={labelStyle}>Correo *</label>
+              <input className="input" type="email" value={form.correo} onChange={setField('correo')} />
+            </div>
+            <div>
+              <label style={labelStyle}>
+                {editingItem ? 'Nueva contraseña' : 'Contraseña *'}
+                {editingItem && <span style={{ fontWeight: 400, textTransform: 'none' }}> (dejar en blanco para no cambiar)</span>}
+              </label>
+              <div style={{ position: 'relative' }}>
                 <input
-                  type="password"
-                  placeholder={editingItem ? '••••••••' : 'Contraseña inicial'}
+                  className="input"
+                  type={showPass ? 'text' : 'password'}
                   value={form.contrasena}
-                  onChange={(e) => setForm({ ...form, contrasena: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                  onChange={setField('contrasena')}
+                  placeholder={editingItem ? '••••••••' : 'Contraseña inicial'}
+                  style={{ paddingRight: 40 }}
                 />
+                <button onClick={() => setShowPass((v) => !v)} type="button"
+                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
-
-              <select
-                value={form.tipo_usuario}
-                onChange={(e) => setForm({ ...form, tipo_usuario: parseInt(e.target.value) })}
-                style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
-              >
+            </div>
+            <div>
+              <label style={labelStyle}>Tipo de usuario</label>
+              <select className="input" value={form.tipo_usuario} onChange={setField('tipo_usuario')}>
                 {Object.entries(TIPOS_USUARIO).map(([key, label]) => (
                   <option key={key} value={key}>{label}</option>
                 ))}
               </select>
             </div>
-
-            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-              <button
-                onClick={() => setShowModal(false)}
-                style={{
-                  flex: 1,
-                  padding: '10px 16px',
-                  background: '#f1f5f9',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: '#64748b'
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                style={{
-                  flex: 1,
-                  padding: '10px 16px',
-                  background: saving ? '#cbd5e1' : '#06b6d4',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 6,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 600
-                }}
-              >
-                {saving ? 'Guardando...' : 'Guardar'}
-              </button>
-            </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

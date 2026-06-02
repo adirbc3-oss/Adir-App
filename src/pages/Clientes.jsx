@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { useModal, useToast } from '../utils/useModal';
+import { useModal, useToast, Modal } from '../utils/useModal';
 import { esNifValido, normalizarNif } from '../utils/nif';
 import {
     Building2, Plus, Edit2, Trash2, Search, Mail, Phone,
@@ -318,78 +318,54 @@ const Clientes = () => {
                 )}
             </div>
 
-            {/* Modal crear/editar — mismo patron que el resto de la app */}
+            {/* Modal crear/editar — componente compartido */}
             {showModal && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        backgroundColor: 'rgba(0,0,0,0.6)',
-                        backdropFilter: 'blur(8px)',
-                        zIndex: 100000,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '20px'
-                    }}
-                    onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}
-                >
-                    <div
-                        className="glass-card animate-fade-in"
-                        style={{ width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}
-                    >
-                        <h2 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <Building2 size={22} color="var(--primary)" />
-                            {editingCliente ? 'Editar Cliente' : 'Nuevo Cliente'}
-                        </h2>
-
-                        <div style={{ display: 'grid', gap: '14px' }}>
-                            {formFields.map(({ key, label, type, icon }) => (
-                                <div key={key}>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                                        {icon} {label}
-                                    </label>
-                                    <input
-                                        type={type}
-                                        className="input"
-                                        value={form[key]}
-                                        onChange={setField(key)}
-                                        autoFocus={key === 'nombre'}
-                                        onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
-                                    />
-                                </div>
-                            ))}
-                            <div>
-                                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                                    <StickyNote size={13} /> Notas internas
-                                </label>
-                                <textarea
-                                    className="input"
-                                    rows={3}
-                                    value={form.notas}
-                                    onChange={setField('notas')}
-                                    style={{ resize: 'vertical', fontFamily: 'inherit' }}
-                                    placeholder="Observaciones, condiciones especiales..."
-                                />
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
-                            <button className="btn btn-secondary" onClick={() => setShowModal(false)}>
-                                Cancelar
-                            </button>
-                            <button
-                                className="btn btn-primary"
-                                onClick={handleSave}
-                                disabled={saving}
-                                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                            >
+                <Modal
+                    title={editingCliente ? 'Editar Cliente' : 'Nuevo Cliente'}
+                    icon={<Building2 size={22} color="var(--primary)" />}
+                    onClose={() => setShowModal(false)}
+                    maxWidth={520}
+                    footer={
+                        <>
+                            <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancelar</button>
+                            <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 {saving && <Loader2 className="loader-spinner" size={14} />}
                                 {editingCliente ? 'Guardar cambios' : 'Crear cliente'}
                             </button>
+                        </>
+                    }
+                >
+                    <div style={{ display: 'grid', gap: '14px' }}>
+                        {formFields.map(({ key, label, type, icon }) => (
+                            <div key={key}>
+                                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                    {icon} {label}
+                                </label>
+                                <input
+                                    type={type}
+                                    className="input"
+                                    value={form[key]}
+                                    onChange={setField(key)}
+                                    autoFocus={key === 'nombre'}
+                                    onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
+                                />
+                            </div>
+                        ))}
+                        <div>
+                            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                <StickyNote size={13} /> Notas internas
+                            </label>
+                            <textarea
+                                className="input"
+                                rows={3}
+                                value={form.notas}
+                                onChange={setField('notas')}
+                                style={{ resize: 'vertical', fontFamily: 'inherit' }}
+                                placeholder="Observaciones, condiciones especiales..."
+                            />
                         </div>
                     </div>
-                </div>
+                </Modal>
             )}
         </div>
     );

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { CheckCircle, AlertTriangle, X, Info, AlertCircle, Trash2 } from 'lucide-react';
 
 // ─── Toast hook ───────────────────────────────────────────────────────────────
@@ -33,6 +33,50 @@ export const useToast = () => {
     ) : null;
 
     return { showToast, ToastUI };
+};
+
+// ─── Modal genérico para contenido a medida (formularios, detalles…) ─────────
+// Patrón único de la app: overlay azul translúcido + blur, tarjeta glass-card
+// centrada con scroll interno. Cierra al pulsar ESC o clic fuera.
+export const Modal = ({ title, icon, onClose, maxWidth = 520, children, footer }) => {
+    useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') onClose && onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onClose]);
+
+    return (
+        <div
+            style={overlayStyle}
+            onClick={(e) => { if (e.target === e.currentTarget && onClose) onClose(); }}
+        >
+            <div
+                className="glass-card animate-fade-in"
+                style={{ width: '100%', maxWidth, maxHeight: '90vh', overflowY: 'auto', textAlign: 'left' }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {(title || icon) && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                        <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10, fontSize: '1.25rem' }}>
+                            {icon} {title}
+                        </h2>
+                        {onClose && (
+                            <button onClick={onClose} aria-label="Cerrar"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex' }}>
+                                <X size={20} />
+                            </button>
+                        )}
+                    </div>
+                )}
+                {children}
+                {footer && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22, paddingTop: 16, borderTop: '1px solid var(--border-color)' }}>
+                        {footer}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 };
 
 // ─── Modal de Alerta (reemplaza alert()) ─────────────────────────────────────
