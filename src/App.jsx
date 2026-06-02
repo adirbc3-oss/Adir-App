@@ -1,8 +1,83 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
-import { FileUp, Files, Users, Settings, BarChart2, Mailbox, HardHat, Database, History, FileCheck, LayoutDashboard, FileSignature, Building2, LogOut } from 'lucide-react';
+import { FileUp, Files, Users, Settings, BarChart2, Mailbox, HardHat, Database, History, FileCheck, LayoutDashboard, FileSignature, Building2, LogOut, UserCog, Loader2, Eye, EyeOff } from 'lucide-react';
 import { supabase } from './utils/supabaseClient';
 import { AuthProvider, useAuth } from './context/AuthContext';
+
+// ─── Hex encode contraseña (igual que Usuarios.jsx) ──────────────────────────
+const toHex = (str) =>
+  Array.from(new TextEncoder().encode(str))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+
+// ─── Modal Mi Perfil ──────────────────────────────────────────────────────────
+const PerfilModal = ({ user, onClose, onSaved }) => {
+  const [form, setForm] = useState({ nombre: user.nombre || '', apellido: user.apellido || '', contrasena: '' });
+  const [saving, setSaving] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const handleSave = async () => {
+    if (!form.nombre.trim()) { setMsg({ type: 'error', text: 'El nombre es obligatorio.' }); return; }
+    setSaving(true);
+    try {
+      const updateData = { nombre: form.nombre.trim(), apellido: form.apellido.trim() };
+      if (form.contrasena.trim()) updateData.contrasena = toHex(form.contrasena);
+      const { error } = await supabase.from('usuarios').update(updateData).eq('id', user.id);
+      if (error) throw error;
+      setMsg({ type: 'ok', text: 'Perfil actualizado correctamente.' });
+      onSaved({ ...user, nombre: updateData.nombre, apellido: updateData.apellido });
+      setTimeout(onClose, 1200);
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 99999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '40px 20px' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="glass-card animate-fade-in" style={{ width: '100%', maxWidth: '440px', margin: 'auto' }}>
+        <h2 style={{ marginTop: 0, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <UserCog size={22} color="var(--primary)" /> Mi Perfil
+        </h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 5 }}>Nombre *</label>
+              <input className="input" value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 5 }}>Apellido</label>
+              <input className="input" value={form.apellido} onChange={e => setForm(f => ({ ...f, apellido: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 5 }}>Nueva contraseña <span style={{ fontWeight: 400, textTransform: 'none' }}>(dejar en blanco para no cambiar)</span></label>
+            <div style={{ position: 'relative' }}>
+              <input className="input" type={showPass ? 'text' : 'password'} value={form.contrasena} onChange={e => setForm(f => ({ ...f, contrasena: e.target.value }))} placeholder="••••••••" style={{ paddingRight: 40 }} />
+              <button onClick={() => setShowPass(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+          {msg && (
+            <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', fontWeight: 600, background: msg.type === 'ok' ? 'rgba(22,163,74,0.1)' : 'rgba(220,38,38,0.1)', color: msg.type === 'ok' ? '#15803d' : '#dc2626', border: `1px solid ${msg.type === 'ok' ? 'rgba(22,163,74,0.3)' : 'rgba(220,38,38,0.3)'}` }}>
+              {msg.text}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 22, paddingTop: 16, borderTop: '1px solid var(--border-color)' }}>
+          <button className="btn btn-secondary" onClick={onClose} style={{ flex: 1 }}>Cancelar</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+            {saving && <Loader2 size={14} className="loader-spinner" />} Guardar cambios
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 import NuevoProyecto from './pages/NuevoProyecto';
 import Borradores from './pages/Borradores';
@@ -49,7 +124,7 @@ const NavBadge = ({ count }) => {
   );
 };
 
-const Sidebar = ({ counts = {}, user }) => {
+const Sidebar = ({ counts = {}, user, onOpenPerfil }) => {
   const { logout } = useAuth();
   return (
     <div className="sidebar">
@@ -105,9 +180,10 @@ const Sidebar = ({ counts = {}, user }) => {
         </NavLink>
       </div>
       <div className="sidebar-footer">
-        <div style={{ fontSize: '12px', color: '#50504d', marginBottom: 8, fontWeight: 600 }}>
-          {user?.nombre} {user?.apellido}
-        </div>
+        <button onClick={onOpenPerfil} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 8, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, cursor: 'pointer', color: '#c8d8e8', fontSize: '12px', fontWeight: 600, textAlign: 'left' }}>
+          <UserCog size={14} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.nombre} {user?.apellido}</span>
+        </button>
         <button onClick={logout} style={{
           width: '100%',
           display: 'flex',
@@ -137,6 +213,11 @@ const AppContent = () => {
   const [sessionCache, setSessionCache] = React.useState({});
   const [notification, setNotification] = useState(null);
   const [sidebarCounts, setSidebarCounts] = useState({ borradores: 0, bandeja: 0, jefes: 0 });
+  const [showPerfil, setShowPerfil] = useState(false);
+  const [currentUser, setCurrentUser] = React.useState(null);
+
+  // Mantener una copia local del usuario para reflejar cambios de nombre en sidebar
+  React.useEffect(() => { setCurrentUser(user); }, [user]);
 
   const isPortalPath = location.pathname.startsWith('/portal') || location.pathname.startsWith('/presupuesto-cliente');
   const isUsuariosPath = location.pathname.startsWith('/usuarios');
@@ -223,7 +304,21 @@ const AppContent = () => {
 
   return (
     <div className="app-container">
-      <Sidebar counts={sidebarCounts} user={user} />
+      <Sidebar counts={sidebarCounts} user={currentUser || user} onOpenPerfil={() => setShowPerfil(true)} />
+      {showPerfil && currentUser && (
+        <PerfilModal
+          user={currentUser}
+          onClose={() => setShowPerfil(false)}
+          onSaved={(updated) => {
+            setCurrentUser(updated);
+            // Actualizar localStorage para que el nombre persista al recargar
+            const stored = localStorage.getItem('adir_user');
+            if (stored) {
+              try { localStorage.setItem('adir_user', JSON.stringify({ ...JSON.parse(stored), nombre: updated.nombre, apellido: updated.apellido })); } catch (_) {}
+            }
+          }}
+        />
+      )}
       <main className="main-content">
         {notification && (
           <div style={{

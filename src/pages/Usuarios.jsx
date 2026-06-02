@@ -383,13 +383,18 @@ const Usuarios = () => {
                 style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
               />
 
-              <input
-                type="password"
-                placeholder={editingItem ? 'Dejar en blanco para no cambiar' : 'Contraseña'}
-                value={form.contrasena}
-                onChange={(e) => setForm({ ...form, contrasena: e.target.value })}
-                style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none' }}
-              />
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                  {editingItem ? 'Nueva contraseña (dejar en blanco para no cambiar)' : 'Contraseña *'}
+                </label>
+                <input
+                  type="password"
+                  placeholder={editingItem ? '••••••••' : 'Contraseña inicial'}
+                  value={form.contrasena}
+                  onChange={(e) => setForm({ ...form, contrasena: e.target.value })}
+                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
 
               <select
                 value={form.tipo_usuario}

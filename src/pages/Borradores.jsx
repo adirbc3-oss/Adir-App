@@ -3,7 +3,58 @@ import { useNavigate } from 'react-router-dom';
 import { N8N_BASE_URL } from '../config';
 import { supabase } from '../utils/supabaseClient';
 import { useModal, useToast } from '../utils/useModal';
-import { Loader2, Bot, ArrowLeft, ArrowRight, Hash, Save, Trash2, Send, RefreshCw, Mail, Search, FileDown, ClipboardCheck, Folder, Calendar, User, Users, CheckSquare, Square, Check, X, Trophy, Paperclip, HardHat, Files } from 'lucide-react';
+import { Loader2, Bot, ArrowLeft, ArrowRight, Hash, Save, Trash2, Send, RefreshCw, Mail, Search, FileDown, ClipboardCheck, Folder, Calendar, User, Users, CheckSquare, Square, Check, X, Trophy, Paperclip, HardHat, Files, AlertTriangle, Clock, Timer } from 'lucide-react';
+
+// ── Calcula días restantes sobre el plazo de 15 días ─────────────────────────
+const getDeadlineInfo = (fechaRef, dias = 15) => {
+    if (!fechaRef) return null;
+    const ref = new Date(String(fechaRef).replace(' ', 'T').split('T')[0]);
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const msDay = 86400000;
+    const transcurridos = Math.round((hoy - ref) / msDay);
+    const restantes = dias - transcurridos;
+    let urgency = 'ok';
+    if (restantes <= 0) urgency = 'overdue';
+    else if (restantes <= 3) urgency = 'danger';
+    else if (restantes <= 7) urgency = 'warning';
+    return { transcurridos, restantes, urgency, pct: Math.min(100, Math.round((transcurridos / dias) * 100)) };
+};
+
+const URGENCY_COLOR = { ok: '#16a34a', warning: '#d97706', danger: '#dc2626', overdue: '#7f1d1d' };
+const URGENCY_BG    = { ok: 'rgba(22,163,74,0.08)', warning: 'rgba(245,158,11,0.08)', danger: 'rgba(220,38,38,0.08)', overdue: 'rgba(127,29,29,0.1)' };
+
+// ── Badge de plazo reutilizable ───────────────────────────────────────────────
+const DeadlineBadge = ({ fechaRef, compact = false }) => {
+    const d = getDeadlineInfo(fechaRef);
+    if (!d) return null;
+    const col = URGENCY_COLOR[d.urgency];
+    const label = d.restantes > 0
+        ? `${d.restantes}d restantes`
+        : d.restantes === 0 ? '¡Vence hoy!' : `${Math.abs(d.restantes)}d de retraso`;
+    if (compact) {
+        return (
+            <span style={{ display:'inline-flex', alignItems:'center', gap:4, background: URGENCY_BG[d.urgency], color: col, padding:'2px 8px', borderRadius:12, fontSize:'0.72rem', fontWeight:700, border:`1px solid ${col}40` }}>
+                <Timer size={11} /> {label}
+            </span>
+        );
+    }
+    return (
+        <div style={{ background: URGENCY_BG[d.urgency], border:`1px solid ${col}30`, borderRadius:10, padding:'10px 14px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                <span style={{ fontSize:'0.75rem', fontWeight:700, color: col, display:'flex', alignItems:'center', gap:5 }}>
+                    <Timer size={13} /> PLAZO 15 DÍAS
+                </span>
+                <span style={{ fontSize:'0.82rem', fontWeight:800, color: col }}>{label}</span>
+            </div>
+            <div style={{ height:6, borderRadius:4, background:'rgba(0,0,0,0.08)', overflow:'hidden' }}>
+                <div style={{ height:'100%', width:`${d.pct}%`, background: col, borderRadius:4, transition:'width 0.5s' }} />
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', marginTop:4, fontSize:'0.68rem', color:'var(--text-muted)' }}>
+                <span>Día {d.transcurridos}</span><span>Día 15</span>
+            </div>
+        </div>
+    );
+};
 import { asignarProveedoresIA, TODOS_LOS_OFICIOS, getCleanProjectName } from '../utils/aiAllocation';
 import { generarPresupuestoPDF, descargarPDF } from '../utils/pdfUtils';
 import { escapeHtml } from '../utils/escape';
@@ -45,6 +96,7 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
     const [metadataForm, setMetadataForm] = useState({ cliente: '', cliente_email: '' });
 
     const [showLicitationModal, setShowLicitationModal] = useState(false);
+    const [solicitudesActivas, setSolicitudesActivas] = useState([]);
     const [rawInputs, setRawInputs] = useState({});
     const [anexoFile, setAnexoFile] = useState(null);
     const [anexoFileName, setAnexoFileName] = useState('');
@@ -209,6 +261,13 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
         setLoadingProject(true);
         setSelectedOficio("");
         setSelectedProviders({});
+        setSolicitudesActivas([]);
+        // Cargar solicitudes a proveedores para este proyecto
+        supabase.from('solicitudes').select('id,proveedor_nombre,oficio_solicitado,estado_solicitud,created_at')
+            .eq('propuesta_id', project.Proyecto)
+            .order('created_at', { ascending: false })
+            .then(({ data }) => setSolicitudesActivas(data || []))
+            .catch(() => {});
 
         if (sessionCache[project.Proyecto]) {
             setPartidas(sessionCache[project.Proyecto].partidas);
@@ -779,6 +838,14 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
             setSelectedProviders({});
             setAnexoFile(null);
             setAnexoFileName('');
+            // Refrescar solicitudes para reflejar las nuevas
+            if (activeProject) {
+                supabase.from('solicitudes').select('id,proveedor_nombre,oficio_solicitado,estado_solicitud,created_at')
+                    .eq('propuesta_id', activeProject.Proyecto)
+                    .order('created_at', { ascending: false })
+                    .then(({ data }) => setSolicitudesActivas(data || []))
+                    .catch(() => {});
+            }
         } catch (err) {
             showToast("Error inesperado: " + err.message, "error");
         } finally {
@@ -874,6 +941,45 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                             <button className="btn btn-secondary" onClick={handleDownloadPDF}><FileDown size={16} /> PDF</button>
                             <button className="btn btn-success" onClick={saveAssignments} disabled={saving}><Save size={16} /> Guardar</button>
                             <button className="btn btn-primary" onClick={() => setShowReviewModal(true)}><ClipboardCheck size={16} /> Revisión</button>
+                        </div>
+                    </div>
+
+                    {/* ── Barra de plazo + solicitudes ── */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 20 }}>
+                        {/* Plazo 15 días */}
+                        <div className="glass-card" style={{ padding: '16px 20px' }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Clock size={13} /> Plazo de entrega al cliente
+                            </div>
+                            <DeadlineBadge fechaRef={activeProject.fecha_recepcion || activeProject.created_at} />
+                        </div>
+
+                        {/* Solicitudes a proveedores */}
+                        <div className="glass-card" style={{ padding: '16px 20px' }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Send size={13} /> Solicitudes a proveedores
+                            </div>
+                            {solicitudesActivas.length === 0 ? (
+                                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>Sin solicitudes enviadas todavía.</p>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    {solicitudesActivas.map(s => {
+                                        const respondida = s.estado_solicitud !== 'Pendiente';
+                                        return (
+                                            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem' }}>
+                                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: respondida ? '#16a34a' : '#d97706', flexShrink: 0 }} />
+                                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    <strong>{s.proveedor_nombre}</strong>
+                                                    <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>({s.oficio_solicitado})</span>
+                                                </span>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: respondida ? '#16a34a' : '#d97706', whiteSpace: 'nowrap' }}>
+                                                    {respondida ? '✓ Respondido' : '⏳ Pendiente'}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -1283,6 +1389,9 @@ const Borradores = ({ sessionCache = {}, setSessionCache }) => {
                                     </div>
                                     <div className="info-item">
                                         <Calendar size={14} /> <span>Creado: {formatFechaHora(pro.created_at) || pro.fecha_recepcion || "Fecha no disponible"}</span>
+                                    </div>
+                                    <div className="info-item" style={{ marginTop: 6 }}>
+                                        <DeadlineBadge fechaRef={pro.fecha_recepcion || pro.created_at} compact />
                                     </div>
                                 </div>
                                 <div className="badge badge-blue">Borrador</div>

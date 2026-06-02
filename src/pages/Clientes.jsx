@@ -311,10 +311,10 @@ const Clientes = () => {
             {/* ── Modal crear/editar ── */}
             {showModal && (
                 <div
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '40px 20px' }}
                     onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}
                 >
-                    <div className="glass-card animate-fade-in" style={{ width: '100%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
+                    <div className="glass-card animate-fade-in" style={{ width: '100%', maxWidth: '520px', margin: 'auto' }}>
                         <h2 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <Building2 size={22} color="var(--primary)" />
                             {editingCliente ? 'Editar Cliente' : 'Nuevo Cliente'}

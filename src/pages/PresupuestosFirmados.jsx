@@ -138,6 +138,7 @@ const PresupuestosFirmados = () => {
                         <Search size={16} style={{ position: 'absolute', top: 12, left: 12, color: 'var(--text-muted)' }} />
                         <input
                             type="text"
+                            className="input"
                             placeholder="Buscar por cliente o proyecto..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
@@ -145,9 +146,10 @@ const PresupuestosFirmados = () => {
                         />
                     </div>
                     <select
+                        className="input"
                         value={filtroEstado}
                         onChange={e => setFiltroEstado(e.target.value)}
-                        style={{ flex: 1, minWidth: 160, padding: '10px', borderRadius: 8, border: '1px solid var(--border-color)', backgroundColor: 'white' }}
+                        style={{ flex: 1, minWidth: 160 }}
                     >
                         <option value="">Todos los estados</option>
                         <option value="pendiente">Pendiente de firma</option>
@@ -206,8 +208,8 @@ const PresupuestosFirmados = () => {
                                     <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
                                         {parseFloat(p.precio_total || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
                                     </td>
-                                    <td style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                        {new Date(p.fecha_envio).toLocaleDateString('es-ES')}
+                                                    <td style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                        {p.fecha_envio ? new Date(p.fecha_envio).toLocaleDateString('es-ES') : '—'}
                                     </td>
                                     <td>{getEstadoBadge(p.estado)}</td>
                                     <td style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
@@ -215,7 +217,7 @@ const PresupuestosFirmados = () => {
                                     </td>
                                     <td style={{ textAlign: 'right' }}>
                                         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                            {p.firma_base64 && (
+                                            {p.estado === 'firmado' && p.firma_base64 && (
                                                 <button onClick={() => setViendoDetalle(p)} className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                                     <Eye size={13} /> Ver firma
                                                 </button>

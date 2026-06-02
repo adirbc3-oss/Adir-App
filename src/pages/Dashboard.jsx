@@ -1,10 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { 
+import {
     Loader2, RefreshCw, Mailbox, Files, HardHat, Clock,
     CheckCircle, TrendingUp, FileCheck, AlertCircle, ArrowRight,
-    Bot, User, History, Euro, Building2
-, LayoutDashboard } from 'lucide-react';
+    Bot, User, History, Euro, Building2, LayoutDashboard,
+    Timer, Send, AlertTriangle
+} from 'lucide-react';
+
+// ── Reutilizamos la misma lógica de deadline que Borradores ──────────────────
+const getDeadlineInfo = (fechaRef, dias = 15) => {
+    if (!fechaRef) return null;
+    const ref = new Date(String(fechaRef).replace(' ', 'T').split('T')[0]);
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const transcurridos = Math.round((hoy - ref) / 86400000);
+    const restantes = dias - transcurridos;
+    let urgency = 'ok';
+    if (restantes <= 0) urgency = 'overdue';
+    else if (restantes <= 3) urgency = 'danger';
+    else if (restantes <= 7) urgency = 'warning';
+    return { transcurridos, restantes, urgency, pct: Math.min(100, Math.round((transcurridos / dias) * 100)) };
+};
+const URGENCY_COLOR = { ok: '#16a34a', warning: '#d97706', danger: '#dc2626', overdue: '#7f1d1d' };
+const URGENCY_BG    = { ok: 'rgba(22,163,74,0.06)', warning: 'rgba(245,158,11,0.06)', danger: 'rgba(220,38,38,0.06)', overdue: 'rgba(127,29,29,0.08)' };
 
 // ─── Tarjeta KPI ──────────────────────────────────────────────────────────────
 const KpiCard = ({ icon, label, value, color, bg, sublabel }) => (
@@ -103,48 +120,51 @@ const Dashboard = () => {
     const [totalActivo, setTotalActivo] = useState(0);
     const [recientes, setRecientes] = useState([]);
     const [firmados, setFirmados] = useState([]);
+    const [borradoresDash, setBorradoresDash] = useState([]);
     const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
 
     const fetchDashboard = async () => {
         setLoading(true);
         try {
             // 1. Contar proyectos por estado
-            const { data: propuestas } = await supabase
+            const { data: propuestas, error: e1 } = await supabase
                 .from('propuestas')
                 .select('Proyecto, estado, cliente, precio_total, fecha_recepcion');
+            if (!e1) {
+                const conteo = {};
+                (propuestas || []).forEach(p => {
+                    conteo[p.estado] = (conteo[p.estado] || 0) + 1;
+                });
+                setStats(conteo);
 
-            const conteo = {};
-            (propuestas || []).forEach(p => {
-                conteo[p.estado] = (conteo[p.estado] || 0) + 1;
-            });
-            setStats(conteo);
+                // 2. Total € en obras activas
+                const proyectosActivos = (propuestas || [])
+                    .filter(p => p.estado === 'En Curso')
+                    .map(p => p.Proyecto);
 
-            // 2. Total € en obras activas
-            const proyectosActivos = (propuestas || [])
-                .filter(p => p.estado === 'En Curso')
-                .map(p => p.Proyecto);
-
-            if (proyectosActivos.length > 0) {
-                const { data: presupuestosActivos } = await supabase
-                    .from('presupuestos_cliente')
-                    .select('precio_total')
-                    .in('propuesta_id', proyectosActivos);
-
-                const total = (presupuestosActivos || []).reduce(
-                    (s, p) => s + (parseFloat(p.precio_total) || 0), 0
-                );
-                setTotalActivo(total);
+                if (proyectosActivos.length > 0) {
+                    const { data: presupuestosActivos } = await supabase
+                        .from('presupuestos_cliente')
+                        .select('precio_total')
+                        .in('propuesta_id', proyectosActivos);
+                    const total = (presupuestosActivos || []).reduce(
+                        (s, p) => s + (parseFloat(p.precio_total) || 0), 0
+                    );
+                    setTotalActivo(total);
+                }
             }
 
-            // 3. Últimos 6 cambios del historial
-            const { data: historial } = await supabase
-                .from('historial_cambios')
-                .select('*')
-                .order('fecha_cambio', { ascending: false })
-                .limit(6);
-            setRecientes(historial || []);
+            // 3. Últimos 6 cambios del historial (independiente)
+            try {
+                const { data: historial } = await supabase
+                    .from('historial_cambios')
+                    .select('*')
+                    .order('fecha_cambio', { ascending: false })
+                    .limit(6);
+                setRecientes(historial || []);
+            } catch (_) {}
 
-            // 4. Últimos presupuestos firmados o rechazados (max 4)
+            // 4. Últimos presupuestos firmados o rechazados (independiente)
             const { data: pFirmados } = await supabase
                 .from('presupuestos_cliente')
                 .select('*')
@@ -152,6 +172,33 @@ const Dashboard = () => {
                 .order('fecha_firma', { ascending: false })
                 .limit(4);
             setFirmados(pFirmados || []);
+
+            // 5. Borradores + En Revisión con solicitudes (independiente)
+            try {
+                const { data: pendientes } = await supabase
+                    .from('propuestas')
+                    .select('Proyecto, cliente, fecha_recepcion, estado, created_at')
+                    .in('estado', ['Borrador', 'En Revisión'])
+                    .order('fecha_recepcion', { ascending: true });
+
+                if (pendientes && pendientes.length > 0) {
+                    const ids = pendientes.map(p => p.Proyecto);
+                    const { data: sols } = await supabase
+                        .from('solicitudes')
+                        .select('propuesta_id, proveedor_nombre, oficio_solicitado, estado_solicitud')
+                        .in('propuesta_id', ids);
+
+                    const solsMap = {};
+                    (sols || []).forEach(s => {
+                        if (!solsMap[s.propuesta_id]) solsMap[s.propuesta_id] = [];
+                        solsMap[s.propuesta_id].push(s);
+                    });
+
+                    setBorradoresDash(pendientes.map(p => ({ ...p, solicitudes: solsMap[p.Proyecto] || [] })));
+                } else {
+                    setBorradoresDash([]);
+                }
+            } catch (_) {}
 
             setUltimaActualizacion(new Date());
         } catch (err) {
@@ -375,6 +422,93 @@ const Dashboard = () => {
                                 </div>
                             )}
                         </div>
+                    </div>
+
+                    {/* ── Borradores en plazo + solicitudes a proveedores ── */}
+                    <div className="glass-card" style={{ padding: '20px 22px', marginTop: 20 }}>
+                        <h3 style={{ margin: '0 0 16px', fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Timer size={18} color="#f59e0b" /> Control de Plazos — Borradores y Revisiones
+                            <span style={{ marginLeft: 'auto', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                                {borradoresDash.length} proyecto{borradoresDash.length !== 1 ? 's' : ''} pendiente{borradoresDash.length !== 1 ? 's' : ''}
+                            </span>
+                        </h3>
+
+                        {borradoresDash.length === 0 ? (
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', padding: '20px 0' }}>
+                                No hay borradores ni proyectos en revisión en este momento.
+                            </p>
+                        ) : (
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                    <thead>
+                                        <tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border-color)' }}>
+                                            {['Estado', 'Cliente / Proyecto', 'Inicio', 'Plazo (15 días)', 'Solicitudes a proveedores'].map((h, i) => (
+                                                <th key={i} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {borradoresDash.map((p, i) => {
+                                            const dl = getDeadlineInfo(p.fecha_recepcion || p.created_at);
+                                            const col = dl ? URGENCY_COLOR[dl.urgency] : 'var(--text-muted)';
+                                            const bg  = dl ? URGENCY_BG[dl.urgency]    : 'transparent';
+                                            const pendientes = p.solicitudes.filter(s => s.estado_solicitud === 'Pendiente').length;
+                                            const respondidas = p.solicitudes.filter(s => s.estado_solicitud !== 'Pendiente').length;
+                                            const label = dl
+                                                ? (dl.restantes > 0 ? `${dl.restantes}d restantes (día ${dl.transcurridos}/15)` : dl.restantes === 0 ? '¡Vence hoy!' : `${Math.abs(dl.restantes)}d de retraso`)
+                                                : '—';
+                                            return (
+                                                <tr key={p.Proyecto} style={{ borderBottom: '1px solid var(--border-color)', background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.015)' }}>
+                                                    <td style={{ padding: '10px 14px' }}>
+                                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 12, fontSize: '0.72rem', fontWeight: 700, background: p.estado === 'Borrador' ? 'rgba(245,158,11,0.1)' : 'rgba(59,130,246,0.1)', color: p.estado === 'Borrador' ? '#d97706' : '#2563eb' }}>
+                                                            {p.estado === 'Borrador' ? '✏️' : '🔍'} {p.estado}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '10px 14px' }}>
+                                                        <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{p.cliente || '—'}</div>
+                                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace', marginTop: 2 }}>{p.Proyecto}</div>
+                                                    </td>
+                                                    <td style={{ padding: '10px 14px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                                        {p.fecha_recepcion ? new Date(p.fecha_recepcion).toLocaleDateString('es-ES') : '—'}
+                                                    </td>
+                                                    <td style={{ padding: '10px 14px' }}>
+                                                        {dl ? (
+                                                            <div style={{ minWidth: 180 }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                                    {dl.urgency === 'overdue' && <AlertTriangle size={13} color={col} style={{ marginRight: 4 }} />}
+                                                                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: col }}>{label}</span>
+                                                                </div>
+                                                                <div style={{ height: 5, borderRadius: 3, background: 'var(--border-color)', overflow: 'hidden' }}>
+                                                                    <div style={{ height: '100%', width: `${dl.pct}%`, background: col, borderRadius: 3 }} />
+                                                                </div>
+                                                            </div>
+                                                        ) : '—'}
+                                                    </td>
+                                                    <td style={{ padding: '10px 14px' }}>
+                                                        {p.solicitudes.length === 0 ? (
+                                                            <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Sin solicitudes</span>
+                                                        ) : (
+                                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                                                {respondidas > 0 && (
+                                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(22,163,74,0.1)', color: '#15803d', padding: '2px 8px', borderRadius: 10, fontSize: '0.72rem', fontWeight: 700 }}>
+                                                                        ✓ {respondidas} respondid{respondidas !== 1 ? 'os' : 'o'}
+                                                                    </span>
+                                                                )}
+                                                                {pendientes > 0 && (
+                                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(245,158,11,0.1)', color: '#d97706', padding: '2px 8px', borderRadius: 10, fontSize: '0.72rem', fontWeight: 700 }}>
+                                                                        ⏳ {pendientes} pendiente{pendientes !== 1 ? 's' : ''}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 </>
             )}
