@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle, AlertTriangle, X, Info, AlertCircle, Trash2 } from 'lucide-react';
 
 // ─── Toast hook ───────────────────────────────────────────────────────────────
@@ -14,7 +15,7 @@ export const useToast = () => {
         setTimeout(() => setToast(null), dur);
     }, []);
 
-    const ToastUI = toast ? (
+    const ToastUI = toast && typeof document !== 'undefined' ? createPortal(
         <div style={{
             position: 'fixed', bottom: 24, right: 24, zIndex: 200000,
             padding: '14px 22px', borderRadius: 12, fontWeight: 600, fontSize: '0.9rem',
@@ -29,7 +30,8 @@ export const useToast = () => {
             {toast.type === 'warning' && <AlertTriangle size={18} />}
             {toast.type === 'success' && <CheckCircle size={18} />}
             {toast.msg}
-        </div>
+        </div>,
+        document.body
     ) : null;
 
     return { showToast, ToastUI };
@@ -68,7 +70,9 @@ export const Modal = ({ title, icon, onClose, maxWidth = 520, children, footer }
         padding: '24px 20px',
     };
 
-    return (
+    if (typeof document === 'undefined') return null;
+
+    return createPortal(
         <div
             style={scrollableOverlay}
             onClick={(e) => { if (e.target === e.currentTarget && onClose) onClose(); }}
@@ -100,7 +104,8 @@ export const Modal = ({ title, icon, onClose, maxWidth = 520, children, footer }
                 )}
             </div>
             <div style={{ margin: 'auto' }} /> {/* Spacer inferior */}
-        </div>
+        </div>,
+        document.body
     );
 };
 
@@ -114,7 +119,9 @@ export const AlertModal = ({ title, message, type = 'info', onClose }) => {
     };
     const { icon, ring, bg, border } = cfg[type] || cfg.info;
 
-    return (
+    if (typeof document === 'undefined') return null;
+
+    return createPortal(
         <div style={overlayStyle}>
             <div style={{ ...modalStyle, border: `1.5px solid ${border}` }}>
                 <div style={{
@@ -133,7 +140,8 @@ export const AlertModal = ({ title, message, type = 'info', onClose }) => {
                     Aceptar
                 </button>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
@@ -147,7 +155,9 @@ export const ConfirmModal = ({ title, message, type = 'info', confirmLabel = 'Co
     };
     const { icon, bg, border, btnBg } = cfg[type] || cfg.info;
 
-    return (
+    if (typeof document === 'undefined') return null;
+
+    return createPortal(
         <div style={overlayStyle}>
             <div style={{ ...modalStyle, border: `1.5px solid ${border}` }}>
                 <div style={{
@@ -174,7 +184,8 @@ export const ConfirmModal = ({ title, message, type = 'info', confirmLabel = 'Co
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
