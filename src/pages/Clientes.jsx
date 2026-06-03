@@ -140,13 +140,7 @@ const Clientes = () => {
         setForm(prev => ({ ...prev, [key]: val }));
     };
 
-    const formFields = [
-        { key: 'nombre',    label: 'Nombre / Empresa *',      type: 'text',  icon: <Building2 size={13} /> },
-        { key: 'email',     label: 'Email',                   type: 'email', icon: <Mail      size={13} /> },
-        { key: 'telefono',  label: 'Telefono',                type: 'tel',   icon: <Phone     size={13} /> },
-        { key: 'nif',       label: 'NIF / CIF * (sin guion)', type: 'text',  icon: <FileText  size={13} /> },
-        { key: 'direccion', label: 'Direccion',               type: 'text',  icon: <MapPin    size={13} /> },
-    ];
+    const labelStyle = { fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.4px' };
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
@@ -336,28 +330,39 @@ const Clientes = () => {
                     }
                 >
                     <div style={{ display: 'grid', gap: '14px' }}>
-                        {formFields.map(({ key, label, type, icon }) => (
-                            <div key={key}>
-                                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                                    {icon} {label}
-                                </label>
-                                <input
-                                    type={type}
-                                    className="input"
-                                    value={form[key]}
-                                    onChange={setField(key)}
-                                    autoFocus={key === 'nombre'}
-                                    onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
-                                />
-                            </div>
-                        ))}
+                        {/* Nombre - fila completa */}
                         <div>
-                            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                                <StickyNote size={13} /> Notas internas
-                            </label>
+                            <label style={labelStyle}><Building2 size={13} /> Nombre / Empresa *</label>
+                            <input type="text" className="input" value={form.nombre} onChange={setField('nombre')} autoFocus onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
+                        </div>
+                        {/* Email | Telefono */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', minWidth: 0 }}>
+                            <div style={{ minWidth: 0 }}>
+                                <label style={labelStyle}><Mail size={13} /> Email</label>
+                                <input type="email" className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.email} onChange={setField('email')} onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                                <label style={labelStyle}><Phone size={13} /> Telefono</label>
+                                <input type="tel" className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.telefono} onChange={setField('telefono')} onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
+                            </div>
+                        </div>
+                        {/* NIF | Dirección */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', minWidth: 0 }}>
+                            <div style={{ minWidth: 0 }}>
+                                <label style={labelStyle}><FileText size={13} /> NIF / CIF * (sin guion)</label>
+                                <input type="text" className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.nif} onChange={setField('nif')} onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                                <label style={labelStyle}><MapPin size={13} /> Dirección</label>
+                                <input type="text" className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.direccion} onChange={setField('direccion')} onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
+                            </div>
+                        </div>
+                        {/* Notas - fila completa */}
+                        <div>
+                            <label style={labelStyle}><StickyNote size={13} /> Notas internas</label>
                             <textarea
                                 className="input"
-                                rows={3}
+                                rows={2}
                                 value={form.notas}
                                 onChange={setField('notas')}
                                 style={{ resize: 'vertical', fontFamily: 'inherit' }}

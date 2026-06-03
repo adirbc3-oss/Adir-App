@@ -45,6 +45,18 @@ export const Modal = ({ title, icon, onClose, maxWidth = 520, children, footer }
         return () => window.removeEventListener('keydown', onKey);
     }, [onClose]);
 
+    useEffect(() => {
+        const mainContent = document.querySelector('.main-content');
+        const prevBody = document.body.style.overflow;
+        const prevMain = mainContent ? mainContent.style.overflowY : '';
+        document.body.style.overflow = 'hidden';
+        if (mainContent) mainContent.style.overflowY = 'hidden';
+        return () => {
+            document.body.style.overflow = prevBody;
+            if (mainContent) mainContent.style.overflowY = prevMain;
+        };
+    }, []);
+
     // Overlay que hace scroll cuando el modal es más alto que el viewport.
     // margin:'auto' en el hijo lo centra cuando hay espacio, y lo ancla
     // arriba (sin recortar) cuando el contenido supera el alto de pantalla.
