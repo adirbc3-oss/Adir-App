@@ -332,40 +332,40 @@ const Clientes = () => {
                     <div style={{ display: 'grid', gap: '14px' }}>
                         {/* Nombre - fila completa */}
                         <div>
-                            <label style={labelStyle}><Building2 size={13} /> Nombre / Empresa *</label>
-                            <input type="text" className="input" value={form.nombre} onChange={setField('nombre')} autoFocus onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
+                            <label style={labelStyle}>Nombre / Empresa *</label>
+                            <input type="text" className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.nombre} onChange={setField('nombre')} autoFocus onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
                         </div>
                         {/* Email | Telefono */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', minWidth: 0 }}>
                             <div style={{ minWidth: 0 }}>
-                                <label style={labelStyle}><Mail size={13} /> Email</label>
+                                <label style={labelStyle}>Email</label>
                                 <input type="email" className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.email} onChange={setField('email')} onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
                             </div>
                             <div style={{ minWidth: 0 }}>
-                                <label style={labelStyle}><Phone size={13} /> Telefono</label>
+                                <label style={labelStyle}>Telefono</label>
                                 <input type="tel" className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.telefono} onChange={setField('telefono')} onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
                             </div>
                         </div>
                         {/* NIF | Dirección */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', minWidth: 0 }}>
                             <div style={{ minWidth: 0 }}>
-                                <label style={labelStyle}><FileText size={13} /> NIF / CIF * (sin guion)</label>
+                                <label style={labelStyle}>NIF / CIF * (sin guion)</label>
                                 <input type="text" className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.nif} onChange={setField('nif')} onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
                             </div>
                             <div style={{ minWidth: 0 }}>
-                                <label style={labelStyle}><MapPin size={13} /> Dirección</label>
+                                <label style={labelStyle}>Dirección</label>
                                 <input type="text" className="input" style={{ width: '100%', boxSizing: 'border-box' }} value={form.direccion} onChange={setField('direccion')} onKeyDown={e => { if (e.key === 'Enter') handleSave(); }} />
                             </div>
                         </div>
                         {/* Notas - fila completa */}
                         <div>
-                            <label style={labelStyle}><StickyNote size={13} /> Notas internas</label>
+                            <label style={labelStyle}>Notas internas</label>
                             <textarea
                                 className="input"
                                 rows={2}
                                 value={form.notas}
                                 onChange={setField('notas')}
-                                style={{ resize: 'vertical', fontFamily: 'inherit' }}
+                                style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }}
                                 placeholder="Observaciones, condiciones especiales..."
                             />
                         </div>

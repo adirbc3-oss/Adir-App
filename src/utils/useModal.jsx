@@ -58,12 +58,13 @@ export const Modal = ({ title, icon, onClose, maxWidth = 520, children, footer }
     }, []);
 
     // Overlay que hace scroll cuando el modal es más alto que el viewport.
-    // margin:'auto' en el hijo lo centra cuando hay espacio, y lo ancla
-    // arriba (sin recortar) cuando el contenido supera el alto de pantalla.
+    // Usamos flexDirection: 'column' y márgenes 'auto' en los extremos para centrar
+    // verticalmente sin recortar la parte superior cuando el contenido es muy alto.
     const scrollableOverlay = {
         ...overlayStyle,
-        alignItems: 'flex-start',   // nunca recortar por arriba
-        overflowY: 'auto',          // el overlay scrollea, no el modal
+        flexDirection: 'column',
+        alignItems: 'center',
+        overflowY: 'auto',
         padding: '24px 20px',
     };
 
@@ -72,9 +73,10 @@ export const Modal = ({ title, icon, onClose, maxWidth = 520, children, footer }
             style={scrollableOverlay}
             onClick={(e) => { if (e.target === e.currentTarget && onClose) onClose(); }}
         >
+            <div style={{ margin: 'auto' }} /> {/* Spacer superior */}
             <div
                 className="glass-card animate-fade-in"
-                style={{ width: '100%', maxWidth, margin: 'auto', textAlign: 'left', flexShrink: 0 }}
+                style={{ width: '100%', maxWidth, textAlign: 'left', flexShrink: 0 }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {(title || icon) && (
@@ -97,6 +99,7 @@ export const Modal = ({ title, icon, onClose, maxWidth = 520, children, footer }
                     </div>
                 )}
             </div>
+            <div style={{ margin: 'auto' }} /> {/* Spacer inferior */}
         </div>
     );
 };
